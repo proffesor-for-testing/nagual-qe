@@ -24,7 +24,7 @@ rusqlite = { version = "0.32", features = ["bundled-sqlcipher", "blob", "functio
 # ort pinned at rc.11: rc.12 removed the `ort::tensor` module that the
 # embedder uses. Track the migration before bumping.
 ort = { version = "=2.0.0-rc.11", features = ["load-dynamic"], optional = true }
-ndarray = "0.15"
+ndarray = "0.17"
 tokenizers = { version = "0.22", optional = true }
 instant-distance = "0.6"
 sha3 = "0.11"
