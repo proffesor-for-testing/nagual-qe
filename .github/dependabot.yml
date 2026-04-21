@@ -1,0 +1,37 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # Bundle routine patch/minor updates into one PR per week.
+      patches:
+        applies-to: version-updates
+        update-types: [patch, minor]
+      # Security fixes go through individually so we can review them
+      # on their own and merge fast.
+      security:
+        applies-to: security-updates
+        update-types: [patch, minor, major]
+    ignore:
+      # Pinned for now — migrating call-sites to rand 0.9 APIs is a
+      # tracked cleanup (13 breaking usages across the tree).
+      - dependency-name: rand
+        versions: [">=0.9"]
+      # Pinned at rc.11 — rc.12 dropped `ort::tensor` and breaks the
+      # embedder. Unpin after migrating.
+      - dependency-name: ort
+        versions: [">=2.0.0-rc.12"]
+      # ratatui 0.26 → 0.30 was a major rev; we upgraded. Hold the
+      # line on further majors until we have bandwidth to re-test.
+      - dependency-name: ratatui
+        update-types: [version-update:semver-major]
+      - dependency-name: crossterm
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

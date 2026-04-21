@@ -21,7 +21,9 @@ sqlx = { version = "0.8.3", default-features = false, features = ["runtime-tokio
 rusqlite = { version = "0.32", features = ["bundled-sqlcipher", "blob", "functions"] }
 
 # Embeddings & ML
-ort = { version = "2.0.0-rc.11", features = ["load-dynamic"], optional = true }
+# ort pinned at rc.11: rc.12 removed the `ort::tensor` module that the
+# embedder uses. Track the migration before bumping.
+ort = { version = "=2.0.0-rc.11", features = ["load-dynamic"], optional = true }
 ndarray = "0.15"
 tokenizers = { version = "0.15", optional = true }
 instant-distance = "0.6"
@@ -89,8 +91,8 @@ libc = "0.2"
 notify-rust = "4"
 
 # TUI (optional)
-ratatui = { version = "0.26", optional = true }
-crossterm = { version = "0.27", optional = true }
+ratatui = { version = "0.30", optional = true }
+crossterm = { version = "0.29", optional = true }
 
 # Serve / Dashboard (optional)
 axum = { version = "0.7", optional = true, features = ["ws", "macros"] }
