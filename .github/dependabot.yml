@@ -30,6 +30,11 @@ updates:
         update-types: [version-update:semver-major]
       - dependency-name: crossterm
         update-types: [version-update:semver-major]
+      # reqwest 0.11 → 0.13 is a double-major bump with breaking API
+      # changes across cloud/, serve/, sync/gcloud.rs. Unpin once the
+      # call-sites are migrated.
+      - dependency-name: reqwest
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: "/"
