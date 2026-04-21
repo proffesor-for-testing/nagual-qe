@@ -112,7 +112,6 @@ impl IntoResponse for AuthError {
 /// against the master token first (constant-time), then the key store.
 pub struct RequireAuth(pub AuthIdentity);
 
-#[axum::async_trait]
 impl FromRequestParts<AppState> for RequireAuth {
     type Rejection = AuthError;
 
@@ -208,7 +207,6 @@ impl FromRequestParts<AppState> for RequireAuth {
 /// Delegates to `RequireAuth` then verifies the `write` scope.
 pub struct RequireWrite(pub AuthIdentity);
 
-#[axum::async_trait]
 impl FromRequestParts<AppState> for RequireWrite {
     type Rejection = AuthError;
 

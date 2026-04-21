@@ -32,6 +32,9 @@ jobs:
       - name: cargo check
         run: cargo check --no-default-features --features kos --all-targets
 
+      - name: cargo check (with serve)
+        run: cargo check --no-default-features --features "kos serve" --all-targets
+
       - name: cargo test --lib
         env:
           RUST_LOG: warn
