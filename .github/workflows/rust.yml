@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ─── Fast feedback on every push ──────────────────────────────────
+  # Builds without ONNX so CI stays lean and isn't blocked on
+  # ONNX Runtime availability. The hash embedder path is fully
+  # exercised by the unit tests.
+  check:
+    name: check + test (no ONNX)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ci-check-no-onnx
+
+      - name: cargo check
+        run: cargo check --no-default-features --features kos --all-targets
+
+      - name: cargo test --lib
+        env:
+          RUST_LOG: warn
+        run: cargo test --no-default-features --features kos --lib
+
+  # ─── Full check with ONNX (PR-only, slower) ───────────────────────
+  # Installs ONNX Runtime on the runner and exercises the onnx-embed
+  # feature path. Split from `check` so contributors get fast feedback
+  # on most changes.
+  check-onnx:
+    name: check + test (with ONNX)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ci-check-onnx
+
+      - name: Install ONNX Runtime (linux x86_64)
+        run: |
+          ORT_VER=1.17.0
+          cd /tmp
+          wget -q "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VER}/onnxruntime-linux-x64-${ORT_VER}.tgz"
+          tar xf "onnxruntime-linux-x64-${ORT_VER}.tgz"
+          sudo cp onnxruntime-linux-x64-${ORT_VER}/lib/libonnxruntime.so* /usr/lib/
+          sudo ldconfig
+          echo "ORT_DYLIB_PATH=/usr/lib/libonnxruntime.so" >> "$GITHUB_ENV"
+
+      - name: cargo check (default features)
+        run: cargo check --all-targets
+
+      - name: cargo test --lib (default features)
+        env:
+          RUST_LOG: warn
+        run: cargo test --lib
+
+  # ─── WASM subcrate compiles ───────────────────────────────────────
+  wasm:
+    name: nagual-wasm check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: nagual-wasm
+          key: ci-wasm
+
+      - name: cargo check (wasm)
+        working-directory: nagual-wasm
+        run: cargo check --target wasm32-unknown-unknown
+
+  # ─── Advisory: rustfmt + clippy (don't block merges yet) ──────────
+  # Runs but does NOT fail the build — upstream has format/clippy debt
+  # that will be cleaned up incrementally. Flip `continue-on-error: false`
+  # once the baseline is green.
+  lint:
+    name: fmt + clippy (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ci-lint
+
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+
+      - name: clippy
+        run: cargo clippy --no-default-features --features kos --all-targets -- -W clippy::all

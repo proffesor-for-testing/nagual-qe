@@ -1,5 +1,9 @@
 # Nagual-QE
 
+[![CI](https://github.com/proffesor-for-testing/nagual-qe/actions/workflows/rust.yml/badge.svg)](https://github.com/proffesor-for-testing/nagual-qe/actions/workflows/rust.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Rust 1.75+](https://img.shields.io/badge/rust-1.75%2B-orange)](https://www.rust-lang.org)
+
 **A Rust-native self-learning knowledge system for Quality Engineering.**
 
 Nagual-QE stores every pattern, test insight, and decision you encounter,
@@ -54,6 +58,42 @@ fleet, or stand it up on its own.
 | MinCut graph clustering | `mincut` | opt-in |
 | Cross-domain transfer learning | `domain-expansion` | opt-in |
 | Meta-cognitive self-critique | `strange-loop-meta` | opt-in |
+
+---
+
+## What it looks like
+
+```console
+$ nagual knowledge store "Flaky async test caused by race in setup fixture" \
+    --solution "Add explicit await on the shared fixture. The fixture runs in a
+                tokio::spawn and the test starts before it completes ~5% of
+                the time. Using an Arc<Notify> fixes this." \
+    --domain "qe.flaky" --tags "async,race-condition,tokio"
+  stored pattern 7a9f3b1c (domain=qe.flaky, reward=0.500, tier=booster)
+
+$ nagual knowledge search "flaky async"
+  1. qe.flaky  score=0.84  Flaky async test caused by race in setup fixture
+     Add explicit await on the shared fixture. The fixture runs in a
+     tokio::spawn and the test starts before it completes ~5% of the time.
+     Using an Arc<Notify> fixes this.
+
+$ nagual learn record 7a9f3b1c success --feedback "Worked on CI too"
+  recorded outcome — bayesian_score: Beta(2.0, 1.0) → mean 0.667 (1 trial)
+
+$ nagual status
+  Patterns:       515 (seed) + 3 (local)    Avg reward: 0.547
+  Embeddings:     518 / 518 (onnx)          DB size:    1.6 MB
+  Drift (7d):     +0.02                     Sessions:   1 active
+  Constitution:   enforce (audit)           Tier:       booster 3, reflex 0
+```
+
+**Reproduce it**: `bash scripts/demo.sh` (drops a temp DB so your real store
+stays untouched). Or record your own session:
+
+```bash
+brew install asciinema
+asciinema rec demo.cast -c 'bash scripts/demo.sh'
+```
 
 ---
 
