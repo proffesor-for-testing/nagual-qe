@@ -27,7 +27,7 @@ ort = { version = "=2.0.0-rc.11", features = ["load-dynamic"], optional = true }
 ndarray = "0.15"
 tokenizers = { version = "0.15", optional = true }
 instant-distance = "0.6"
-sha3 = "0.10"
+sha3 = "0.11"
 
 # Meta-cognitive self-critique (Hofstadter-inspired strange loops)
 strange-loop = { version = "0.3", optional = true }
