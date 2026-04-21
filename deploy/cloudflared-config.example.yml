@@ -1,0 +1,20 @@
+# Cloudflare Tunnel — EXAMPLE configuration.
+# Copy to /etc/cloudflared/config.yml and replace the placeholders.
+#
+# Before using this file:
+#   1. Install cloudflared (see deploy/setup-vm.sh).
+#   2. cloudflared tunnel login              # browser auth
+#   3. cloudflared tunnel create nagual      # records TUNNEL_ID + creds.json
+#   4. Copy creds file to /etc/cloudflared/credentials.json (mode 0600)
+#   5. Add a DNS CNAME: nagual.YOURDOMAIN.com → <TUNNEL_ID>.cfargotunnel.com
+#   6. sudo systemctl enable --now cloudflared
+
+tunnel: REPLACE_WITH_YOUR_TUNNEL_ID
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  # Public hostname → local nagual serve port (3333 by default)
+  - hostname: nagual.YOURDOMAIN.com
+    service: http://localhost:3333
+  # Catch-all (required, must be last)
+  - service: http_status:404

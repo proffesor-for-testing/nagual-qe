@@ -1,0 +1,37 @@
+# Nagual Configuration
+# Copy to ~/.nagual/config.toml for system-wide use
+
+[database]
+sqlite_path = "./nagual.db"
+# postgres_url = "postgresql://user:pass@localhost:5432/nagual"
+
+[sync]
+enabled = true
+mode = "gcloud"       # "gcloud" | "local" | "disabled"
+interval_minutes = 30
+auto_backup = true
+
+[sync.gcloud]
+# Set these to your own GCS bucket + GCP project before enabling sync.
+bucket = "your-bucket-name"
+project = "your-gcp-project-id"
+prefix = "nagual-sync"
+# Uncomment for CMEK encryption (replace placeholders with your KMS key path):
+# kms_key = "projects/YOUR_PROJECT/locations/us-central1/keyRings/YOUR_KEYRING/cryptoKeys/YOUR_KEY"
+
+[sync.backup]
+directory = "./backups"
+compression_level = 6
+max_backups = 10       # Keep last N backups locally
+
+[learning]
+consolidation_interval_hours = 6
+high_reward_threshold = 0.8
+low_reward_threshold = 0.4
+max_recommendations = 20
+
+[search]
+hnsw_m = 24
+hnsw_ef_construction = 200
+hnsw_ef_search = 200
+max_results = 20

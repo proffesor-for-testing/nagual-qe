@@ -1,0 +1,77 @@
+[package]
+name = "nagual-wasm"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "WASM runtime for ProfDAG pattern search in browser/edge environments"
+authors = ["Nagual-QE contributors"]
+license = "MIT"
+repository = "https://github.com/proffesor-for-testing/nagual-qe"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["console_error_panic_hook"]
+
+[dependencies]
+# WASM bindings
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+
+# JavaScript interop
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "console",
+    "Window",
+    "Document",
+    "DomException",
+    "DomStringList",
+    "Event",
+    "EventTarget",
+    "IdbDatabase",
+    "IdbFactory",
+    "IdbIndex",
+    "IdbObjectStore",
+    "IdbObjectStoreParameters",
+    "IdbRequest",
+    "IdbTransaction",
+    "IdbTransactionMode",
+    "IdbOpenDbRequest",
+    "IdbVersionChangeEvent",
+    "IdbCursor",
+    "IdbCursorWithValue",
+    "IdbKeyRange",
+    "Performance",
+] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde-wasm-bindgen = "0.6"
+
+# Utilities
+uuid = { version = "1", features = ["v4", "js"] }
+chrono = { version = "0.4", features = ["serde", "wasmbind"] }
+
+# Better error messages in wasm
+console_error_panic_hook = { version = "0.1", optional = true }
+
+# Logging for wasm
+log = "0.4"
+wasm-logger = "0.2"
+
+# Async support
+futures = "0.3"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[profile.release]
+# Optimize for small code size
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+# Enable debug info for profiling
+debug = false

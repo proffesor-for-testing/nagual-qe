@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProfDAG WASM Demo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        h1 {
+            color: #1a1a2e;
+            border-bottom: 2px solid #4a69bd;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #4a69bd;
+            margin-top: 30px;
+        }
+
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.ready {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        textarea {
+            min-height: 100px;
+            font-family: monospace;
+        }
+
+        button {
+            background: #4a69bd;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            background: #3d5aa9;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        button.secondary:hover {
+            background: #5a6268;
+        }
+
+        button.danger {
+            background: #dc3545;
+        }
+
+        button.danger:hover {
+            background: #c82333;
+        }
+
+        .results {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            background: #f9f9f9;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .result-item {
+            background: white;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border-left: 3px solid #4a69bd;
+        }
+
+        .result-item .similarity {
+            font-size: 12px;
+            color: #666;
+            float: right;
+        }
+
+        .result-item .content {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .result-item .meta {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #4a69bd, #3d5aa9);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .stat-card .label {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        pre {
+            background: #1a1a2e;
+            color: #00d9ff;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+
+        .log-entry {
+            font-family: monospace;
+            font-size: 12px;
+            padding: 2px 0;
+        }
+
+        .log-entry.info { color: #17a2b8; }
+        .log-entry.success { color: #28a745; }
+        .log-entry.error { color: #dc3545; }
+        .log-entry.timing { color: #ffc107; }
+    </style>
+</head>
+<body>
+    <h1>ProfDAG WASM Demo</h1>
+
+    <div id="status" class="status loading">Loading WASM module...</div>
+
+    <div class="stats" id="stats">
+        <div class="stat-card">
+            <div class="value" id="stat-patterns">0</div>
+            <div class="label">Patterns</div>
+        </div>
+        <div class="stat-card">
+            <div class="value" id="stat-dimension">128</div>
+            <div class="label">Dimensions</div>
+        </div>
+        <div class="stat-card">
+            <div class="value" id="stat-storage">-</div>
+            <div class="label">IndexedDB</div>
+        </div>
+        <div class="stat-card">
+            <div class="value" id="stat-version">-</div>
+            <div class="label">Version</div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div>
+            <div class="container">
+                <h2>Add Pattern</h2>
+                <label for="pattern-id">Pattern ID (optional)</label>
+                <input type="text" id="pattern-id" placeholder="Leave empty for auto-generated UUID">
+
+                <label for="pattern-content">Content</label>
+                <textarea id="pattern-content" placeholder="Describe the pattern..."></textarea>
+
+                <label for="pattern-type">Type</label>
+                <select id="pattern-type">
+                    <option value="pattern">Pattern</option>
+                    <option value="trajectory">Trajectory</option>
+                    <option value="prediction">Prediction</option>
+                    <option value="decision">Decision</option>
+                </select>
+
+                <label for="pattern-confidence">Confidence</label>
+                <input type="range" id="pattern-confidence" min="0" max="100" value="50">
+                <span id="confidence-value">0.50</span>
+
+                <button onclick="addPattern()">Add Pattern</button>
+                <button class="secondary" onclick="addRandomPatterns(10)">Add 10 Random</button>
+                <button class="secondary" onclick="addRandomPatterns(100)">Add 100 Random</button>
+            </div>
+
+            <div class="container">
+                <h2>Search Patterns</h2>
+                <label for="search-query">Search Query (text to find similar patterns)</label>
+                <textarea id="search-query" placeholder="Enter search query..."></textarea>
+
+                <label for="top-k">Top K Results</label>
+                <input type="number" id="top-k" value="5" min="1" max="50">
+
+                <button onclick="searchPatterns()">Search</button>
+                <button class="secondary" onclick="searchRandom()">Random Search</button>
+
+                <div id="search-results" class="results" style="display: none;">
+                    <h3>Results</h3>
+                    <div id="results-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="container">
+                <h2>Import / Export</h2>
+                <button onclick="exportPatterns()">Export JSON</button>
+                <button onclick="downloadExport()">Download JSON</button>
+                <button class="secondary" onclick="document.getElementById('import-file').click()">Import File</button>
+                <input type="file" id="import-file" accept=".json" style="display: none;" onchange="importFile(event)">
+
+                <label for="export-data" style="margin-top: 15px;">JSON Data</label>
+                <textarea id="export-data" placeholder="Exported data will appear here..."></textarea>
+
+                <button onclick="importPatterns()">Import from Textarea</button>
+            </div>
+
+            <div class="container">
+                <h2>IndexedDB Persistence</h2>
+                <button onclick="saveToIndexedDB()">Save to IndexedDB</button>
+                <button onclick="loadFromIndexedDB()">Load from IndexedDB</button>
+                <button class="danger" onclick="clearIndexedDB()">Clear IndexedDB</button>
+            </div>
+
+            <div class="container">
+                <h2>Actions</h2>
+                <button class="danger" onclick="clearAll()">Clear All Patterns</button>
+                <button class="secondary" onclick="refreshStats()">Refresh Stats</button>
+            </div>
+
+            <div class="container">
+                <h2>Log</h2>
+                <div id="log" class="results" style="max-height: 200px;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the WASM module
+        // Note: In production, this would be the built pkg path
+        let wasm;
+        let profdag;
+
+        // Simulated embedding generator (in production, use a real embedder)
+        function generateMockEmbedding(text, dim = 128) {
+            // Simple hash-based mock embedding for demo
+            let hash = 0;
+            for (let i = 0; i < text.length; i++) {
+                hash = ((hash << 5) - hash) + text.charCodeAt(i);
+                hash = hash & hash;
+            }
+
+            const embedding = new Float32Array(dim);
+            const seed = Math.abs(hash);
+
+            for (let i = 0; i < dim; i++) {
+                // Use a simple pseudo-random generator seeded by hash
+                const x = Math.sin(seed * (i + 1)) * 10000;
+                embedding[i] = x - Math.floor(x) * 2 - 1;
+            }
+
+            // Normalize
+            let norm = 0;
+            for (let i = 0; i < dim; i++) {
+                norm += embedding[i] * embedding[i];
+            }
+            norm = Math.sqrt(norm);
+            if (norm > 0.0001) {
+                for (let i = 0; i < dim; i++) {
+                    embedding[i] /= norm;
+                }
+            }
+
+            return Array.from(embedding);
+        }
+
+        // Initialize
+        async function init() {
+            try {
+                // In a real setup, import the WASM package
+                // For demo, we'll create a mock implementation
+                log('Initializing WASM module...', 'info');
+
+                // Mock ProfDAG for demo without WASM
+                profdag = {
+                    patterns: [],
+                    config: { embedding_dim: 128 },
+
+                    add_pattern(id, content, embedding) {
+                        this.patterns.push({ id, content, embedding, pattern_type: 'pattern', confidence: 0.5 });
+                    },
+
+                    add_pattern_full(pattern) {
+                        this.patterns.push(pattern);
+                    },
+
+                    search(query_embedding, top_k) {
+                        // Cosine similarity search
+                        const results = this.patterns.map(p => {
+                            let dot = 0;
+                            for (let i = 0; i < query_embedding.length; i++) {
+                                dot += query_embedding[i] * p.embedding[i];
+                            }
+                            return { ...p, similarity: dot };
+                        });
+
+                        results.sort((a, b) => b.similarity - a.similarity);
+                        return results.slice(0, top_k);
+                    },
+
+                    pattern_count() { return this.patterns.length; },
+                    is_empty() { return this.patterns.length === 0; },
+                    clear() { this.patterns = []; },
+
+                    export_json() { return JSON.stringify(this.patterns, null, 2); },
+                    import_json(json) {
+                        const imported = JSON.parse(json);
+                        this.patterns.push(...imported);
+                        return imported.length;
+                    },
+
+                    get_stats() {
+                        return {
+                            pattern_count: this.patterns.length,
+                            embedding_dim: this.config.embedding_dim
+                        };
+                    }
+                };
+
+                updateStatus('WASM module ready (demo mode)', 'ready');
+                log('Module initialized successfully', 'success');
+
+                // Update version
+                document.getElementById('stat-version').textContent = '0.1.0';
+
+                // Check IndexedDB
+                if ('indexedDB' in window) {
+                    document.getElementById('stat-storage').textContent = 'Available';
+                } else {
+                    document.getElementById('stat-storage').textContent = 'N/A';
+                }
+
+                refreshStats();
+
+            } catch (err) {
+                updateStatus(`Error: ${err.message}`, 'error');
+                log(`Initialization error: ${err.message}`, 'error');
+            }
+        }
+
+        function updateStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.insertBefore(entry, logDiv.firstChild);
+
+            // Keep only last 50 entries
+            while (logDiv.children.length > 50) {
+                logDiv.removeChild(logDiv.lastChild);
+            }
+        }
+
+        function refreshStats() {
+            if (!profdag) return;
+
+            const stats = profdag.get_stats();
+            document.getElementById('stat-patterns').textContent = stats.pattern_count;
+            document.getElementById('stat-dimension').textContent = stats.embedding_dim;
+        }
+
+        // Expose functions to window for onclick handlers
+        window.addPattern = function() {
+            if (!profdag) return;
+
+            const id = document.getElementById('pattern-id').value || crypto.randomUUID();
+            const content = document.getElementById('pattern-content').value;
+            const patternType = document.getElementById('pattern-type').value;
+            const confidence = parseInt(document.getElementById('pattern-confidence').value) / 100;
+
+            if (!content) {
+                log('Please enter pattern content', 'error');
+                return;
+            }
+
+            const start = performance.now();
+            const embedding = generateMockEmbedding(content);
+
+            const pattern = {
+                id,
+                content,
+                embedding,
+                pattern_type: patternType,
+                confidence,
+                metadata: {},
+                created_at: new Date().toISOString()
+            };
+
+            profdag.add_pattern_full(pattern);
+
+            const elapsed = performance.now() - start;
+            log(`Added pattern "${id}" in ${elapsed.toFixed(2)}ms`, 'success');
+
+            // Clear inputs
+            document.getElementById('pattern-id').value = '';
+            document.getElementById('pattern-content').value = '';
+
+            refreshStats();
+        };
+
+        window.addRandomPatterns = function(count) {
+            if (!profdag) return;
+
+            const topics = [
+                'error handling', 'database optimization', 'API design',
+                'authentication', 'caching strategy', 'logging best practices',
+                'testing patterns', 'deployment automation', 'monitoring',
+                'performance tuning', 'security hardening', 'code review'
+            ];
+
+            const start = performance.now();
+
+            for (let i = 0; i < count; i++) {
+                const topic = topics[Math.floor(Math.random() * topics.length)];
+                const content = `${topic} - pattern ${i + 1}: How to implement ${topic} effectively`;
+                const embedding = generateMockEmbedding(content);
+
+                profdag.add_pattern(crypto.randomUUID(), content, embedding);
+            }
+
+            const elapsed = performance.now() - start;
+            log(`Added ${count} patterns in ${elapsed.toFixed(2)}ms (${(elapsed/count).toFixed(2)}ms/pattern)`, 'timing');
+
+            refreshStats();
+        };
+
+        window.searchPatterns = function() {
+            if (!profdag) return;
+
+            const query = document.getElementById('search-query').value;
+            const topK = parseInt(document.getElementById('top-k').value);
+
+            if (!query) {
+                log('Please enter a search query', 'error');
+                return;
+            }
+
+            const start = performance.now();
+            const queryEmbedding = generateMockEmbedding(query);
+            const results = profdag.search(queryEmbedding, topK);
+            const elapsed = performance.now() - start;
+
+            displayResults(results);
+            log(`Search completed in ${elapsed.toFixed(2)}ms, found ${results.length} results`, 'timing');
+        };
+
+        window.searchRandom = function() {
+            if (!profdag) return;
+
+            const topK = parseInt(document.getElementById('top-k').value);
+
+            const start = performance.now();
+            const queryEmbedding = generateMockEmbedding(`random-${Math.random()}`);
+            const results = profdag.search(queryEmbedding, topK);
+            const elapsed = performance.now() - start;
+
+            displayResults(results);
+            log(`Random search completed in ${elapsed.toFixed(2)}ms`, 'timing');
+        };
+
+        function displayResults(results) {
+            const container = document.getElementById('search-results');
+            const list = document.getElementById('results-list');
+
+            container.style.display = 'block';
+            list.innerHTML = '';
+
+            if (results.length === 0) {
+                list.innerHTML = '<p>No results found</p>';
+                return;
+            }
+
+            results.forEach((r, i) => {
+                const item = document.createElement('div');
+                item.className = 'result-item';
+                item.innerHTML = `
+                    <span class="similarity">${(r.similarity * 100).toFixed(1)}%</span>
+                    <div class="content">${r.content}</div>
+                    <div class="meta">
+                        ID: ${r.id} | Type: ${r.pattern_type} | Confidence: ${(r.confidence * 100).toFixed(0)}%
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        window.exportPatterns = function() {
+            if (!profdag) return;
+
+            const json = profdag.export_json();
+            document.getElementById('export-data').value = json;
+            log(`Exported ${profdag.pattern_count()} patterns`, 'success');
+        };
+
+        window.downloadExport = function() {
+            if (!profdag) return;
+
+            const json = profdag.export_json();
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'profdag-patterns.json';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            log('Downloaded patterns JSON', 'success');
+        };
+
+        window.importPatterns = function() {
+            if (!profdag) return;
+
+            const json = document.getElementById('export-data').value;
+            if (!json) {
+                log('No JSON data to import', 'error');
+                return;
+            }
+
+            try {
+                const count = profdag.import_json(json);
+                log(`Imported ${count} patterns`, 'success');
+                refreshStats();
+            } catch (err) {
+                log(`Import error: ${err.message}`, 'error');
+            }
+        };
+
+        window.importFile = function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('export-data').value = e.target.result;
+                log(`Loaded file: ${file.name}`, 'info');
+            };
+            reader.readAsText(file);
+        };
+
+        window.clearAll = function() {
+            if (!profdag) return;
+
+            if (confirm('Are you sure you want to clear all patterns?')) {
+                profdag.clear();
+                log('Cleared all patterns', 'success');
+                refreshStats();
+            }
+        };
+
+        window.refreshStats = refreshStats;
+
+        // IndexedDB functions (simplified for demo)
+        let db = null;
+        const DB_NAME = 'nagual_profdag';
+        const STORE_NAME = 'patterns';
+
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 1);
+
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+                    }
+                };
+
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        window.saveToIndexedDB = async function() {
+            if (!profdag) return;
+
+            try {
+                const start = performance.now();
+                db = await openDB();
+
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+
+                const patterns = JSON.parse(profdag.export_json());
+                for (const pattern of patterns) {
+                    store.put(pattern);
+                }
+
+                await new Promise((resolve, reject) => {
+                    tx.oncomplete = resolve;
+                    tx.onerror = reject;
+                });
+
+                const elapsed = performance.now() - start;
+                log(`Saved ${patterns.length} patterns to IndexedDB in ${elapsed.toFixed(2)}ms`, 'success');
+
+            } catch (err) {
+                log(`IndexedDB save error: ${err.message}`, 'error');
+            }
+        };
+
+        window.loadFromIndexedDB = async function() {
+            if (!profdag) return;
+
+            try {
+                const start = performance.now();
+                db = await openDB();
+
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                const request = store.getAll();
+
+                const patterns = await new Promise((resolve, reject) => {
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = reject;
+                });
+
+                profdag.clear();
+                profdag.import_json(JSON.stringify(patterns));
+
+                const elapsed = performance.now() - start;
+                log(`Loaded ${patterns.length} patterns from IndexedDB in ${elapsed.toFixed(2)}ms`, 'success');
+                refreshStats();
+
+            } catch (err) {
+                log(`IndexedDB load error: ${err.message}`, 'error');
+            }
+        };
+
+        window.clearIndexedDB = async function() {
+            if (confirm('Are you sure you want to clear IndexedDB?')) {
+                try {
+                    db = await openDB();
+
+                    const tx = db.transaction(STORE_NAME, 'readwrite');
+                    const store = tx.objectStore(STORE_NAME);
+                    store.clear();
+
+                    await new Promise((resolve, reject) => {
+                        tx.oncomplete = resolve;
+                        tx.onerror = reject;
+                    });
+
+                    log('Cleared IndexedDB', 'success');
+
+                } catch (err) {
+                    log(`IndexedDB clear error: ${err.message}`, 'error');
+                }
+            }
+        };
+
+        // Confidence slider
+        document.getElementById('pattern-confidence').addEventListener('input', function() {
+            document.getElementById('confidence-value').textContent = (this.value / 100).toFixed(2);
+        });
+
+        // Initialize
+        init();
+    </script>
+</body>
+</html>

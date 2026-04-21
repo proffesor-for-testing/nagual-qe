@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProfDAG Performance Dashboard</title>
+<style>
+  :root {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-card: #1c2128;
+    --border: #30363d;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --accent-blue: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-orange: #d29922;
+    --accent-red: #f85149;
+    --accent-purple: #bc8cff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.5;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .header h1 {
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .header-controls label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  .header-controls input[type="checkbox"] {
+    accent-color: var(--accent-blue);
+  }
+
+  .btn {
+    padding: 6px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .btn:hover { background: var(--bg-secondary); }
+  .btn-primary { background: #238636; border-color: #2ea043; }
+  .btn-primary:hover { background: #2ea043; }
+
+  .container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 20px 24px;
+  }
+
+  /* Summary Cards */
+  .summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  .card-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+
+  .card-value {
+    font-size: 28px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .card-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .val-green { color: var(--accent-green); }
+  .val-orange { color: var(--accent-orange); }
+  .val-red { color: var(--accent-red); }
+  .val-blue { color: var(--accent-blue); }
+
+  /* Section */
+  .section {
+    margin-bottom: 24px;
+  }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+  }
+
+  /* Chart */
+  .chart-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Table */
+  .table-wrapper {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    text-align: left;
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(88, 166, 255, 0.04); }
+
+  /* Badge */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .badge-high { background: rgba(248,81,73,0.15); color: var(--accent-red); }
+  .badge-medium { background: rgba(210,153,34,0.15); color: var(--accent-orange); }
+  .badge-low { background: rgba(63,185,80,0.15); color: var(--accent-green); }
+
+  /* Recommendations */
+  .rec-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+
+  .rec-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .rec-title { font-weight: 600; font-size: 14px; }
+  .rec-desc { font-size: 13px; color: var(--text-secondary); }
+
+  .rec-params {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .param-tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    background: rgba(88,166,255,0.1);
+    color: var(--accent-blue);
+    border-radius: 4px;
+    font-family: monospace;
+  }
+
+  /* Hot paths */
+  .hot-path-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .hot-path-item:last-child { border-bottom: none; }
+
+  .path-arrow { color: var(--text-muted); }
+  .path-freq { color: var(--accent-purple); font-weight: 600; min-width: 32px; text-align: right; }
+  .path-latency { color: var(--text-secondary); font-size: 12px; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .summary-cards { grid-template-columns: repeat(2, 1fr); }
+    .container { padding: 12px 16px; }
+  }
+
+  .status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+    background: var(--accent-green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .status-paused { background: var(--accent-orange); animation: none; }
+
+  #last-updated { font-size: 12px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>
+      <span class="status-indicator" id="statusDot"></span>
+      ProfDAG Performance Dashboard
+    </h1>
+    <div class="header-controls">
+      <span id="last-updated"></span>
+      <label>
+        <input type="checkbox" id="autoRefresh" checked>
+        Auto-refresh (5s)
+      </label>
+      <button class="btn btn-primary" id="refreshBtn">Refresh</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Summary Cards -->
+    <div class="summary-cards" id="summaryCards">
+      <div class="card">
+        <div class="card-label">Total Operations</div>
+        <div class="card-value val-blue" id="totalOps">--</div>
+        <div class="card-sub" id="opsPerSec">-- ops/s</div>
+      </div>
+      <div class="card">
+        <div class="card-label">P95 Latency (Search)</div>
+        <div class="card-value" id="p95Latency">--</div>
+        <div class="card-sub" id="p95Sub">target: 50ms</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Cache Hit Rate</div>
+        <div class="card-value" id="cacheHitRate">--</div>
+        <div class="card-sub" id="cacheSub"></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Wormhole Hit Rate</div>
+        <div class="card-value" id="wormholeHitRate">--</div>
+        <div class="card-sub" id="wormholeSub"></div>
+      </div>
+    </div>
+
+    <!-- Latency Chart -->
+    <div class="section">
+      <div class="section-title">Latency by Operation Type</div>
+      <div class="chart-container">
+        <canvas id="latencyChart" height="220"></canvas>
+      </div>
+    </div>
+
+    <!-- Operation Breakdown Table -->
+    <div class="section">
+      <div class="section-title">Operation Breakdown</div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Count</th>
+              <th>Min (us)</th>
+              <th>Avg (us)</th>
+              <th>P50 (us)</th>
+              <th>P95 (us)</th>
+              <th>P99 (us)</th>
+              <th>Max (us)</th>
+              <th>Success</th>
+            </tr>
+          </thead>
+          <tbody id="opTableBody">
+            <tr><td colspan="9" style="text-align:center; color:var(--text-muted);">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Slow Queries -->
+    <div class="section">
+      <div class="section-title">Slow Queries <span id="slowCount" style="font-size:13px;color:var(--text-secondary);"></span></div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Duration (us)</th>
+              <th>Success</th>
+              <th>Metadata</th>
+            </tr>
+          </thead>
+          <tbody id="slowTableBody">
+            <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No slow queries</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Recommendations -->
+    <div class="section">
+      <div class="section-title">Optimization Recommendations</div>
+      <div id="recommendationsContainer">
+        <div class="rec-item"><div class="rec-desc" style="color:var(--text-muted);">No recommendations yet</div></div>
+      </div>
+    </div>
+
+    <!-- Hot Paths -->
+    <div class="section">
+      <div class="section-title">Hot Paths</div>
+      <div class="card" id="hotPathsContainer">
+        <div style="color:var(--text-muted); font-size:13px;">No hot paths detected</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function() {
+  'use strict';
+
+  // Configuration
+  var REFRESH_INTERVAL = 5000;
+  var DATA_ENDPOINT = null; // Set to a URL string to fetch from a server.
+  var refreshTimer = null;
+
+  // DOM references
+  var autoRefreshCheckbox = document.getElementById('autoRefresh');
+  var refreshBtn = document.getElementById('refreshBtn');
+  var statusDot = document.getElementById('statusDot');
+  var lastUpdatedEl = document.getElementById('last-updated');
+
+  // -----------------------------------------------------------------------
+  // Data Loading
+  // -----------------------------------------------------------------------
+
+  function loadData() {
+    var data = null;
+
+    if (window.PROFDAG_DATA) {
+      data = typeof window.PROFDAG_DATA === 'string'
+        ? JSON.parse(window.PROFDAG_DATA)
+        : window.PROFDAG_DATA;
+      render(data);
+      return;
+    }
+
+    if (DATA_ENDPOINT) {
+      fetch(DATA_ENDPOINT)
+        .then(function(res) { return res.json(); })
+        .then(function(json) { render(json); })
+        .catch(function(err) { console.error('Failed to load data:', err); });
+      return;
+    }
+
+    // Demo data for standalone testing
+    render(getDemoData());
+  }
+
+  function getDemoData() {
+    return {
+      snapshot: {
+        total_operations: 14827,
+        by_type: {
+          Search: { count: 4200, min_us: 120, max_us: 82000, avg_us: 2350.5, p50_us: 1800, p95_us: 12500, p99_us: 42000, success_count: 4185, failure_count: 15 },
+          Traversal: { count: 3800, min_us: 50, max_us: 45000, avg_us: 1100.2, p50_us: 800, p95_us: 8200, p99_us: 25000, success_count: 3800, failure_count: 0 },
+          Routing: { count: 2100, min_us: 30, max_us: 15000, avg_us: 450.1, p50_us: 350, p95_us: 2100, p99_us: 8500, success_count: 2100, failure_count: 0 },
+          Injection: { count: 1800, min_us: 200, max_us: 95000, avg_us: 3200.8, p50_us: 2500, p95_us: 18000, p99_us: 55000, success_count: 1795, failure_count: 5 },
+          WormholeCreation: { count: 127, min_us: 500, max_us: 12000, avg_us: 2800.0, p50_us: 2500, p95_us: 8000, p99_us: 11000, success_count: 127, failure_count: 0 },
+          StorageRead: { count: 1800, min_us: 10, max_us: 25000, avg_us: 600.4, p50_us: 300, p95_us: 4500, p99_us: 15000, success_count: 1800, failure_count: 0 },
+          StorageWrite: { count: 1000, min_us: 100, max_us: 35000, avg_us: 1500.3, p50_us: 1000, p95_us: 9000, p99_us: 22000, success_count: 998, failure_count: 2 }
+        },
+        slow_query_count: 23,
+        wormhole_hit_rate: 0.42,
+        cache_hit_rate: 0.78,
+        uptime_secs: 3672
+      },
+      slow_queries: [
+        { op_type: 'Search', duration_us: 82000, success: false, metadata: { query_dim: '128', results: '0' } },
+        { op_type: 'Injection', duration_us: 95000, success: true, metadata: { provider: 'anthropic', patterns: '12', tokens: '3500' } },
+        { op_type: 'Search', duration_us: 71000, success: true, metadata: { query_dim: '128', results: '10' } },
+        { op_type: 'StorageWrite', duration_us: 55000, success: true, metadata: { table: 'profdag_nodes' } },
+        { op_type: 'Traversal', duration_us: 45000, success: true, metadata: { edges_visited: '120', wormholes_used: '0' } }
+      ],
+      recommendations: [
+        { id: 'hnsw-search-latency', category: 'HnswTuning', title: 'Reduce HNSW search latency', description: 'Search P95 is 12500us (target: 50000us). Current parameters are well-balanced.', impact: 'Medium', effort: 'Trivial', parameters: { hnsw_m: '24', ef_construction: '200', ef_search: '200' } },
+        { id: 'cache-low-hit-rate', category: 'CacheTuning', title: 'Increase cache hit rate', description: 'Cache hit rate is 78%. Consider LRU with larger capacity.', impact: 'Low', effort: 'Trivial', parameters: { cache_capacity: '5000', cache_ttl_secs: '300' } }
+      ],
+      hot_paths: [
+        { path: ['Search', 'Traversal'], frequency: 1820, avg_latency_us: 3450 },
+        { path: ['Search', 'Traversal', 'Routing'], frequency: 1205, avg_latency_us: 3900 },
+        { path: ['Routing', 'Injection'], frequency: 980, avg_latency_us: 3650 },
+        { path: ['StorageRead', 'Search'], frequency: 750, avg_latency_us: 2950 },
+        { path: ['Injection', 'StorageWrite'], frequency: 520, avg_latency_us: 4700 }
+      ]
+    };
+  }
+
+  // -----------------------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------------------
+
+  function render(data) {
+    var snap = data.snapshot || {};
+    var byType = snap.by_type || {};
+
+    // Summary cards
+    document.getElementById('totalOps').textContent = formatNumber(snap.total_operations || 0);
+    var uptime = snap.uptime_secs || 1;
+    document.getElementById('opsPerSec').textContent = (snap.total_operations / uptime).toFixed(1) + ' ops/s';
+
+    var searchStats = byType.Search || null;
+    if (searchStats) {
+      var p95ms = (searchStats.p95_us / 1000).toFixed(1);
+      document.getElementById('p95Latency').textContent = p95ms + 'ms';
+      var p95El = document.getElementById('p95Latency');
+      p95El.className = 'card-value ' + (searchStats.p95_us > 50000 ? 'val-red' : searchStats.p95_us > 25000 ? 'val-orange' : 'val-green');
+    }
+
+    var chr = snap.cache_hit_rate || 0;
+    document.getElementById('cacheHitRate').textContent = (chr * 100).toFixed(1) + '%';
+    document.getElementById('cacheHitRate').className = 'card-value ' + (chr >= 0.7 ? 'val-green' : chr >= 0.4 ? 'val-orange' : 'val-red');
+
+    var whr = snap.wormhole_hit_rate || 0;
+    document.getElementById('wormholeHitRate').textContent = (whr * 100).toFixed(1) + '%';
+    document.getElementById('wormholeHitRate').className = 'card-value ' + (whr >= 0.5 ? 'val-green' : whr >= 0.2 ? 'val-orange' : 'val-red');
+
+    // Latency chart
+    renderLatencyChart(byType);
+
+    // Operation table
+    renderOpTable(byType);
+
+    // Slow queries
+    renderSlowQueries(data.slow_queries || []);
+
+    // Recommendations
+    renderRecommendations(data.recommendations || []);
+
+    // Hot paths
+    renderHotPaths(data.hot_paths || []);
+
+    lastUpdatedEl.textContent = 'Updated: ' + new Date().toLocaleTimeString();
+  }
+
+  // -----------------------------------------------------------------------
+  // Latency Chart (Canvas)
+  // -----------------------------------------------------------------------
+
+  function renderLatencyChart(byType) {
+    var canvas = document.getElementById('latencyChart');
+    var ctx = canvas.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+
+    var types = Object.keys(byType).sort();
+    if (types.length === 0) return;
+
+    var w = canvas.parentElement.clientWidth - 32;
+    var h = 220;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.scale(dpr, dpr);
+
+    ctx.clearRect(0, 0, w, h);
+
+    var padLeft = 70;
+    var padBottom = 40;
+    var padTop = 10;
+    var padRight = 20;
+    var chartW = w - padLeft - padRight;
+    var chartH = h - padTop - padBottom;
+
+    var maxVal = 0;
+    types.forEach(function(t) { maxVal = Math.max(maxVal, byType[t].p95_us); });
+    if (maxVal === 0) maxVal = 1;
+
+    var barW = Math.min(40, (chartW / types.length) * 0.6);
+    var gap = (chartW - barW * types.length) / (types.length + 1);
+
+    // Y-axis gridlines
+    ctx.strokeStyle = '#30363d';
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '11px -apple-system, sans-serif';
+    ctx.textAlign = 'right';
+    var ySteps = 5;
+    for (var i = 0; i <= ySteps; i++) {
+      var yVal = (maxVal / ySteps) * i;
+      var yPos = padTop + chartH - (chartH * (yVal / maxVal));
+      ctx.beginPath();
+      ctx.moveTo(padLeft, yPos);
+      ctx.lineTo(w - padRight, yPos);
+      ctx.stroke();
+      ctx.fillText(formatUs(yVal), padLeft - 8, yPos + 4);
+    }
+
+    // Bars
+    var colors = {
+      Search: '#58a6ff',
+      Traversal: '#3fb950',
+      Routing: '#d29922',
+      Injection: '#bc8cff',
+      WormholeCreation: '#f778ba',
+      LightConeQuery: '#79c0ff',
+      TrajectoryRecord: '#56d364',
+      StorageRead: '#7ee787',
+      StorageWrite: '#ffa657'
+    };
+
+    types.forEach(function(t, idx) {
+      var stat = byType[t];
+      var x = padLeft + gap + idx * (barW + gap);
+
+      // P95 bar
+      var barH = (stat.p95_us / maxVal) * chartH;
+      var barColor = colors[t] || '#58a6ff';
+      ctx.fillStyle = barColor;
+      ctx.fillRect(x, padTop + chartH - barH, barW, barH);
+
+      // P50 line on bar
+      var p50H = (stat.p50_us / maxVal) * chartH;
+      ctx.strokeStyle = '#e6edf3';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, padTop + chartH - p50H);
+      ctx.lineTo(x + barW, padTop + chartH - p50H);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+
+      // Label
+      ctx.fillStyle = '#8b949e';
+      ctx.textAlign = 'center';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.save();
+      ctx.translate(x + barW / 2, h - 5);
+      ctx.rotate(-0.4);
+      ctx.fillText(t, 0, 0);
+      ctx.restore();
+    });
+
+    // Legend
+    ctx.font = '10px -apple-system, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#8b949e';
+    ctx.fillText('Bar = P95, Line = P50', padLeft, h - 2);
+  }
+
+  // -----------------------------------------------------------------------
+  // Operation Table
+  // -----------------------------------------------------------------------
+
+  function renderOpTable(byType) {
+    var tbody = document.getElementById('opTableBody');
+    var types = Object.keys(byType).sort();
+    if (types.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No data</td></tr>';
+      return;
+    }
+
+    var html = '';
+    types.forEach(function(t) {
+      var s = byType[t];
+      var succRate = s.count > 0 ? ((s.success_count / s.count) * 100).toFixed(1) : '0.0';
+      html += '<tr>'
+        + '<td><strong>' + t + '</strong></td>'
+        + '<td>' + formatNumber(s.count) + '</td>'
+        + '<td>' + formatNumber(s.min_us) + '</td>'
+        + '<td>' + formatNumber(Math.round(s.avg_us)) + '</td>'
+        + '<td>' + formatNumber(s.p50_us) + '</td>'
+        + '<td>' + formatNumber(s.p95_us) + '</td>'
+        + '<td>' + formatNumber(s.p99_us) + '</td>'
+        + '<td>' + formatNumber(s.max_us) + '</td>'
+        + '<td>' + succRate + '%</td>'
+        + '</tr>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  // -----------------------------------------------------------------------
+  // Slow Queries
+  // -----------------------------------------------------------------------
+
+  function renderSlowQueries(queries) {
+    var tbody = document.getElementById('slowTableBody');
+    document.getElementById('slowCount').textContent = '(' + queries.length + ')';
+
+    if (queries.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">No slow queries</td></tr>';
+      return;
+    }
+
+    var html = '';
+    queries.slice(0, 20).forEach(function(q) {
+      var metaStr = Object.keys(q.metadata || {}).map(function(k) { return k + '=' + q.metadata[k]; }).join(', ');
+      html += '<tr>'
+        + '<td>' + q.op_type + '</td>'
+        + '<td>' + formatNumber(q.duration_us) + '</td>'
+        + '<td>' + (q.success ? 'Yes' : '<span style="color:var(--accent-red)">No</span>') + '</td>'
+        + '<td style="font-size:12px;color:var(--text-secondary);">' + escapeHtml(metaStr) + '</td>'
+        + '</tr>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  // -----------------------------------------------------------------------
+  // Recommendations
+  // -----------------------------------------------------------------------
+
+  function renderRecommendations(recs) {
+    var container = document.getElementById('recommendationsContainer');
+    if (recs.length === 0) {
+      container.innerHTML = '<div class="rec-item"><div class="rec-desc" style="color:var(--text-muted);">No recommendations - all metrics within targets</div></div>';
+      return;
+    }
+
+    var html = '';
+    recs.forEach(function(r) {
+      var badgeClass = r.impact === 'High' ? 'badge-high' : r.impact === 'Medium' ? 'badge-medium' : 'badge-low';
+      html += '<div class="rec-item">'
+        + '<div class="rec-header">'
+        + '<span class="badge ' + badgeClass + '">' + r.impact + '</span>'
+        + '<span class="rec-title">' + escapeHtml(r.title) + '</span>'
+        + '</div>'
+        + '<div class="rec-desc">' + escapeHtml(r.description) + '</div>';
+
+      var params = r.parameters || {};
+      var keys = Object.keys(params);
+      if (keys.length > 0) {
+        html += '<div class="rec-params">';
+        keys.forEach(function(k) {
+          html += '<span class="param-tag">' + k + '=' + params[k] + '</span>';
+        });
+        html += '</div>';
+      }
+
+      html += '</div>';
+    });
+    container.innerHTML = html;
+  }
+
+  // -----------------------------------------------------------------------
+  // Hot Paths
+  // -----------------------------------------------------------------------
+
+  function renderHotPaths(paths) {
+    var container = document.getElementById('hotPathsContainer');
+    if (paths.length === 0) {
+      container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">No hot paths detected</div>';
+      return;
+    }
+
+    var html = '';
+    paths.forEach(function(hp) {
+      var pathStr = hp.path.map(function(p) { return '<strong>' + p + '</strong>'; }).join(' <span class="path-arrow">&rarr;</span> ');
+      html += '<div class="hot-path-item">'
+        + '<span class="path-freq">' + hp.frequency + 'x</span>'
+        + '<span>' + pathStr + '</span>'
+        + '<span class="path-latency">avg ' + formatUs(hp.avg_latency_us) + '</span>'
+        + '</div>';
+    });
+    container.innerHTML = html;
+  }
+
+  // -----------------------------------------------------------------------
+  // Helpers
+  // -----------------------------------------------------------------------
+
+  function formatNumber(n) {
+    if (n == null) return '--';
+    return n.toLocaleString('en-US');
+  }
+
+  function formatUs(us) {
+    if (us >= 1000000) return (us / 1000000).toFixed(1) + 's';
+    if (us >= 1000) return (us / 1000).toFixed(1) + 'ms';
+    return us + 'us';
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // -----------------------------------------------------------------------
+  // Event Handlers
+  // -----------------------------------------------------------------------
+
+  refreshBtn.addEventListener('click', function() { loadData(); });
+
+  autoRefreshCheckbox.addEventListener('change', function() {
+    if (autoRefreshCheckbox.checked) {
+      statusDot.classList.remove('status-paused');
+      startAutoRefresh();
+    } else {
+      statusDot.classList.add('status-paused');
+      stopAutoRefresh();
+    }
+  });
+
+  function startAutoRefresh() {
+    stopAutoRefresh();
+    refreshTimer = setInterval(loadData, REFRESH_INTERVAL);
+  }
+
+  function stopAutoRefresh() {
+    if (refreshTimer) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
+    }
+  }
+
+  // Handle window resize for chart redraw
+  var resizeTimeout;
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(function() { loadData(); }, 200);
+  });
+
+  // Initial load
+  loadData();
+  if (autoRefreshCheckbox.checked) {
+    startAutoRefresh();
+  }
+})();
+</script>
+</body>
+</html>

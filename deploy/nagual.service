@@ -1,0 +1,47 @@
+[Unit]
+Description=Nagual-QE Self-Learning Knowledge Service
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=nagual
+Group=nagual
+
+# ─── Paths (customize for your deployment) ─────────────────────────
+# WorkingDirectory should contain the nagual-qe repo checkout so the
+# binary can find scripts/, migrations/, and dashboard assets.
+WorkingDirectory=/data/nagual-qe
+
+# ─── Environment ───────────────────────────────────────────────────
+Environment=ORT_DYLIB_PATH=/usr/lib/libonnxruntime.so
+Environment=DATABASE_URL=postgres://nagual:CHANGE_ME@localhost:5432/nagual
+
+# Required secrets — create /etc/nagual/env (mode 0600) with:
+#   NAGUAL_API_TOKEN=<openssl rand -hex 32>
+#   NAGUAL_SESSION_SECRET=<openssl rand -hex 32>
+EnvironmentFile=-/etc/nagual/env
+
+# ─── Start command ─────────────────────────────────────────────────
+# Port 3333 is the default dashboard/API port. Change --port and the
+# downstream reverse proxy / tunnel config together.
+ExecStart=/usr/local/bin/nagual serve \
+    --port 3333 \
+    --db-path /data/nagual-qe/nagual.db \
+    --postgres-url ${DATABASE_URL}
+
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nagual
+
+# ─── Security hardening ────────────────────────────────────────────
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/data/nagual-qe
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

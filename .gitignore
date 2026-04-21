@@ -1,0 +1,69 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+Cargo.lock.orig
+
+# Databases (local only — never commit)
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.db.backup-*
+*.dlq.db
+*.dlq_conflicts.db
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Large / binary ONNX models — do not commit.
+# We keep fastgrnn_router.json (required at build time via include_str!)
+# and train_fastgrnn.py (training script), but NOT the compiled .onnx
+# models, because ONNX binaries bake source-tree paths into traceback
+# metadata which can leak the original author's directory layout.
+models/all-MiniLM-L6-v2.onnx
+models/*.onnx
+models/*.onnx.data
+models/tokenizer.json
+
+# Backups
+backups/
+*.backup-*
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Claude / agent runtime state
+.claude/
+.claude-flow/
+.swarm/
+.tmp/
+.agentic-qe/
+.aqe/
+
+# WASM build output
+nagual-wasm/pkg/
+nagual-wasm/target/
+
+# Local dashboards / tooling
+dashboard/node_modules/
+dashboard/dist/
+
+# Scratch + drafts
+*.draft.md
+draft-*.md
+*.scratch

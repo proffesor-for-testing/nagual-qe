@@ -1,0 +1,119 @@
+# Docker Compose configuration for Nagual with RuVector-Postgres
+# RuVector = pgvector + GNN self-learning + SONA optimization + hybrid search
+#
+# Usage:
+#   docker-compose up -d          # Start RuVector-Postgres in background
+#   docker-compose logs -f        # Follow logs
+#   docker-compose down           # Stop and remove containers
+#   docker-compose down -v        # Stop and remove containers + volumes
+
+services:
+  postgres:
+    image: ruvector-postgres:arm64
+    container_name: nagual-ruvector
+    restart: unless-stopped
+
+    # Environment configuration
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nagual}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_dev_only}
+      POSTGRES_DB: ${POSTGRES_DB:-nagual}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+
+    # Port mapping
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+    # Persistent storage
+    volumes:
+      - nagual_pgdata:/var/lib/postgresql/data
+      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/00_init.sql:ro
+      - ./migrations:/docker-entrypoint-initdb.d/migrations:ro
+
+    # Health check configuration
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nagual} -d ${POSTGRES_DB:-nagual}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Network configuration
+    networks:
+      - nagual-network
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # RuVector PostgreSQL configuration
+    command: >
+      postgres
+      -c max_connections=100
+      -c shared_buffers=256MB
+      -c effective_cache_size=768MB
+      -c maintenance_work_mem=128MB
+      -c work_mem=16MB
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c wal_buffers=16MB
+      -c max_wal_size=1GB
+      -c min_wal_size=80MB
+      -c checkpoint_completion_target=0.9
+      -c log_statement=ddl
+      -c log_min_duration_statement=1000
+      -c ssl=off
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: nagual-pgadmin
+    restart: unless-stopped
+    profiles:
+      - admin
+
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@nagual.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+
+    volumes:
+      - nagual_pgadmin:/var/lib/pgadmin
+
+    networks:
+      - nagual-network
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+# Named volumes for persistence
+volumes:
+  nagual_pgdata:
+    driver: local
+    name: nagual_pgdata
+  nagual_pgadmin:
+    driver: local
+    name: nagual_pgadmin
+
+# Network configuration
+networks:
+  nagual-network:
+    driver: bridge
+    name: nagual-network
