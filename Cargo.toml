@@ -60,7 +60,7 @@ blake3 = "1.5"
 walkdir = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
-hashbrown = { version = "0.14", features = ["serde"] }
+hashbrown = { version = "0.17", features = ["serde"] }
 # Pinned to 0.8 — migrating call-sites to rand 0.9 is a tracked
 # cleanup (13 API breakages across the codebase). The advisory
 # affecting 0.9.x (custom-logger unsoundness via rand::rng()) does

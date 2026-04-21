@@ -1790,8 +1790,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 dependencies = [
  "ahash",
- "allocator-api2",
- "serde",
 ]
 
 [[package]]
@@ -1825,6 +1823,8 @@ dependencies = [
  "allocator-api2",
  "equivalent",
  "foldhash 0.2.0",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -2486,15 +2486,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lru"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e0b564323a0fb6d54b864f625ae139de9612e27edb944dda37c109f05aac531"
-dependencies = [
- "hashbrown 0.17.0",
-]
-
-[[package]]
 name = "lzma-rust2"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2674,12 +2665,12 @@ dependencies = [
  "crossterm",
  "flate2",
  "futures-util",
- "hashbrown 0.14.5",
+ "hashbrown 0.17.0",
  "hex",
  "hostname",
  "instant-distance",
  "libc",
- "lru 0.17.0",
+ "lru",
  "ndarray 0.15.6",
  "notify-rust",
  "ort",
@@ -3646,7 +3637,7 @@ dependencies = [
  "indoc",
  "itertools 0.14.0",
  "kasuari",
- "lru 0.16.4",
+ "lru",
  "strum",
  "thiserror 2.0.18",
  "unicode-segmentation",
