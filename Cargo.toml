@@ -107,7 +107,7 @@ proptest = "1"
 tokio-test = "0.4"
 wiremock = "0.6"
 tempfile = "3"
-rand_chacha = "0.3"
+rand_chacha = "0.9"
 
 [features]
 default = ["kos", "onnx-embed"]
