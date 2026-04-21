@@ -14,7 +14,7 @@ categories = ["database", "development-tools::testing"]
 [dependencies]
 # Async runtime
 tokio = { version = "1", features = ["full"] }
-tokio-cron-scheduler = "0.9"
+tokio-cron-scheduler = "0.15"
 
 # Database
 sqlx = { version = "0.8.3", default-features = false, features = ["runtime-tokio", "postgres", "uuid", "chrono", "json", "derive"] }
