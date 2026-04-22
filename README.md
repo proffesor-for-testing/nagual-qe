@@ -15,8 +15,10 @@ their AI agents.
 > surrounding the island. The warrior's path is not to destroy the Tonal, but
 > to keep it lean so the Nagual can emerge."*
 
-See [NAGUAL_CONSTITUTION.md](NAGUAL_CONSTITUTION.md) for the eight principles
-the system operates by.
+New here? Read **[learn-nagual.md](learn-nagual.md)** — a layered,
+earned-recognition onboarding walkthrough that takes you from your first
+pattern to the Constitution in six steps. The full principles live in
+[NAGUAL_CONSTITUTION.md](NAGUAL_CONSTITUTION.md).
 
 ---
 
@@ -151,6 +153,7 @@ nagual serve --port 3333
 
 ## Documentation
 
+- [learn-nagual.md](learn-nagual.md) — **start here** — layered onboarding walkthrough
 - [docs/setup.md](docs/setup.md) — local installation (all platforms)
 - [docs/database-setup.md](docs/database-setup.md) — SQLite + optional PostgreSQL
 - [docs/gcloud-deploy.md](docs/gcloud-deploy.md) — production deployment on GCE
@@ -186,6 +189,26 @@ in [CHANGELOG.md](CHANGELOG.md).
 Issues and PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the local
 development loop, code style, and the test requirements we enforce before
 merging.
+
+---
+
+## Acknowledgements
+
+Nagual-QE stands on the work of three upstream projects:
+
+- **[RuVector](https://github.com/ruvnet/RuVector)** — the pgvector-compatible
+  PostgreSQL extension (GNN + SONA + hybrid search) that backs the optional
+  Postgres dual-write path. Nagual's `ruvector(128)` columns, cosine operator
+  class, and HNSW indexing all come from here.
+- **[Ruflo](https://github.com/ruvnet/ruflo)** — the agent workflow framework
+  whose memory primitives, hooks, and MCP tooling informed the shape of
+  Nagual's own hooks and swarm coordination.
+- **[agentic-qe](https://github.com/proffesor-for-testing/agentic-qe)** — the
+  sister QE fleet. Nagual-QE is designed to be the memory layer that an
+  agentic-qe swarm reads and writes through, and the two projects share a
+  common vocabulary for patterns, outcomes, and learning.
+
+Thanks to the authors and contributors of all three.
 
 ---
 
