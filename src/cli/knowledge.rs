@@ -28,7 +28,7 @@ use serde::Serialize;
 use super::common::{init_storage, resolve_postgres_url};
 use crate::constitution::{Constitution, Operation, OperationContext};
 use crate::db::{DualWriteAdapter, DualWriteConfig, PostgresDb, SqliteDb};
-use crate::error::Result;
+use crate::error::{NagualError, Result};
 use crate::events::{EventBus, NagualEvent};
 use crate::ml::to_array1;
 #[cfg(feature = "onnx-embed")]
@@ -36,7 +36,7 @@ use crate::ml::{Embedder, EmbedderConfig};
 #[cfg(not(feature = "onnx-embed"))]
 use crate::ml::HashEmbedder;
 use crate::ml::LoraStorage;
-use crate::reasoning_bank::pattern::{Pattern, PatternCategory, PatternId};
+use crate::reasoning_bank::pattern::{Pattern, PatternCategory, PatternId, PatternMetadata};
 use crate::reasoning_bank::storage::{PatternStorage, StorageConfig};
 use crate::reasoning_bank::{
     self as rb, retrieve_patterns_hyperbolic, staged_retrieve_patterns, HyperbolicRetrievalConfig,
@@ -101,6 +101,15 @@ pub enum KnowledgeSubcommand {
     /// Reads all patterns from the local SQLite database and upserts
     /// them into PostgreSQL for dual-write consistency.
     Sync(SyncArgs),
+
+    /// Import patterns from a JSONL seed file.
+    ///
+    /// Reads a JSONL file (one pattern per line) and stores each record
+    /// in the ReasoningBank. Patterns are marked with
+    /// `metadata.source = "seed"` for later filtering. Import is
+    /// idempotent on content hash — re-running with the same seed
+    /// skips records that already exist.
+    Import(ImportArgs),
 }
 
 /// Arguments for the store subcommand.
@@ -330,6 +339,34 @@ pub struct SyncArgs {
     pub json: bool,
 }
 
+/// Arguments for the import subcommand.
+#[derive(Args, Debug)]
+pub struct ImportArgs {
+    /// Path to the JSONL seed file (one pattern record per line).
+    #[arg(long, value_name = "FILE")]
+    pub seed: PathBuf,
+
+    /// Parse and validate the seed file without writing anything.
+    #[arg(long)]
+    pub dry_run: bool,
+
+    /// Prepend this string to every pattern's domain (e.g. "seed.").
+    #[arg(long, value_name = "PREFIX")]
+    pub domain_prefix: Option<String>,
+
+    /// Path to SQLite database.
+    #[arg(long, default_value = "./nagual.db")]
+    pub db_path: PathBuf,
+
+    /// PostgreSQL connection URL for dual-write.
+    #[arg(long, env = "DATABASE_URL")]
+    pub postgres_url: Option<String>,
+
+    /// Output results as JSON.
+    #[arg(long)]
+    pub json: bool,
+}
+
 impl KnowledgeCommand {
     /// Execute the knowledge command.
     pub async fn run(&self) -> Result<()> {
@@ -340,6 +377,7 @@ impl KnowledgeCommand {
             KnowledgeSubcommand::Delete(args) => run_delete(args).await,
             KnowledgeSubcommand::List(args) => run_list(args).await,
             KnowledgeSubcommand::Sync(args) => run_sync(args).await,
+            KnowledgeSubcommand::Import(args) => run_import(args).await,
         }
     }
 }
@@ -1178,6 +1216,185 @@ async fn run_sync(args: &SyncArgs) -> Result<()> {
     println!("  Synced: {}", synced);
     println!("  Errors: {}", errors);
     println!("{:=<60}\n", "");
+
+    Ok(())
+}
+
+// ─── import ────────────────────────────────────────────────────────
+
+/// One record in a seed JSONL file. Matches the schema produced by
+/// `scripts/export-seed.py`.
+#[derive(serde::Deserialize, Debug)]
+struct SeedRecord {
+    problem: String,
+    solution: String,
+    domain: String,
+    #[serde(default)]
+    context: String,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default = "default_seed_reward")]
+    reward: f32,
+    // Accepted but currently ignored — tier is derived from reward + reuse count
+    // at promotion time. Kept here for forward-compat with future exporters.
+    #[serde(default, rename = "tier")]
+    _tier: Option<String>,
+}
+
+fn default_seed_reward() -> f32 {
+    0.5
+}
+
+/// Run the import command.
+async fn run_import(args: &ImportArgs) -> Result<()> {
+    use std::io::BufRead;
+
+    // ── Parse JSONL ──────────────────────────────────────────────
+    let file = std::fs::File::open(&args.seed).map_err(|e| NagualError::Config {
+        message: format!("Cannot open seed file {}: {}", args.seed.display(), e),
+    })?;
+    let reader = std::io::BufReader::new(file);
+
+    let mut records: Vec<(usize, SeedRecord)> = Vec::new();
+    let mut parse_errors: Vec<(usize, String)> = Vec::new();
+
+    for (i, line_res) in reader.lines().enumerate() {
+        let line_no = i + 1;
+        let line = line_res.map_err(|e| NagualError::Config {
+            message: format!("Error reading line {}: {}", line_no, e),
+        })?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with("//") {
+            continue;
+        }
+        match serde_json::from_str::<SeedRecord>(trimmed) {
+            Ok(r) => records.push((line_no, r)),
+            Err(e) => parse_errors.push((line_no, e.to_string())),
+        }
+    }
+
+    let total_records = records.len();
+    let parse_error_count = parse_errors.len();
+
+    if !args.json {
+        println!("\nParsed {} records from {}", total_records, args.seed.display());
+        if parse_error_count > 0 {
+            eprintln!("\nParse errors ({}):", parse_error_count);
+            for (line, err) in parse_errors.iter().take(10) {
+                eprintln!("  line {}: {}", line, err);
+            }
+            if parse_error_count > 10 {
+                eprintln!("  ... and {} more", parse_error_count - 10);
+            }
+        }
+    }
+
+    // ── Dry run: stop here ───────────────────────────────────────
+    if args.dry_run {
+        if args.json {
+            let output = serde_json::json!({
+                "dry_run": true,
+                "total_records": total_records,
+                "parse_errors": parse_error_count,
+            });
+            println!("{}", serde_json::to_string_pretty(&output)?);
+        } else {
+            println!("\nDry run — no changes written.");
+            println!("  Would import: {} patterns", total_records);
+            if let Some(ref p) = args.domain_prefix {
+                println!("  Domain prefix: {:?}", p);
+            }
+        }
+        return Ok(());
+    }
+
+    // ── Load existing content hashes for idempotent import ──────
+    let storage = init_storage(&args.db_path, args.postgres_url.as_deref()).await?;
+    let existing_hashes: std::collections::HashSet<String> = {
+        let sql = "SELECT content_hash FROM reasoning_patterns \
+                   WHERE content_hash IS NOT NULL AND content_hash != ''";
+        let rows: Vec<String> = storage
+            .adapter()
+            .sqlite()
+            .query(sql, &[], |row| row.get::<_, String>(0))
+            .await
+            .unwrap_or_default();
+        rows.into_iter().collect()
+    };
+
+    // ── Import ───────────────────────────────────────────────────
+    let mut imported = 0;
+    let mut skipped_duplicate = 0;
+    let mut failed = 0;
+    let mut seen_this_run: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for (line_no, record) in records {
+        let domain = match &args.domain_prefix {
+            Some(p) => format!("{}{}", p, record.domain),
+            None => record.domain.clone(),
+        };
+
+        let mut pattern = Pattern::builder()
+            .problem(record.problem.clone())
+            .solution(record.solution.clone())
+            .category(PatternCategory::from(domain.as_str()))
+            .context(record.context.clone())
+            .reward(record.reward)
+            .tags(record.tags.clone())
+            .metadata(PatternMetadata::new().with_source("seed"))
+            .build();
+
+        pattern.compute_content_hash();
+
+        if let Some(hash) = pattern.content_hash() {
+            if existing_hashes.contains(hash) || !seen_this_run.insert(hash.to_string()) {
+                skipped_duplicate += 1;
+                continue;
+            }
+        }
+
+        match storage.store_pattern(&pattern).await {
+            Ok(_) => imported += 1,
+            Err(e) => {
+                tracing::warn!(line = line_no, error = %e, "Failed to import pattern");
+                if !args.json {
+                    eprintln!("  line {}: store error — {}", line_no, e);
+                }
+                failed += 1;
+            }
+        }
+    }
+
+    // Allow background PostgreSQL writes to complete before CLI exits
+    if resolve_postgres_url(args.postgres_url.as_deref()).is_some() {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+
+    // ── Report ───────────────────────────────────────────────────
+    if args.json {
+        let output = serde_json::json!({
+            "total_records": total_records,
+            "imported": imported,
+            "skipped_duplicate": skipped_duplicate,
+            "failed": failed,
+            "parse_errors": parse_error_count,
+        });
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        println!("\nImport Summary");
+        println!("{:-<60}", "");
+        println!("  Total records:    {}", total_records);
+        println!("  Imported:         {}", imported);
+        println!("  Skipped (dup):    {}", skipped_duplicate);
+        if failed > 0 {
+            println!("  Failed:           {}", failed);
+        }
+        if parse_error_count > 0 {
+            println!("  Parse errors:     {}", parse_error_count);
+        }
+        println!("  Database:         {}", args.db_path.display());
+        println!("{:-<60}\n", "");
+    }
 
     Ok(())
 }
