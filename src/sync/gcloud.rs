@@ -482,10 +482,10 @@ impl GCloudAdapter {
         // Record operation time
         *self.last_operation.write().await = Some(std::time::Instant::now());
 
-        // In a real implementation, this would use the cloud-storage crate:
+        // Real implementation: use the `google-cloud-storage` crate:
         //
         // ```rust
-        // use cloud_storage::Client;
+        // use google_cloud_storage::client::Client;
         //
         // let client = Client::default();
         // let mut object = client.object()
@@ -512,7 +512,7 @@ impl GCloudAdapter {
             bucket = %self.config.bucket,
             object = %object_name,
             size = data.len(),
-            "Simulated upload (implement with cloud-storage crate)"
+            "Simulated upload (wire up google-cloud-storage to enable real GCS I/O)"
         );
 
         Ok(ObjectInfo {
@@ -619,10 +619,10 @@ impl GCloudAdapter {
         // Record operation time
         *self.last_operation.write().await = Some(std::time::Instant::now());
 
-        // In a real implementation, this would use the cloud-storage crate:
+        // Real implementation: use the `google-cloud-storage` crate:
         //
         // ```rust
-        // use cloud_storage::Client;
+        // use google_cloud_storage::client::Client;
         //
         // let client = Client::default();
         // let object = client.object()
@@ -644,7 +644,7 @@ impl GCloudAdapter {
         debug!(
             bucket = %self.config.bucket,
             object = %object_name,
-            "Simulated download (implement with cloud-storage crate)"
+            "Simulated download (wire up google-cloud-storage to enable real GCS I/O)"
         );
 
         // Simulate not found for now
@@ -670,7 +670,7 @@ impl GCloudAdapter {
         // In a real implementation:
         //
         // ```rust
-        // use cloud_storage::Client;
+        // use google_cloud_storage::client::Client;
         //
         // let client = Client::default();
         // let objects = client.object()
@@ -698,7 +698,7 @@ impl GCloudAdapter {
         // In a real implementation:
         //
         // ```rust
-        // use cloud_storage::Client;
+        // use google_cloud_storage::client::Client;
         //
         // let client = Client::default();
         // client.object()
@@ -733,7 +733,7 @@ impl GCloudAdapter {
         // In a real implementation:
         //
         // ```rust
-        // use cloud_storage::Client;
+        // use google_cloud_storage::client::Client;
         //
         // let client = Client::default();
         // let object = client.object()

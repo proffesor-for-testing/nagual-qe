@@ -44,7 +44,11 @@ clap = { version = "4", features = ["derive", "env"] }
 
 # HTTP & Cloud
 reqwest = { version = "0.11", features = ["json", "gzip"] }
-cloud-storage = "0.11"
+# Note: the GCS adapter in src/sync/gcloud.rs is currently a stub. If you
+# want to wire up real upload/download calls, add the maintained
+# `google-cloud-storage` crate as an optional dep behind a feature flag
+# (the previous `cloud-storage = "0.11"` pulled in vulnerable transitives
+# — jsonwebtoken 7.2.0 + ring 0.16.20 — for code that was never called).
 
 # Compression
 flate2 = "1"
