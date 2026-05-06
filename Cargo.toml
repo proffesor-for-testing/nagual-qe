@@ -58,7 +58,7 @@ ring = "0.17"
 argon2 = "0.5"
 aes-gcm = "0.10"
 zeroize = { version = "1.7", features = ["derive"] }
-blake3 = "1.5"
+blake3 = "1.8"
 
 # Utilities
 walkdir = "2"
