@@ -17,7 +17,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-cron-scheduler = "0.15"
 
 # Database
-sqlx = { version = "0.8.3", default-features = false, features = ["runtime-tokio", "postgres", "uuid", "chrono", "json", "derive"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "postgres", "uuid", "chrono", "json", "derive"] }
 rusqlite = { version = "0.32", features = ["bundled-sqlcipher", "blob", "functions"] }
 
 # Embeddings & ML
