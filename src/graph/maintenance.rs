@@ -283,7 +283,7 @@ impl EdgeMaintenanceJob {
             auto_created_filter
         );
 
-        let edges_to_prune: Vec<PrunedEdgeInfo> = sqlx::query(&query)
+        let edges_to_prune: Vec<PrunedEdgeInfo> = sqlx::query(sqlx::AssertSqlSafe(query.clone()))
             .bind(self.config.weak_edge_threshold)
             .bind(cutoff_date)
             .bind(self.config.prune_batch_size as i64)

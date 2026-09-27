@@ -568,7 +568,9 @@ impl VendorSelector {
                 .unwrap_or(Vendor::LocalLarge) // Last resort
         };
 
-        let latency_us = start.elapsed().as_micros() as u64;
+        // Ceil to 1 µs: routing decisions regularly finish in < 1 µs on release builds, and
+        // truncating to 0 made avg_latency_us() report 0.0 (see test_vendor_router_metrics).
+        let latency_us = start.elapsed().as_nanos().div_ceil(1000) as u64;
         let mut decision = RoutingDecision::new(selected_vendor, complexity, confidence, latency_us);
 
         if selected_vendor != primary_vendor {
@@ -732,7 +734,7 @@ impl VendorRouter {
         let confidence = features.simple_complexity(&self.config.estimator);
 
         // Check latency limit
-        let elapsed_us = start.elapsed().as_micros() as u64;
+        let elapsed_us = start.elapsed().as_nanos().div_ceil(1000) as u64;
         if elapsed_us > self.config.max_latency_ms * 1000 {
             tracing::warn!(
                 elapsed_us = elapsed_us,
@@ -763,7 +765,7 @@ impl VendorRouter {
         let start = Instant::now();
 
         let score = self.estimator.estimate_simple(query, embedding)?;
-        let elapsed_us = start.elapsed().as_micros() as u64;
+        let elapsed_us = start.elapsed().as_nanos().div_ceil(1000) as u64;
 
         let mut decision = self.selector.select(score.score, score.confidence);
         decision.routing_latency_us = elapsed_us;
@@ -780,7 +782,7 @@ impl VendorRouter {
         let complexity = self.fastgrnn.forward(&feature_vector)?;
         let confidence = features.simple_complexity(&self.config.estimator);
 
-        let time_us = start.elapsed().as_micros() as u64;
+        let time_us = start.elapsed().as_nanos().div_ceil(1000) as u64;
 
         Ok(ComplexityScore::new(complexity, features, confidence, time_us))
     }

@@ -35,10 +35,10 @@ jobs:
       - name: cargo check (with serve)
         run: cargo check --no-default-features --features "kos serve" --all-targets
 
-      - name: cargo test --lib
+      - name: cargo test (all targets, kos+serve)
         env:
           RUST_LOG: warn
-        run: cargo test --no-default-features --features kos --lib
+        run: cargo test --no-default-features --features "kos serve"
 
   # ─── Full check with ONNX (PR-only, slower) ───────────────────────
   # Installs ONNX Runtime on the runner and exercises the onnx-embed

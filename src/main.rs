@@ -81,9 +81,15 @@ fn main() {
 
 async fn async_main(cli: Cli) -> Result<()> {
     // Initialize tracing
+    // Logs go to stderr so `nagual knowledge search ... | grep` and the dashboard scripts see
+    // only the command's output on stdout. RUST_LOG, when set, fully controls the filter
+    // (previously the hard-coded `nagual=info` directive won over RUST_LOG=error).
     tracing_subscriber::registry()
-        .with(fmt::layer().json())
-        .with(EnvFilter::from_default_env().add_directive("nagual=info".parse().unwrap()))
+        .with(fmt::layer().json().with_writer(std::io::stderr))
+        .with(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("nagual=info")),
+        )
         .init();
 
     match cli.command {

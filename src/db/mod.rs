@@ -266,7 +266,9 @@ impl PostgresDb {
 
     /// Execute a SQL statement.
     pub async fn execute(&self, sql: &str) -> Result<u64> {
-        let result = sqlx::query(sql)
+        // sqlx 0.9: dynamic SQL is only accepted when the caller vouches for it.
+        // Callers of this helper pass migration/DDL strings they own, never user input.
+        let result = sqlx::query(sqlx::AssertSqlSafe(sql.to_owned()))
             .execute(&self.pool)
             .await
             .map_err(DatabaseError::from)?;

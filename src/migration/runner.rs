@@ -832,7 +832,7 @@ impl PostgresMigrationRunner {
             })?;
 
         // Execute migration
-        sqlx::query(&migration.up_script)
+        sqlx::query(sqlx::AssertSqlSafe(migration.up_script.clone()))
             .execute(&mut *tx)
             .await
             .map_err(|e| MigrationError::ExecutionFailed {
@@ -935,7 +935,7 @@ impl PostgresMigrationRunner {
                 reason: e.to_string(),
             })?;
 
-        sqlx::query(down_script)
+        sqlx::query(sqlx::AssertSqlSafe(down_script.to_owned()))
             .execute(&mut *tx)
             .await
             .map_err(|e| MigrationError::RollbackFailed {

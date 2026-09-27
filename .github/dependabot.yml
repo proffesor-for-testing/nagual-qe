@@ -20,6 +20,18 @@ updates:
       # tracked cleanup (13 breaking usages across the tree).
       - dependency-name: rand
         versions: [">=0.9"]
+      # rand_chacha must stay on the same line as rand (0.3 <-> rand 0.8). #16/#19 bumped it
+      # to 0.9/0.10 and silently broke tests/holdout_test.rs (CI only ran --lib at the time).
+      - dependency-name: rand_chacha
+        versions: [">=0.9"]
+      # Majors that changed public APIs and needed hand-migration (#26 sha3 → shake crate,
+      # #29 sqlx 0.9 AssertSqlSafe). Review these by hand rather than auto-merging.
+      - dependency-name: sqlx
+        update-types: [version-update:semver-major]
+      - dependency-name: sha3
+        update-types: [version-update:semver-major]
+      - dependency-name: axum
+        update-types: [version-update:semver-major]
       # Pinned at rc.11 — rc.12 dropped `ort::tensor` and breaks the
       # embedder. Unpin after migrating.
       - dependency-name: ort

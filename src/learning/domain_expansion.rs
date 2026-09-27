@@ -102,10 +102,7 @@ impl Domain for NagualDomain {
         // Known limitation: not semantic -- uses hash for deterministic
         // embedding. Acceptable because Thompson Sampling's cross-domain
         // transfer relies on Beta priors, not embedding similarity.
-        use sha3::{
-            digest::{ExtendableOutput, Update, XofReader},
-            Shake256,
-        };
+        use shake::{ExtendableOutput, Shake256, Update, XofReader};
         let mut hasher = Shake256::default();
         hasher.update(solution.content.as_bytes());
         let mut reader = hasher.finalize_xof();

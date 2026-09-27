@@ -11,10 +11,7 @@
 //!
 //! This embedder is deterministic, fast, and requires zero external files.
 
-use sha3::{
-    digest::{ExtendableOutput, Update, XofReader},
-    Shake256,
-};
+use shake::{ExtendableOutput, Shake256, Update, XofReader};
 
 use super::{EmbeddingResult, MlResult};
 

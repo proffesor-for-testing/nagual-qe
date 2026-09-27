@@ -962,10 +962,24 @@ async fn run_list(args: &ListArgs) -> Result<()> {
         // List from database
         let storage = init_storage(&args.db_path, args.postgres_url.as_deref()).await?;
 
+        // How many rows to pull before filtering/sorting in memory.
+        // Bug fix: `--limit` used to cap the DB fetch *before* the domain filter and the
+        // reward/usage/created sorts ran, so `--domain qe.flaky --limit 5` returned nothing
+        // unless a qe.flaky pattern happened to be among the 5 most recently updated.
+        // When a filter or a non-recency sort is requested, fetch everything and paginate
+        // after filtering; the cheap path is kept for the plain "most recent N" case.
+        let needs_full_scan = args.domain.is_some()
+            || !matches!(args.sort.as_str(), "updated" | "effectiveness");
+        let fetch_n = if needs_full_scan {
+            storage.count().await?.max(1)
+        } else {
+            args.limit + args.offset
+        };
+
         // Get patterns based on sort criteria
         let all_patterns = match args.sort.as_str() {
-            "effectiveness" => storage.get_top_effective(args.limit + args.offset).await?,
-            _ => storage.get_recent(args.limit + args.offset).await?,
+            "effectiveness" if !needs_full_scan => storage.get_top_effective(fetch_n).await?,
+            _ => storage.get_recent(fetch_n).await?,
         };
 
         if all_patterns.is_empty() && !args.json {

@@ -28,6 +28,7 @@ ndarray = "0.17"
 tokenizers = { version = "0.23", optional = true }
 instant-distance = "0.6"
 sha3 = "0.12"
+shake = "0.1"   # SHAKE XOFs moved out of sha3 in 0.11+
 
 # Meta-cognitive self-critique (Hofstadter-inspired strange loops)
 strange-loop = { version = "0.3", optional = true }
@@ -111,7 +112,7 @@ proptest = "1"
 tokio-test = "0.4"
 wiremock = "0.6"
 tempfile = "3"
-rand_chacha = "0.10"
+rand_chacha = "0.3"   # must match `rand = "0.8"` (rand_chacha 0.9+ targets rand 0.9)
 
 [features]
 default = ["kos", "onnx-embed"]
