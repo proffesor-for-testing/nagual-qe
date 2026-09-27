@@ -142,11 +142,18 @@ pub struct PatternResponse {
 
 impl From<&Pattern> for PatternResponse {
     fn from(p: &Pattern) -> Self {
+        // Read-path PII redaction (2026-07-01). The local SQLite pattern DB is
+        // never redacted (only cloud-bound WRITES are, via sync::pii). But this
+        // HTTP surface feeds retrieval into agent context / cross-agent clients,
+        // so a stored secret would exfiltrate on an ordinary search (redblue HIGH
+        // finding). Redact problem/solution/context on the way OUT, mirroring the
+        // 12-pattern cloud-write redactor. Non-PII text is unchanged (no-op).
+        let redactor = crate::sync::pii::global_redactor();
         PatternResponse {
             id: p.id().to_string(),
-            problem: p.problem().to_string(),
-            solution: p.solution().to_string(),
-            context: p.context().to_string(),
+            problem: redactor.redact(p.problem()),
+            solution: redactor.redact(p.solution()),
+            context: redactor.redact(p.context()),
             domain: p.category().to_string(),
             tags: p.tags().to_vec(),
             reward: p.reward(),
@@ -488,4 +495,44 @@ pub async fn api_update_pattern(
         "status": "updated",
         "pattern": resp,
     })))
+}
+
+#[cfg(test)]
+mod redaction_tests {
+    use super::*;
+    use crate::reasoning_bank::pattern::Pattern;
+
+    // Read-path redaction: PatternResponse (search/get) must scrub PII from the
+    // un-redacted local DB before it leaves the HTTP API into agent context.
+    // Regression guard for the redblue data-exfiltration HIGH finding (2026-07-01).
+    #[test]
+    fn pattern_response_redacts_pii_on_read() {
+        let pattern = Pattern::builder()
+            .problem("Company banking for a client")
+            .solution("Email: leak@example.com — creds at /Users/alice/.nagual/secret.toml")
+            .context("Contact ops@example.com")
+            .build();
+
+        let resp = PatternResponse::from(&pattern);
+
+        assert!(!resp.solution.contains("leak@example.com"), "email leaked: {}", resp.solution);
+        assert!(resp.solution.contains("[EMAIL_REDACTED]"), "email not redacted: {}", resp.solution);
+        assert!(!resp.solution.contains("/Users/alice/.nagual/secret.toml"), "path leaked: {}", resp.solution);
+        assert!(resp.solution.contains("[PATH_REDACTED]"), "path not redacted: {}", resp.solution);
+        assert!(!resp.context.contains("ops@example.com"), "context email leaked: {}", resp.context);
+    }
+
+    #[test]
+    fn pattern_response_leaves_clean_text_unchanged() {
+        let pattern = Pattern::builder()
+            .problem("How to write an async retry loop")
+            .solution("Use tokio::time::sleep with exponential backoff")
+            .context("networking")
+            .build();
+
+        let resp = PatternResponse::from(&pattern);
+
+        assert_eq!(resp.solution, "Use tokio::time::sleep with exponential backoff");
+        assert_eq!(resp.problem, "How to write an async retry loop");
+    }
 }

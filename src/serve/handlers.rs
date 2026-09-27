@@ -76,6 +76,12 @@ pub struct PatternsQuery {
     pub sort_order: Option<String>,
 }
 
+/// Query parameters for the 3D graph endpoint.
+#[derive(Deserialize, Default)]
+pub struct Graph3DQuery {
+    pub limit: Option<u32>,
+}
+
 /// Paginated patterns response.
 #[derive(Serialize)]
 pub struct PaginatedPatterns {
@@ -308,10 +314,14 @@ pub async fn api_patterns(
     })?;
 
     fn extract_pattern(row: &rusqlite::Row) -> rusqlite::Result<PatternEntry> {
+        // Read-path PII redaction (2026-07-01): the list endpoint feeds retrieval
+        // into agent context, so redact problem/solution on the way OUT (the local
+        // DB is never redacted at rest). See redblue data-exfiltration HIGH finding.
+        let redactor = crate::sync::pii::global_redactor();
         Ok(PatternEntry {
             id: row.get(0)?,
-            problem: row.get(1)?,
-            solution: row.get(2)?,
+            problem: redactor.redact(&row.get::<_, String>(1)?),
+            solution: redactor.redact(&row.get::<_, String>(2)?),
             domain: row.get(3)?,
             reward: row.get(4)?,
             tier: row.get(5)?,
@@ -648,6 +658,7 @@ pub struct Graph3DStats {
 pub async fn api_graph_3d(
     State(state): State<AppState>,
     _auth: RequireAuth,
+    Query(params): Query<Graph3DQuery>,
 ) -> Result<Json<Graph3DResponse>, (StatusCode, String)> {
     let conn = open_db(&state)?;
 
@@ -661,12 +672,14 @@ pub async fn api_graph_3d(
     let tier_expr = if has_tier { "COALESCE(tier, 'booster')" } else { "'booster'" };
     let reuse_expr = if has_reuse_count { "COALESCE(reuse_count, 0)" } else { "0" };
 
-    // Fetch up to 2000 patterns (enough for force-graph, not overwhelming)
+    // Default 5000, hard ceiling 20000 to protect the browser from runaway payloads.
+    let limit = params.limit.unwrap_or(5000).clamp(1, 20000);
+
     let sql = format!(
         "SELECT id, COALESCE(problem, ''), COALESCE({dcol}, 'unknown'), \
          {tier_expr}, COALESCE(reward, 0.0), \
          {reuse_expr}, COALESCE(created_at, '') \
-         FROM reasoning_patterns ORDER BY reward DESC LIMIT 2000"
+         FROM reasoning_patterns ORDER BY reward DESC LIMIT {limit}"
     );
 
     let mut stmt = conn.prepare(&sql).map_err(|e| {
@@ -1078,7 +1091,7 @@ mod tests {
     async fn test_api_graph_3d_handler() {
         let (_tmp, path) = create_test_db();
         let state = test_state(path);
-        let result = api_graph_3d(State(state), test_auth()).await;
+        let result = api_graph_3d(State(state), test_auth(), Query(Graph3DQuery::default())).await;
         assert!(result.is_ok());
         let graph = result.unwrap().0;
         assert_eq!(graph.nodes.len(), 3);
