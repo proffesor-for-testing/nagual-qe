@@ -161,6 +161,10 @@ pub struct RecordOutcomeInput {
     /// Optional feedback
     #[serde(default)]
     pub feedback: Option<String>,
+    /// Failure classification (failures only): specification, misalignment, verification,
+    /// resource, security, unknown. A security failure costs -0.30 instead of -0.15.
+    #[serde(default)]
+    pub failure_mode: Option<String>,
     /// Confidence in the assessment (0.0-1.0)
     #[serde(default)]
     pub confidence: Option<f32>,
@@ -645,6 +649,11 @@ pub fn nagual_record_outcome() -> ToolDefinition {
                     "type": "string",
                     "description": "Optional feedback or notes about the outcome"
                 },
+                "failure_mode": {
+                    "type": "string",
+                    "enum": ["specification", "misalignment", "verification", "resource", "security", "unknown"],
+                    "description": "For failures: why it failed. 'security' (leaked data, weakened a control) costs twice an ordinary failure"
+                },
                 "confidence": {
                     "type": "number",
                     "minimum": 0.0,
@@ -913,7 +922,10 @@ mod tests {
     #[test]
     fn test_outcome_type() {
         assert_eq!(OutcomeType::Success.to_outcome_string(), "success");
-        assert_eq!(OutcomeType::PartialSuccess.to_outcome_string(), "partial_success");
+        assert_eq!(
+            OutcomeType::PartialSuccess.to_outcome_string(),
+            "partial_success"
+        );
         assert_eq!(OutcomeType::Neutral.to_outcome_string(), "neutral");
         assert_eq!(OutcomeType::Failure.to_outcome_string(), "failure");
     }

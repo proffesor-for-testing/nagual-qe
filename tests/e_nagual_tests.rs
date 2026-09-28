@@ -128,7 +128,11 @@ pub struct Pattern {
 }
 
 impl Pattern {
-    pub fn new(problem: impl Into<String>, solution: impl Into<String>, domain: impl Into<String>) -> Self {
+    pub fn new(
+        problem: impl Into<String>,
+        solution: impl Into<String>,
+        domain: impl Into<String>,
+    ) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             problem: problem.into(),
@@ -461,7 +465,9 @@ impl ENagual {
             };
 
             let example_tokens = example.estimate_tokens();
-            if total_tokens + example_tokens > self.few_shot_config.max_tokens_per_example * self.few_shot_config.max_examples {
+            if total_tokens + example_tokens
+                > self.few_shot_config.max_tokens_per_example * self.few_shot_config.max_examples
+            {
                 break;
             }
 
@@ -481,10 +487,7 @@ impl ENagual {
         let mut messages = Vec::new();
 
         for example in examples {
-            messages.push(Message::new(
-                provider.role_user(),
-                &example.user_message,
-            ));
+            messages.push(Message::new(provider.role_user(), &example.user_message));
             messages.push(Message::new(
                 provider.role_assistant(),
                 &example.assistant_message,
@@ -537,10 +540,7 @@ impl ENagual {
         if self.context_config.include_few_shot && !patterns.is_empty() {
             let examples = self.generate_few_shot(patterns);
             let example_messages = self.format_few_shot_for_provider(&examples, provider);
-            breakdown.few_shot_tokens = example_messages
-                .iter()
-                .map(|m| m.estimate_tokens())
-                .sum();
+            breakdown.few_shot_tokens = example_messages.iter().map(|m| m.estimate_tokens()).sum();
             messages.extend(example_messages);
         }
 
@@ -896,7 +896,9 @@ mod few_shot_generation_tests {
 
         let examples = e_nagual.generate_few_shot(&patterns);
 
-        assert!(examples[0].assistant_message.contains("Specific solution text"));
+        assert!(examples[0]
+            .assistant_message
+            .contains("Specific solution text"));
     }
 
     #[test]
@@ -913,7 +915,10 @@ mod few_shot_generation_tests {
 
         let examples = e_nagual.generate_few_shot(&patterns);
 
-        assert!(examples[0].user_message.contains("context") || examples[0].user_message.contains("Context"));
+        assert!(
+            examples[0].user_message.contains("context")
+                || examples[0].user_message.contains("Context")
+        );
     }
 
     #[test]
@@ -1017,7 +1022,10 @@ mod context_building_tests {
             e_nagual.build_context("Query", &patterns, Some("Custom system instructions"));
 
         assert!(context.system_prompt.is_some());
-        assert!(context.system_prompt.unwrap().contains("Custom system instructions"));
+        assert!(context
+            .system_prompt
+            .unwrap()
+            .contains("Custom system instructions"));
     }
 
     #[test]
@@ -1290,9 +1298,8 @@ mod performance_tests {
         let e_nagual = ENagual::with_defaults();
         let patterns = create_test_patterns(50);
 
-        let (_, duration) = measure_time(|| {
-            e_nagual.build_context("Query", &patterns, Some("System prompt"))
-        });
+        let (_, duration) =
+            measure_time(|| e_nagual.build_context("Query", &patterns, Some("System prompt")));
 
         assert!(
             duration.as_millis() < 20,

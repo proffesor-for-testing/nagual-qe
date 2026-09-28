@@ -684,7 +684,11 @@ mod tests {
             .await
             .unwrap();
 
-        let record = query.get(&PatternId::from_string("p1")).await.unwrap().unwrap();
+        let record = query
+            .get(&PatternId::from_string("p1"))
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(record.parent_id.as_ref().unwrap().as_str(), "p0");
         assert_eq!(record.derivation_type, DerivationType::Improvement);
         assert_eq!(record.lineage_depth, 1);

@@ -40,17 +40,52 @@ CREATE INDEX IF NOT EXISTS idx_coherence_type ON coherence_scores(coherence_type
 
 /// Negation words that indicate opposing directives.
 const NEGATION_WORDS: &[&str] = &[
-    "don't", "dont", "never", "avoid", "not", "shouldn't", "shouldnt",
-    "won't", "wont", "cannot", "can't", "cant", "no", "neither",
-    "nor", "without", "exclude", "disable", "remove", "stop",
-    "prevent", "reject", "refuse", "prohibit",
+    "don't",
+    "dont",
+    "never",
+    "avoid",
+    "not",
+    "shouldn't",
+    "shouldnt",
+    "won't",
+    "wont",
+    "cannot",
+    "can't",
+    "cant",
+    "no",
+    "neither",
+    "nor",
+    "without",
+    "exclude",
+    "disable",
+    "remove",
+    "stop",
+    "prevent",
+    "reject",
+    "refuse",
+    "prohibit",
 ];
 
 /// Affirmative directive words.
 const AFFIRMATIVE_WORDS: &[&str] = &[
-    "always", "must", "use", "should", "require", "enable", "add",
-    "include", "prefer", "recommend", "ensure", "do", "apply",
-    "implement", "adopt", "embrace", "allow", "accept",
+    "always",
+    "must",
+    "use",
+    "should",
+    "require",
+    "enable",
+    "add",
+    "include",
+    "prefer",
+    "recommend",
+    "ensure",
+    "do",
+    "apply",
+    "implement",
+    "adopt",
+    "embrace",
+    "allow",
+    "accept",
 ];
 
 /// Classification of coherence relationship between two patterns.
@@ -248,11 +283,9 @@ impl CoherenceScorer {
     pub async fn system_health(&self) -> Result<CoherenceHealth> {
         let total: u64 = self
             .db
-            .query_one(
-                "SELECT COUNT(*) FROM coherence_scores",
-                &[],
-                |row| row.get::<_, i64>(0),
-            )
+            .query_one("SELECT COUNT(*) FROM coherence_scores", &[], |row| {
+                row.get::<_, i64>(0)
+            })
             .await?
             .unwrap_or(0) as u64;
 
@@ -429,12 +462,7 @@ fn count_affirmative_words(tokens: &HashSet<String>) -> usize {
 ///
 /// High distance means one pattern is predominantly affirmative while the
 /// other is predominantly negative — a strong signal for contradiction.
-fn compute_negation_distance(
-    neg_a: usize,
-    neg_b: usize,
-    aff_a: usize,
-    aff_b: usize,
-) -> f32 {
+fn compute_negation_distance(neg_a: usize, neg_b: usize, aff_a: usize, aff_b: usize) -> f32 {
     let total_a = (neg_a + aff_a).max(1) as f32;
     let total_b = (neg_b + aff_b).max(1) as f32;
 
@@ -521,10 +549,7 @@ mod tests {
             CoherenceType::from("CONTRADICTORY"),
             CoherenceType::Contradictory
         );
-        assert_eq!(
-            CoherenceType::from("Supportive"),
-            CoherenceType::Supportive
-        );
+        assert_eq!(CoherenceType::from("Supportive"), CoherenceType::Supportive);
     }
 
     #[test]
@@ -994,7 +1019,10 @@ mod tests {
         scorer.store_score(&score).await.unwrap();
 
         let updated = scorer
-            .resolve("score-resolve", "Both approaches valid in different contexts")
+            .resolve(
+                "score-resolve",
+                "Both approaches valid in different contexts",
+            )
             .await
             .unwrap();
         assert_eq!(updated, 1);
@@ -1179,8 +1207,10 @@ mod tests {
                 metadata TEXT DEFAULT '{}',
                 timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )"
-        ).await.unwrap();
+            )",
+        )
+        .await
+        .unwrap();
 
         let scorer = CoherenceScorer::new(db.clone(), ScoringConfig::default());
         scorer.init_schema().await.unwrap();
@@ -1221,8 +1251,10 @@ mod tests {
                 metadata TEXT DEFAULT '{}',
                 timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )"
-        ).await.unwrap();
+            )",
+        )
+        .await
+        .unwrap();
 
         // Insert two contradictory patterns in the same domain
         db.execute(
@@ -1233,7 +1265,9 @@ mod tests {
                 &"error handling",
                 &"Always use unwrap for quick error handling in Rust code",
             ],
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
         db.execute(
             "INSERT INTO reasoning_patterns (id, category, problem, solution) VALUES (?, ?, ?, ?)",
@@ -1243,7 +1277,9 @@ mod tests {
                 &"error handling",
                 &"Never use unwrap for error handling in Rust code, avoid panics",
             ],
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
         let scorer = CoherenceScorer::new(db.clone(), ScoringConfig::default());
         scorer.init_schema().await.unwrap();

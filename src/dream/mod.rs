@@ -76,8 +76,8 @@
 //! - [Spreading Activation](https://en.wikipedia.org/wiki/Spreading_activation)
 //! - ADR-033: Dream Cycle
 
-pub mod types;
 pub mod engine;
+pub mod types;
 
-pub use types::*;
 pub use engine::DreamCycle;
+pub use types::*;

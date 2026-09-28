@@ -12,9 +12,7 @@ use super::auth::{AuthIdentity, RequireAuth};
 use super::AppState;
 
 /// GET /api/auth/whoami — returns the identity of the current caller.
-pub async fn api_whoami(
-    RequireAuth(identity): RequireAuth,
-) -> Json<serde_json::Value> {
+pub async fn api_whoami(RequireAuth(identity): RequireAuth) -> Json<serde_json::Value> {
     match &identity {
         AuthIdentity::Master => Json(serde_json::json!({
             "identity": "master",
@@ -66,9 +64,13 @@ pub async fn api_auth_login(
     let store = match &state.user_store {
         Some(s) => s,
         None => {
-            return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({
-                "error": "Login not configured (no users exist)"
-            }))).into_response();
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(serde_json::json!({
+                    "error": "Login not configured (no users exist)"
+                })),
+            )
+                .into_response();
         }
     };
 
@@ -86,18 +88,25 @@ pub async fn api_auth_login(
                 "role": user.role,
                 "scopes": scopes,
                 "usage": "Use as: Authorization: Bearer <token>"
-            })).into_response()
+            }))
+            .into_response()
         }
-        Ok(None) => {
-            (StatusCode::UNAUTHORIZED, Json(serde_json::json!({
+        Ok(None) => (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
                 "error": "Invalid username or password"
-            }))).into_response()
-        }
+            })),
+        )
+            .into_response(),
         Err(e) => {
             warn!("API login error: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
-                "error": "Login error"
-            }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "error": "Login error"
+                })),
+            )
+                .into_response()
         }
     }
 }

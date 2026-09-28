@@ -305,18 +305,15 @@ pub fn calculate_probability(
     };
 
     // Apply Bayesian update if prior exists and config allows
-    let (final_probability, bayesian_updated) =
-        if config.use_bayesian_update && prior.is_some() {
-            let prior = prior.unwrap();
-            let updated =
-                bayesian_update(smoothed_probability, prior.effective_probability(), config);
-            breakdown.prior_contribution = prior.effective_probability() * config.prior_weight;
-            breakdown.pattern_contribution =
-                smoothed_probability * (1.0 - config.prior_weight);
-            (updated, true)
-        } else {
-            (smoothed_probability, false)
-        };
+    let (final_probability, bayesian_updated) = if config.use_bayesian_update && prior.is_some() {
+        let prior = prior.unwrap();
+        let updated = bayesian_update(smoothed_probability, prior.effective_probability(), config);
+        breakdown.prior_contribution = prior.effective_probability() * config.prior_weight;
+        breakdown.pattern_contribution = smoothed_probability * (1.0 - config.prior_weight);
+        (updated, true)
+    } else {
+        (smoothed_probability, false)
+    };
 
     // Calculate confidence based on evidence quantity and quality
     let confidence = calculate_confidence(patterns, total_weight, config);
@@ -362,9 +359,8 @@ fn calculate_confidence(
     }
 
     // Base confidence from number of patterns
-    let quantity_confidence = (patterns.len() as f64
-        / config.high_confidence_threshold as f64)
-        .min(1.0);
+    let quantity_confidence =
+        (patterns.len() as f64 / config.high_confidence_threshold as f64).min(1.0);
 
     // Quality confidence from average pattern confidence
     let avg_confidence: f64 =
@@ -497,10 +493,8 @@ mod tests {
         let patterns = vec![WeightedPattern::new(0.8, 0.9, 0.9)];
         let prior = PriorPrediction::new(0.3, 0.8);
 
-        let result_without_prior =
-            calculate_probability(&patterns, None, &config).unwrap();
-        let result_with_prior =
-            calculate_probability(&patterns, Some(&prior), &config).unwrap();
+        let result_without_prior = calculate_probability(&patterns, None, &config).unwrap();
+        let result_with_prior = calculate_probability(&patterns, Some(&prior), &config).unwrap();
 
         // Prior should pull probability towards its value
         assert!(result_with_prior.probability < result_without_prior.probability);
@@ -533,8 +527,7 @@ mod tests {
             WeightedPattern::new(0.5, 0.7, 0.7),
         ];
 
-        let result_low_agreement =
-            calculate_probability(&patterns, None, &config).unwrap();
+        let result_low_agreement = calculate_probability(&patterns, None, &config).unwrap();
 
         // Create high agreement patterns
         let high_agreement_patterns = vec![
@@ -579,9 +572,8 @@ mod tests {
 
     #[test]
     fn test_probability_calculator() {
-        let calculator = ProbabilityCalculator::with_config(
-            ProbabilityConfig::default().with_base_prior(0.6),
-        );
+        let calculator =
+            ProbabilityCalculator::with_config(ProbabilityConfig::default().with_base_prior(0.6));
 
         let patterns = vec![WeightedPattern::new(0.8, 0.9, 0.9)];
         let result = calculator.calculate(&patterns, None).unwrap();

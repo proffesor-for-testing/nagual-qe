@@ -10,9 +10,7 @@
 //! - Search latency < 10ms for 100K nodes
 //! - Recall > 0.95 at ef_search=100
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use instant_distance::{Builder as HnswBuilder, HnswMap, Search};
 use rand::prelude::*;
 use std::cmp::Ordering;
@@ -145,16 +143,12 @@ fn build_hnsw_index(
 
     HnswBuilder::default()
         .ef_construction(ef_construction)
-        .ef_search(ef_search)  // Critical: set search quality at build time
+        .ef_search(ef_search) // Critical: set search quality at build time
         .build(points, values)
 }
 
 /// HNSW search.
-fn hnsw_search(
-    index: &HnswMap<NodePoint, usize>,
-    query: &[f32],
-    k: usize,
-) -> Vec<(usize, f32)> {
+fn hnsw_search(index: &HnswMap<NodePoint, usize>, query: &[f32], k: usize) -> Vec<(usize, f32)> {
     let query_point = NodePoint {
         id: usize::MAX,
         embedding: query.to_vec(),
@@ -191,7 +185,7 @@ fn bench_brute_force_vs_hnsw(c: &mut Criterion) {
     // Tuned for better recall at scale (was m=16, ef=128)
     let m = 24;
     let ef_construction = 200;
-    let ef_search = 200;  // High recall mode
+    let ef_search = 200; // High recall mode
 
     let mut group = c.benchmark_group("brute_force_vs_hnsw");
     group.sample_size(30);
@@ -226,17 +220,13 @@ fn bench_brute_force_vs_hnsw(c: &mut Criterion) {
         );
 
         // Benchmark HNSW
-        group.bench_with_input(
-            BenchmarkId::new("hnsw", node_count),
-            &node_count,
-            |b, _| {
-                b.iter(|| {
-                    for query in &queries {
-                        black_box(hnsw_search(&index, query, k));
-                    }
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("hnsw", node_count), &node_count, |b, _| {
+            b.iter(|| {
+                for query in &queries {
+                    black_box(hnsw_search(&index, query, k));
+                }
+            })
+        });
     }
 
     group.finish();
@@ -296,7 +286,7 @@ fn bench_hnsw_latency_at_scale(c: &mut Criterion) {
     // Tuned for better recall at scale
     let m = 24;
     let ef_construction = 200;
-    let ef_search = 200;  // High recall mode
+    let ef_search = 200; // High recall mode
 
     let mut group = c.benchmark_group("hnsw_latency_at_scale");
     group.sample_size(100);
@@ -311,9 +301,7 @@ fn bench_hnsw_latency_at_scale(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("single_query", node_count),
             &node_count,
-            |b, _| {
-                b.iter(|| black_box(hnsw_search(&index, &query, k)))
-            },
+            |b, _| b.iter(|| black_box(hnsw_search(&index, &query, k))),
         );
     }
 
@@ -326,7 +314,7 @@ fn bench_hnsw_recall_at_scale(_c: &mut Criterion) {
     // Tuned for better recall at scale
     let m = 24;
     let ef_construction = 200;
-    let ef_search = 200;  // High recall mode
+    let ef_search = 200; // High recall mode
 
     println!("\n=== Recall Measurements ===");
 
@@ -362,7 +350,7 @@ fn bench_hnsw_batch_search(c: &mut Criterion) {
     // Tuned for better recall at scale
     let m = 24;
     let ef_construction = 200;
-    let ef_search = 200;  // High recall mode
+    let ef_search = 200; // High recall mode
     let node_count = 100_000;
 
     let embeddings = generate_embedding_set(node_count, dim, 42);
@@ -381,10 +369,8 @@ fn bench_hnsw_batch_search(c: &mut Criterion) {
             &batch_size,
             |b, _| {
                 b.iter(|| {
-                    let results: Vec<_> = queries
-                        .iter()
-                        .map(|q| hnsw_search(&index, q, k))
-                        .collect();
+                    let results: Vec<_> =
+                        queries.iter().map(|q| hnsw_search(&index, q, k)).collect();
                     black_box(results)
                 })
             },
@@ -399,7 +385,7 @@ fn bench_hnsw_build_time(c: &mut Criterion) {
     // Tuned for better recall at scale
     let m = 24;
     let ef_construction = 200;
-    let ef_search = 200;  // High recall mode
+    let ef_search = 200; // High recall mode
 
     let mut group = c.benchmark_group("hnsw_build_time");
     group.sample_size(10); // Building is expensive
@@ -425,7 +411,7 @@ fn bench_dimension_impact(c: &mut Criterion) {
     let k = 10;
     let m = 16;
     let ef_construction = 128;
-    let ef_search = 100;  // Baseline mode
+    let ef_search = 100; // Baseline mode
 
     let mut group = c.benchmark_group("dimension_impact");
     group.sample_size(30);
@@ -457,7 +443,9 @@ fn bench_hnsw_parameters(c: &mut Criterion) {
 
     // Test different m/ef_construction/ef_search combinations
     // ef_search set proportional to ef_construction for balanced comparison
-    for &(m, ef_construction, ef_search) in &[(8, 64, 64), (16, 128, 128), (24, 192, 192), (32, 256, 256)] {
+    for &(m, ef_construction, ef_search) in
+        &[(8, 64, 64), (16, 128, 128), (24, 192, 192), (32, 256, 256)]
+    {
         let index = build_hnsw_index(&embeddings, m, ef_construction, ef_search);
 
         // Measure recall
@@ -468,10 +456,16 @@ fn bench_hnsw_parameters(c: &mut Criterion) {
             total_recall += calculate_recall(&ground_truth, &approximate, k);
         }
         let avg_recall = total_recall / 20.0;
-        println!("m={}, ef_construction={}, ef_search={}: recall={:.4}", m, ef_construction, ef_search, avg_recall);
+        println!(
+            "m={}, ef_construction={}, ef_search={}: recall={:.4}",
+            m, ef_construction, ef_search, avg_recall
+        );
 
         group.bench_with_input(
-            BenchmarkId::new(format!("m={}_ef={}_efs={}", m, ef_construction, ef_search), m),
+            BenchmarkId::new(
+                format!("m={}_ef={}_efs={}", m, ef_construction, ef_search),
+                m,
+            ),
             &m,
             |b, _| {
                 b.iter(|| {

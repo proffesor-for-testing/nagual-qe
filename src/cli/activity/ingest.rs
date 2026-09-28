@@ -12,9 +12,7 @@ use crate::reasoning_bank::pattern::{Pattern, PatternCategory, PatternMetadata};
 use super::client::{ScreenpipeClient, SearchParams};
 use super::helpers::*;
 use super::ospipe::{EmbeddingDim, OSpipeConfig, OSpipePipeline};
-use super::types::{
-    DedupStatsOutput, IngestOutput, OSpipeIngestOutput, RawOcrRow,
-};
+use super::types::{DedupStatsOutput, IngestOutput, OSpipeIngestOutput, RawOcrRow};
 use super::IngestArgs;
 
 pub(super) async fn run_ingest(args: &IngestArgs) -> Result<()> {
@@ -35,7 +33,11 @@ pub(super) async fn run_ingest(args: &IngestArgs) -> Result<()> {
     if !args.json {
         println!("\nIngesting Screenpipe activity");
         println!("{:=<60}", "");
-        println!("  Time range:   {} → {}", start.format("%H:%M"), end.format("%H:%M"));
+        println!(
+            "  Time range:   {} → {}",
+            start.format("%H:%M"),
+            end.format("%H:%M")
+        );
         println!("  Content:      {}", args.content_type);
         println!("  Min length:   {}", args.min_length);
         println!("  Focused only: {}", args.focused_only);
@@ -44,7 +46,11 @@ pub(super) async fn run_ingest(args: &IngestArgs) -> Result<()> {
         }
         println!(
             "  Embeddings:   {}",
-            if args.embed { "yes (768-dim via Screenpipe)" } else { "no" }
+            if args.embed {
+                "yes (768-dim via Screenpipe)"
+            } else {
+                "no"
+            }
         );
         println!("{:-<60}", "");
     }
@@ -88,29 +94,28 @@ pub(super) async fn run_ingest(args: &IngestArgs) -> Result<()> {
     let source;
 
     // Also pull audio transcriptions if requested
-    let audio_rows: Vec<RawOcrRow> =
-        if args.content_type == "all" || args.content_type == "audio" {
-            let sql = format!(
-                "SELECT a.id as frame_id, a.timestamp, a.device as app_name, \
+    let audio_rows: Vec<RawOcrRow> = if args.content_type == "all" || args.content_type == "audio" {
+        let sql = format!(
+            "SELECT a.id as frame_id, a.timestamp, a.device as app_name, \
                  '' as window_name, a.transcription as text, \
                  NULL as focused, NULL as browser_url \
                  FROM audio_transcriptions a \
                  WHERE a.timestamp >= '{}' \
                  AND length(a.transcription) >= {} \
                  ORDER BY a.timestamp DESC LIMIT 500",
-                start_str, args.min_length,
-            );
-            client
-                .raw_sql(&sql)
-                .await
-                .ok()
-                .unwrap_or_default()
-                .into_iter()
-                .filter_map(|v| serde_json::from_value(v).ok())
-                .collect()
-        } else {
-            Vec::new()
-        };
+            start_str, args.min_length,
+        );
+        client
+            .raw_sql(&sql)
+            .await
+            .ok()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|v| serde_json::from_value(v).ok())
+            .collect()
+    } else {
+        Vec::new()
+    };
 
     // Also pull UI events if content_type is "all" or "input"
     let ui_event_rows: Vec<RawOcrRow> =
@@ -222,15 +227,7 @@ pub(super) async fn run_ingest(args: &IngestArgs) -> Result<()> {
 
     // ========== OSpipe Pipeline Branch ==========
     if args.ospipe {
-        return run_ospipe_ingest(
-            args,
-            &all_rows,
-            all_rows_count,
-            source,
-            start,
-            end,
-        )
-        .await;
+        return run_ospipe_ingest(args, &all_rows, all_rows_count, source, start, end).await;
     }
 
     // ========== Legacy Ingest Path ==========
@@ -391,8 +388,7 @@ pub(super) async fn run_ingest(args: &IngestArgs) -> Result<()> {
 
 /// Build OSpipeConfig from CLI arguments.
 fn build_ospipe_config(args: &IngestArgs) -> OSpipeConfig {
-    let embedding_dim = EmbeddingDim::from_str(&args.embedding_dim)
-        .unwrap_or(EmbeddingDim::Dim384);
+    let embedding_dim = EmbeddingDim::from_str(&args.embedding_dim).unwrap_or(EmbeddingDim::Dim384);
 
     let dedup_window = parse_dedup_window(&args.dedup_window);
 
@@ -446,10 +442,7 @@ async fn run_ospipe_ingest(
     if args.embed {
         if let Err(e) = pipeline.init_embedder() {
             if !args.json {
-                println!(
-                    "  Warning: Could not initialize embedder: {}",
-                    e
-                );
+                println!("  Warning: Could not initialize embedder: {}", e);
                 println!("  Proceeding without local embeddings.");
             }
         }

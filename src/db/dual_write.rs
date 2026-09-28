@@ -425,7 +425,9 @@ impl DualWriteAdapter {
         // Redact known text fields (reasoning_patterns schema).
         // Includes `title` and `summary` which can contain free-form text
         // derived from problem/solution content.
-        let text_fields = ["problem", "solution", "context", "critique", "title", "summary"];
+        let text_fields = [
+            "problem", "solution", "context", "critique", "title", "summary",
+        ];
         let mut total_redactions = 0usize;
 
         if let Some(obj) = json.as_object_mut() {

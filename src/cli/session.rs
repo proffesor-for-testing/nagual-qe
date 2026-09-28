@@ -279,7 +279,8 @@ async fn init_manager(db_path: &PathBuf) -> Result<SessionManager> {
         );
         CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at);
         CREATE INDEX IF NOT EXISTS idx_sessions_domain ON sessions(domain);"#,
-    ).await?;
+    )
+    .await?;
 
     Ok(SessionManager::new(db))
 }
@@ -319,7 +320,10 @@ async fn run_start(args: &StartArgs) -> Result<()> {
         println!("\nSession Started");
         println!("{:-<50}", "");
         println!("  ID: {}", session.id);
-        println!("  Started: {}", session.started_at.format("%Y-%m-%d %H:%M:%S UTC"));
+        println!(
+            "  Started: {}",
+            session.started_at.format("%Y-%m-%d %H:%M:%S UTC")
+        );
         if let Some(ref domain) = session.domain {
             println!("  Domain: {}", domain);
         }
@@ -447,12 +451,18 @@ async fn run_stats(args: &StatsArgs) -> Result<()> {
         println!("  Pattern Activity:");
         println!("    Patterns learned: {}", stats.total_patterns_learned);
         println!("    Patterns retrieved: {}", stats.total_patterns_retrieved);
-        println!("    Avg learned/session: {:.1}", stats.avg_patterns_per_session);
+        println!(
+            "    Avg learned/session: {:.1}",
+            stats.avg_patterns_per_session
+        );
         println!();
         println!("  Efficiency:");
         println!("    Patterns per 1K tokens: {:.2}", stats.efficiency);
         if stats.avg_duration_secs > 0.0 {
-            println!("    Avg session duration: {}", format_duration(stats.avg_duration_secs as u64));
+            println!(
+                "    Avg session duration: {}",
+                format_duration(stats.avg_duration_secs as u64)
+            );
         }
         println!("{:-<50}\n", "");
     }
@@ -483,7 +493,11 @@ async fn run_list(args: &ListArgs) -> Result<()> {
             println!("  No sessions found.");
         } else {
             for (i, session) in sessions.iter().enumerate() {
-                let status = if session.is_active() { "ACTIVE" } else { "ended" };
+                let status = if session.is_active() {
+                    "ACTIVE"
+                } else {
+                    "ended"
+                };
                 let domain = session.domain.as_deref().unwrap_or("-");
                 let short_id = &session.id[..8];
 
@@ -600,7 +614,10 @@ async fn run_current(args: &CurrentArgs) -> Result<()> {
                 println!("\nCurrent Session");
                 println!("{:-<50}", "");
                 println!("  ID: {}", s.id);
-                println!("  Started: {}", s.started_at.format("%Y-%m-%d %H:%M:%S UTC"));
+                println!(
+                    "  Started: {}",
+                    s.started_at.format("%Y-%m-%d %H:%M:%S UTC")
+                );
                 println!("  Duration: {}", format_duration(duration as u64));
                 if let Some(ref domain) = s.domain {
                     println!("  Domain: {}", domain);
@@ -646,7 +663,10 @@ async fn run_delete(args: &DeleteArgs) -> Result<()> {
 
     // Confirm if not forced
     if !args.force && !args.json {
-        println!("Delete session {}? [y/N] ", &args.session_id[..8.min(args.session_id.len())]);
+        println!(
+            "Delete session {}? [y/N] ",
+            &args.session_id[..8.min(args.session_id.len())]
+        );
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
         if !input.trim().eq_ignore_ascii_case("y") {
@@ -691,7 +711,9 @@ async fn run_cleanup(args: &CleanupArgs) -> Result<()> {
         // Count how many would be deleted
         let stats_before = manager.get_stats().await?;
         let stats_window = manager.get_stats_for_window(args.older_than).await?;
-        let would_delete = stats_before.total_sessions.saturating_sub(stats_window.total_sessions);
+        let would_delete = stats_before
+            .total_sessions
+            .saturating_sub(stats_window.total_sessions);
 
         let output = CleanupOutput {
             success: true,
@@ -706,8 +728,10 @@ async fn run_cleanup(args: &CleanupArgs) -> Result<()> {
         if args.json {
             println!("{}", serde_json::to_string_pretty(&output)?);
         } else {
-            println!("\nDry Run: Would delete {} sessions older than {} days.\n",
-                would_delete, args.older_than);
+            println!(
+                "\nDry Run: Would delete {} sessions older than {} days.\n",
+                would_delete, args.older_than
+            );
         }
     } else {
         let deleted = manager.cleanup_old_sessions(args.older_than).await?;
@@ -716,7 +740,10 @@ async fn run_cleanup(args: &CleanupArgs) -> Result<()> {
             success: true,
             sessions_deleted: deleted,
             dry_run: false,
-            message: format!("Deleted {} sessions older than {} days", deleted, args.older_than),
+            message: format!(
+                "Deleted {} sessions older than {} days",
+                deleted, args.older_than
+            ),
         };
 
         if args.json {
@@ -794,7 +821,9 @@ mod tests {
 
     #[test]
     fn test_cli_parse_session_list() {
-        let args = vec!["test", "session", "list", "--limit", "20", "--domain", "rust"];
+        let args = vec![
+            "test", "session", "list", "--limit", "20", "--domain", "rust",
+        ];
         let cli = TestCli::try_parse_from(args);
         assert!(cli.is_ok());
     }
@@ -822,7 +851,14 @@ mod tests {
 
     #[test]
     fn test_cli_parse_session_cleanup() {
-        let args = vec!["test", "session", "cleanup", "--older-than", "30", "--dry-run"];
+        let args = vec![
+            "test",
+            "session",
+            "cleanup",
+            "--older-than",
+            "30",
+            "--dry-run",
+        ];
         let cli = TestCli::try_parse_from(args);
         assert!(cli.is_ok());
     }

@@ -408,10 +408,10 @@ impl Nagual {
         let pattern_storage = Arc::new(PatternStorage::new(adapter.clone(), storage_config).await?);
 
         // Initialize graph storage
-        let graph_storage = Arc::new(
-            GraphStorage::open(&config.sqlite_path)
-                .map_err(|e| NagualError::internal(format!("Failed to open graph storage: {}", e)))?
-        );
+        let graph_storage =
+            Arc::new(GraphStorage::open(&config.sqlite_path).map_err(|e| {
+                NagualError::internal(format!("Failed to open graph storage: {}", e))
+            })?);
 
         // Initialize sync manager if GCloud is configured
         let sync_manager = if let (Some(bucket), Some(project)) =
@@ -420,7 +420,9 @@ impl Nagual {
             let gcloud_config = GCloudConfig::new(bucket, project);
             let gcloud_adapter = crate::sync::GCloudAdapter::new(gcloud_config)
                 .await
-                .map_err(|e| NagualError::internal(format!("Failed to create GCloud adapter: {}", e)))?;
+                .map_err(|e| {
+                    NagualError::internal(format!("Failed to create GCloud adapter: {}", e))
+                })?;
             let retention_config = RetentionConfig::new(config.retention_days as u64, 7);
             Some(Arc::new(SyncManager::new(gcloud_adapter, retention_config)))
         } else {
@@ -517,7 +519,13 @@ impl Nagual {
     ///
     /// A `HealthStatus` containing the health of all subsystems.
     pub async fn health(&self) -> HealthStatus {
-        let sqlite_healthy = self.state.adapter.sqlite().table_exists("sqlite_master").await.is_ok();
+        let sqlite_healthy = self
+            .state
+            .adapter
+            .sqlite()
+            .table_exists("sqlite_master")
+            .await
+            .is_ok();
 
         let postgres_healthy = if let Some(pg) = self.state.adapter.postgres() {
             // Check PostgreSQL health
@@ -581,7 +589,10 @@ impl HealthStatus {
 
     /// Get a summary string.
     pub fn summary(&self) -> String {
-        let mut parts = vec![format!("sqlite={}", if self.sqlite { "ok" } else { "error" })];
+        let mut parts = vec![format!(
+            "sqlite={}",
+            if self.sqlite { "ok" } else { "error" }
+        )];
 
         if let Some(pg) = self.postgres {
             parts.push(format!("postgres={}", if pg { "ok" } else { "error" }));
@@ -621,7 +632,10 @@ mod tests {
 
         assert_eq!(config.sqlite_path, "custom.db");
         assert_eq!(config.embedding_dim, 384);
-        assert_eq!(config.postgres_url, Some("postgres://localhost/test".to_string()));
+        assert_eq!(
+            config.postgres_url,
+            Some("postgres://localhost/test".to_string())
+        );
         assert_eq!(config.max_pg_connections, 10);
         assert_eq!(config.retention_days, 60);
         assert!(config.debug);

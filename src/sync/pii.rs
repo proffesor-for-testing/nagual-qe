@@ -176,7 +176,10 @@ impl PiiRedactor {
         for pattern in &self.patterns {
             if pattern.regex.is_match(&result) {
                 categories.push(pattern.name.to_string());
-                result = pattern.regex.replace_all(&result, pattern.replacement).to_string();
+                result = pattern
+                    .regex
+                    .replace_all(&result, pattern.replacement)
+                    .to_string();
                 count += 1;
             }
         }
@@ -312,8 +315,7 @@ mod tests {
     #[test]
     fn test_strip_connection_string() {
         let r = PiiRedactor::new();
-        let result =
-            r.strip_pii("Connect via postgres://nagual:secret@localhost:5432/nagual_db");
+        let result = r.strip_pii("Connect via postgres://nagual:secret@localhost:5432/nagual_db");
         assert!(!result.text.contains("postgres://nagual:secret"));
         assert!(result.text.contains("[CONNECTION_STRING_REDACTED]"));
         assert!(result.categories.contains(&"connection_string".to_string()));
@@ -393,7 +395,8 @@ mod tests {
     #[test]
     fn test_multiple_pii_types_in_one_string() {
         let r = PiiRedactor::new();
-        let input = "User user@example.com at 10.0.0.5 stored key ngk_aabbccdd11223344556677889900aabb";
+        let input =
+            "User user@example.com at 10.0.0.5 stored key ngk_aabbccdd11223344556677889900aabb";
         let result = r.strip_pii(input);
         assert!(result.text.contains("[EMAIL_REDACTED]"));
         assert!(result.text.contains("[IP_REDACTED]"));
@@ -582,7 +585,10 @@ mod tests {
             redactions_count: 0,
             categories: vec![],
         };
-        assert_eq!(passthrough.text, dirty, "Passthrough must preserve original text");
+        assert_eq!(
+            passthrough.text, dirty,
+            "Passthrough must preserve original text"
+        );
         assert_eq!(passthrough.redactions_count, 0);
         assert!(passthrough.categories.is_empty());
 

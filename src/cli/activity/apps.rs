@@ -60,10 +60,7 @@ pub(super) async fn run_apps(args: &AppsArgs) -> Result<()> {
     } else {
         println!("\nApp Usage ({})", args.period);
         println!("{:=<60}", "");
-        println!(
-            "  {:<25} {:>8} {:>12}",
-            "App", "Items", "Domain"
-        );
+        println!("  {:<25} {:>8} {:>12}", "App", "Items", "Domain");
         println!("  {:-<55}", "");
 
         let total: usize = sorted.iter().map(|a| a.count).sum();

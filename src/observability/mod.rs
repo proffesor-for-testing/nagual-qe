@@ -94,17 +94,19 @@ pub mod redaction;
 pub mod tracing;
 
 // Re-exports for convenience
-pub use alerts::{Alert, AlertConfig, AlertLevel, AlertManager, AlertRule, AlertCondition, AlertStats};
-pub use logging::{
-    init_logging, init_default_logging, init_dev_logging, init_prod_logging,
-    LoggingConfig, LogLevel, LoggingHandle, LogEntry,
-};
-pub use metrics::{MetricsCollector, MetricsConfig, MetricStats, MetricType, SystemMetric};
-pub use redaction::{LogRedactor, RedactionConfig, RedactionAnalysis, redact, redact_with_config};
 pub use self::tracing::{
-    MetricSpan, InstrumentedOperation, Instrumented, MetricsLayer,
-    DbOperationMetrics, timed, timed_async, timed_result, timed_result_async,
+    timed, timed_async, timed_result, timed_result_async, DbOperationMetrics, Instrumented,
+    InstrumentedOperation, MetricSpan, MetricsLayer,
 };
+pub use alerts::{
+    Alert, AlertCondition, AlertConfig, AlertLevel, AlertManager, AlertRule, AlertStats,
+};
+pub use logging::{
+    init_default_logging, init_dev_logging, init_logging, init_prod_logging, LogEntry, LogLevel,
+    LoggingConfig, LoggingHandle,
+};
+pub use metrics::{MetricStats, MetricType, MetricsCollector, MetricsConfig, SystemMetric};
+pub use redaction::{redact, redact_with_config, LogRedactor, RedactionAnalysis, RedactionConfig};
 
 /// Default observability configuration.
 #[derive(Debug, Clone)]
@@ -165,7 +167,9 @@ impl ObservabilityConfig {
 ///
 /// This is a convenience function that sets up logging, metrics, alerts,
 /// and returns a handle to manage them.
-pub fn init_observability(config: ObservabilityConfig) -> crate::error::Result<ObservabilityHandle> {
+pub fn init_observability(
+    config: ObservabilityConfig,
+) -> crate::error::Result<ObservabilityHandle> {
     // Initialize logging
     let logging_handle = init_logging(config.logging)?;
 

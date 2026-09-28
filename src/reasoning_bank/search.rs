@@ -45,10 +45,10 @@ impl Default for SearchConfig {
     fn default() -> Self {
         Self {
             embedding_dim: 128,
-            hnsw_m: 24,           // Increased for better recall at scale
+            hnsw_m: 24, // Increased for better recall at scale
             hnsw_m0: 48,
             hnsw_ef_construction: 200,
-            hnsw_ef_search: 200,  // Critical: must be >= 50 for 95% recall, 200 for near-perfect
+            hnsw_ef_search: 200, // Critical: must be >= 50 for 95% recall, 200 for near-perfect
             normalize_vectors: true,
             min_similarity: 0.0,
         }
@@ -68,7 +68,10 @@ pub struct SearchResult {
 impl SearchResult {
     /// Create a new search result.
     pub fn new(pattern: Pattern, similarity: f32) -> Self {
-        Self { pattern, similarity }
+        Self {
+            pattern,
+            similarity,
+        }
     }
 }
 
@@ -228,11 +231,7 @@ impl VectorSearch {
     }
 
     /// Brute-force search for small datasets or when HNSW is not available.
-    async fn search_brute_force(
-        &self,
-        query: &[f32],
-        k: usize,
-    ) -> Result<Vec<SearchResult>> {
+    async fn search_brute_force(&self, query: &[f32], k: usize) -> Result<Vec<SearchResult>> {
         // Get all patterns with embeddings from cache or database
         let patterns = self.get_patterns_with_embeddings().await?;
 
@@ -333,7 +332,7 @@ impl VectorSearch {
         let value_vec: Vec<PatternId> = points.iter().map(|p| p.id.clone()).collect();
         let hnsw = HnswBuilder::default()
             .ef_construction(self.config.hnsw_ef_construction)
-            .ef_search(self.config.hnsw_ef_search)  // Critical: set search quality at build time
+            .ef_search(self.config.hnsw_ef_search) // Critical: set search quality at build time
             .build(point_vec, value_vec);
 
         // Update caches
@@ -359,9 +358,7 @@ impl VectorSearch {
         let patterns = self
             .adapter
             .sqlite()
-            .query(sql, &[], |row| {
-                parse_pattern_from_row(row)
-            })
+            .query(sql, &[], |row| parse_pattern_from_row(row))
             .await?;
 
         Ok(patterns)
@@ -382,7 +379,9 @@ impl VectorSearch {
         }
 
         // Add to cache
-        self.pattern_cache.write().insert(pattern.id().clone(), pattern.clone());
+        self.pattern_cache
+            .write()
+            .insert(pattern.id().clone(), pattern.clone());
 
         // Mark index as dirty for rebuild on next search
         // (In a production system, we might do incremental updates)
@@ -429,21 +428,29 @@ fn parse_pattern_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Pattern> 
     let reuse_count: i32 = row.get("reuse_count")?;
     let reward: f64 = row.get("reward")?;
     let success: bool = row.get::<_, i32>("success")? != 0;
-    let critique: String = row.get::<_, Option<String>>("critique")?.unwrap_or_default();
+    let critique: String = row
+        .get::<_, Option<String>>("critique")?
+        .unwrap_or_default();
     let agent_id: Option<String> = row.get("agent_id")?;
     let session_id: Option<String> = row.get("session_id")?;
     let confidence: f64 = row.get("confidence")?;
     let embedding_json: Option<String> = row.get("embedding")?;
-    let tags_json: String = row.get::<_, Option<String>>("tags")?.unwrap_or_else(|| "[]".to_string());
-    let related_json: String = row.get::<_, Option<String>>("related_patterns")?.unwrap_or_else(|| "[]".to_string());
-    let metadata_json: String = row.get::<_, Option<String>>("metadata")?.unwrap_or_else(|| "{}".to_string());
+    let tags_json: String = row
+        .get::<_, Option<String>>("tags")?
+        .unwrap_or_else(|| "[]".to_string());
+    let related_json: String = row
+        .get::<_, Option<String>>("related_patterns")?
+        .unwrap_or_else(|| "[]".to_string());
+    let metadata_json: String = row
+        .get::<_, Option<String>>("metadata")?
+        .unwrap_or_else(|| "{}".to_string());
 
     let timestamp = DateTime::parse_from_rfc3339(&timestamp_str)
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|_| Utc::now());
 
-    let embedding: Option<Vec<f32>> = embedding_json
-        .and_then(|json| serde_json::from_str(&json).ok());
+    let embedding: Option<Vec<f32>> =
+        embedding_json.and_then(|json| serde_json::from_str(&json).ok());
 
     let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
     let related_patterns: Vec<PatternId> = serde_json::from_str(&related_json).unwrap_or_default();
@@ -578,7 +585,11 @@ mod tests {
                 metadata TEXT DEFAULT '{}'
             )
         "#;
-        adapter.sqlite().execute_batch(create_table_sql).await.unwrap();
+        adapter
+            .sqlite()
+            .execute_batch(create_table_sql)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

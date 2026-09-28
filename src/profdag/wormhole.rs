@@ -43,9 +43,9 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use uuid::Uuid;
 
+use super::{ProfDAGEdge, ProfDAGResult};
 use crate::db::DualWriteAdapter;
 use crate::error::{NagualError, Result};
-use super::{ProfDAGEdge, ProfDAGResult};
 
 /// Configuration for wormhole behavior.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,15 +96,33 @@ pub struct WormholeConfig {
     pub strength_increment: f32,
 }
 
-fn default_activation_threshold() -> u32 { 3 }
-fn default_decay_days() -> u32 { 30 }
-fn default_max_wormholes_per_node() -> usize { 10 }
-fn default_min_traversal_savings() -> f32 { 0.5 }
-fn default_min_strength() -> f32 { 0.1 }
-fn default_decay_rate() -> f32 { 0.05 }
-fn default_bidirectional() -> bool { true }
-fn default_base_strength() -> f32 { 0.5 }
-fn default_strength_increment() -> f32 { 0.1 }
+fn default_activation_threshold() -> u32 {
+    3
+}
+fn default_decay_days() -> u32 {
+    30
+}
+fn default_max_wormholes_per_node() -> usize {
+    10
+}
+fn default_min_traversal_savings() -> f32 {
+    0.5
+}
+fn default_min_strength() -> f32 {
+    0.1
+}
+fn default_decay_rate() -> f32 {
+    0.05
+}
+fn default_bidirectional() -> bool {
+    true
+}
+fn default_base_strength() -> f32 {
+    0.5
+}
+fn default_strength_increment() -> f32 {
+    0.1
+}
 
 impl Default for WormholeConfig {
     fn default() -> Self {
@@ -181,7 +199,10 @@ pub enum WormholeCreationReason {
 impl std::fmt::Display for WormholeCreationReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WormholeCreationReason::CoAccess { count, avg_path_distance } => {
+            WormholeCreationReason::CoAccess {
+                count,
+                avg_path_distance,
+            } => {
                 write!(f, "Co-accessed {} times", count)?;
                 if let Some(dist) = avg_path_distance {
                     write!(f, " (avg path distance: {:.1})", dist)?;
@@ -194,8 +215,15 @@ impl std::fmt::Display for WormholeCreationReason {
             WormholeCreationReason::Manual { reason } => {
                 write!(f, "Manual: {}", reason)
             }
-            WormholeCreationReason::Learned { algorithm, confidence } => {
-                write!(f, "Learned by {} (confidence: {:.2})", algorithm, confidence)
+            WormholeCreationReason::Learned {
+                algorithm,
+                confidence,
+            } => {
+                write!(
+                    f,
+                    "Learned by {} (confidence: {:.2})",
+                    algorithm, confidence
+                )
             }
         }
     }
@@ -521,9 +549,9 @@ impl WormholeManager {
         let should_create = {
             let mut cache = self.co_access_cache.write();
             let is_existing = cache.contains_key(&key);
-            let record = cache.entry(key.clone()).or_insert_with(|| {
-                CoAccessRecord::new(&ordered_a, &ordered_b)
-            });
+            let record = cache
+                .entry(key.clone())
+                .or_insert_with(|| CoAccessRecord::new(&ordered_a, &ordered_b));
 
             if is_existing {
                 record.record_access(session_id, trajectory_id);
@@ -533,20 +561,23 @@ impl WormholeManager {
         };
 
         // Persist to database
-        self.persist_co_access(&ordered_a, &ordered_b, session_id, trajectory_id).await?;
+        self.persist_co_access(&ordered_a, &ordered_b, session_id, trajectory_id)
+            .await?;
 
         // Check if we should create a wormhole
         if should_create {
             // Check if wormhole already exists
             if !self.wormhole_exists(&ordered_a, &ordered_b).await? {
-                let wormhole = self.create_wormhole(
-                    &ordered_a,
-                    &ordered_b,
-                    WormholeCreationReason::CoAccess {
-                        count: self.config.activation_threshold,
-                        avg_path_distance: None, // TODO: Calculate from graph
-                    },
-                ).await?;
+                let wormhole = self
+                    .create_wormhole(
+                        &ordered_a,
+                        &ordered_b,
+                        WormholeCreationReason::CoAccess {
+                            count: self.config.activation_threshold,
+                            avg_path_distance: None, // TODO: Calculate from graph
+                        },
+                    )
+                    .await?;
 
                 return Ok(Some(wormhole));
             }
@@ -600,12 +631,7 @@ impl WormholeManager {
             self.evict_weakest_wormhole(source_id).await?;
         }
 
-        let wormhole = Wormhole::new(
-            source_id,
-            target_id,
-            reason,
-            self.config.base_strength,
-        );
+        let wormhole = Wormhole::new(source_id, target_id, reason, self.config.base_strength);
 
         // Persist wormhole
         self.persist_wormhole(&wormhole).await?;
@@ -651,10 +677,7 @@ impl WormholeManager {
     }
 
     /// Record usage of a wormhole.
-    pub async fn record_wormhole_use(
-        &self,
-        wormhole_id: &str,
-    ) -> Result<()> {
+    pub async fn record_wormhole_use(&self, wormhole_id: &str) -> Result<()> {
         // Update in database
         let sql = r#"
             UPDATE wormholes
@@ -699,9 +722,7 @@ impl WormholeManager {
         let wormholes = self
             .adapter
             .sqlite()
-            .query(sql, &[&source_id], |row| {
-                Self::wormhole_from_row(row)
-            })
+            .query(sql, &[&source_id], |row| Self::wormhole_from_row(row))
             .await
             .map_err(|e| NagualError::internal(format!("Failed to get wormholes: {}", e)))?;
 
@@ -721,9 +742,7 @@ impl WormholeManager {
         let wormhole = self
             .adapter
             .sqlite()
-            .query_one(sql, &[&wormhole_id], |row| {
-                Self::wormhole_from_row(row)
-            })
+            .query_one(sql, &[&wormhole_id], |row| Self::wormhole_from_row(row))
             .await
             .map_err(|e| NagualError::internal(format!("Failed to get wormhole: {}", e)))?;
 
@@ -927,10 +946,10 @@ impl WormholeManager {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#;
 
-        let reason_json = serde_json::to_string(&wormhole.creation_reason)
-            .unwrap_or_else(|_| "{}".to_string());
-        let metadata_json = serde_json::to_string(&wormhole.metadata)
-            .unwrap_or_else(|_| "{}".to_string());
+        let reason_json =
+            serde_json::to_string(&wormhole.creation_reason).unwrap_or_else(|_| "{}".to_string());
+        let metadata_json =
+            serde_json::to_string(&wormhole.metadata).unwrap_or_else(|_| "{}".to_string());
 
         self.adapter
             .sqlite()
@@ -959,8 +978,8 @@ impl WormholeManager {
     /// Create ProfDAG edge for wormhole.
     async fn create_profdag_edge(&self, wormhole: &Wormhole) -> Result<()> {
         let edge = wormhole.to_profdag_edge();
-        let metadata_json = serde_json::to_string(&edge.metadata)
-            .unwrap_or_else(|_| "{}".to_string());
+        let metadata_json =
+            serde_json::to_string(&edge.metadata).unwrap_or_else(|_| "{}".to_string());
 
         let sql = r#"
             INSERT INTO profdag_edges (
@@ -1110,9 +1129,7 @@ impl WormholeManager {
         let candidates: Vec<(String, String, i64)> = self
             .adapter
             .sqlite()
-            .query(&sql, &[], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-            })
+            .query(&sql, &[], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
             .await
             .map_err(|e| NagualError::internal(format!("Failed to get candidates: {}", e)))?;
 
@@ -1146,15 +1163,17 @@ impl WormholeManager {
         let usage_count: i64 = row.get(7)?;
         let path_distance_saved: Option<i64> = row.get(8)?;
         let is_active: bool = row.get(9)?;
-        let metadata_json: String = row.get::<_, Option<String>>(10)?.unwrap_or_else(|| "{}".to_string());
+        let metadata_json: String = row
+            .get::<_, Option<String>>(10)?
+            .unwrap_or_else(|| "{}".to_string());
 
         let creation_reason: WormholeCreationReason = serde_json::from_str(&creation_reason_json)
             .unwrap_or(WormholeCreationReason::Manual {
                 reason: "Unknown".to_string(),
             });
 
-        let metadata: serde_json::Value = serde_json::from_str(&metadata_json)
-            .unwrap_or(serde_json::json!({}));
+        let metadata: serde_json::Value =
+            serde_json::from_str(&metadata_json).unwrap_or(serde_json::json!({}));
 
         let created_at = DateTime::parse_from_rfc3339(&created_at_str)
             .map(|dt| dt.with_timezone(&Utc))
@@ -1208,13 +1227,7 @@ mod tests {
 
     #[test]
     fn test_wormhole_creation() {
-        let wormhole = Wormhole::from_co_access(
-            "pattern_A",
-            "pattern_D",
-            3,
-            Some(4.5),
-            0.5,
-        );
+        let wormhole = Wormhole::from_co_access("pattern_A", "pattern_D", 3, Some(4.5), 0.5);
 
         assert!(!wormhole.id.is_empty());
         assert_eq!(wormhole.source_id, "pattern_A");
@@ -1229,7 +1242,9 @@ mod tests {
         let mut wormhole = Wormhole::new(
             "A",
             "B",
-            WormholeCreationReason::Manual { reason: "test".to_string() },
+            WormholeCreationReason::Manual {
+                reason: "test".to_string(),
+            },
             0.5,
         );
 
@@ -1244,7 +1259,9 @@ mod tests {
         let mut wormhole = Wormhole::new(
             "A",
             "B",
-            WormholeCreationReason::Manual { reason: "test".to_string() },
+            WormholeCreationReason::Manual {
+                reason: "test".to_string(),
+            },
             0.95,
         );
 
@@ -1258,7 +1275,9 @@ mod tests {
         let wormhole = Wormhole::new(
             "A",
             "B",
-            WormholeCreationReason::Manual { reason: "test".to_string() },
+            WormholeCreationReason::Manual {
+                reason: "test".to_string(),
+            },
             0.05,
         );
 
@@ -1331,7 +1350,9 @@ mod tests {
         let mut wormhole = Wormhole::new(
             "A",
             "B",
-            WormholeCreationReason::Manual { reason: "test".to_string() },
+            WormholeCreationReason::Manual {
+                reason: "test".to_string(),
+            },
             0.5,
         );
         wormhole.path_distance_saved = Some(3);

@@ -628,7 +628,11 @@ mod tests {
         for path in &paths {
             let mut seen = std::collections::HashSet::new();
             for node in &path.nodes {
-                assert!(seen.insert(node.clone()), "Path contains cycle: {:?}", path.nodes);
+                assert!(
+                    seen.insert(node.clone()),
+                    "Path contains cycle: {:?}",
+                    path.nodes
+                );
             }
         }
     }

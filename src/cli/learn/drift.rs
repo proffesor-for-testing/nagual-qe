@@ -52,10 +52,7 @@ pub async fn run(args: &DriftArgs) -> Result<()> {
                         }
                     }
                     _ => {
-                        println!(
-                            "No drift data available for domain '{}'.",
-                            domain
-                        );
+                        println!("No drift data available for domain '{}'.", domain);
                         println!("Run `nagual learn embed` first to generate embeddings.");
                     }
                 }
@@ -74,7 +71,9 @@ pub async fn run(args: &DriftArgs) -> Result<()> {
         }
 
         if reports.is_empty() {
-            println!("No drift data available. Run `nagual learn embed` first to generate embeddings.");
+            println!(
+                "No drift data available. Run `nagual learn embed` first to generate embeddings."
+            );
             return Ok(());
         }
 

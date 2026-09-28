@@ -117,6 +117,10 @@ pub use insights::{
 
 // Re-export SONA types
 pub use sona::{
+    apply_reward_step, reward_step, REWARD_STEP_FAILURE, REWARD_STEP_PARTIAL,
+    REWARD_STEP_SECURITY_FAILURE, REWARD_STEP_SUCCESS,
+};
+pub use sona::{
     calculate_reward, get_domain_drift, get_drift_reports, get_meta_cognitive_stats,
     get_meta_cognitive_status, Outcome, OutcomeLog, OutcomeRecord, RewardModifiers, SonaConfig,
     SonaLearner, SonaStats,
@@ -124,19 +128,33 @@ pub use sona::{
 
 // Re-export A/B testing types
 pub use ab_testing::{
-    AbTestConfig, AbTestManager, AbTestMetrics, AbTestResult, BaselineMetrics,
-    ImprovementReport, ImprovementTarget, ImprovementTracker, MetricAggregation,
-    MetricType, QuarterlyProgress, RegressionAlert, RegressionConfig,
-    RegressionDetector, Severity, Variant, VariantStats,
+    AbTestConfig, AbTestManager, AbTestMetrics, AbTestResult, BaselineMetrics, ImprovementReport,
+    ImprovementTarget, ImprovementTracker, MetricAggregation, MetricType, QuarterlyProgress,
+    RegressionAlert, RegressionConfig, RegressionDetector, Severity, Variant, VariantStats,
 };
 
 // Re-export trajectory types
 pub use trajectory::{
-    CompactTrajectory, StepType, Trajectory, TrajectoryBuilder, TrajectoryFilter, TrajectoryId,
-    TrajectoryOrderBy, TrajectoryStats, TrajectoryStep, TrajectoryStorage, TrajectoryStorageConfig,
-    SQLITE_TRAJECTORIES_TABLE, SQLITE_TRAJECTORY_PATTERN_LINKS_TABLE, SQLITE_TRAJECTORY_STEPS_TABLE,
     // Week 2 Workstream B: Trajectory Analysis Engine
-    ChainAnalysis, PatternChain, PatternTransition, TrajectoryAnalysisConfig, TrajectoryAnalyzer,
+    ChainAnalysis,
+    CompactTrajectory,
+    PatternChain,
+    PatternTransition,
+    StepType,
+    Trajectory,
+    TrajectoryAnalysisConfig,
+    TrajectoryAnalyzer,
+    TrajectoryBuilder,
+    TrajectoryFilter,
+    TrajectoryId,
+    TrajectoryOrderBy,
+    TrajectoryStats,
+    TrajectoryStep,
+    TrajectoryStorage,
+    TrajectoryStorageConfig,
+    SQLITE_TRAJECTORIES_TABLE,
+    SQLITE_TRAJECTORY_PATTERN_LINKS_TABLE,
+    SQLITE_TRAJECTORY_STEPS_TABLE,
 };
 
 // Re-export scenario types (Week 3 Workstream B: Scenario Holdout System)
@@ -155,8 +173,8 @@ pub use strange_loop::{
 // Re-export meta-learning types (ADR-035: Meta-Learning)
 pub use meta::{
     DomainTransfer, EwcConfig, EwcEngine, LearningRateConfig, MetaLearningConfig,
-    MetaLearningEngine, MetaLearningStats, OptimizationResult, PatternImportance,
-    PatternMapping, PatternTemplate, TransferEngine,
+    MetaLearningEngine, MetaLearningStats, OptimizationResult, PatternImportance, PatternMapping,
+    PatternTemplate, TransferEngine,
 };
 
 // Re-export domain expansion functions

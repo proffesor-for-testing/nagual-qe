@@ -10,9 +10,9 @@
 //! fallback produces the same formula minus the recursive refinement.
 
 #[cfg(feature = "strange-loop-meta")]
-use std::sync::OnceLock;
-#[cfg(feature = "strange-loop-meta")]
 use parking_lot::Mutex;
+#[cfg(feature = "strange-loop-meta")]
+use std::sync::OnceLock;
 
 #[cfg(feature = "strange-loop-meta")]
 use strange_loop::lipschitz_loop::{LipschitzLoop, LipschitzParams, LoopTopology};
@@ -66,10 +66,7 @@ fn build_report(composite: f64, iterations: usize) -> MetaCognitiveReport {
             "Learning pipeline producing high-quality results".to_string(),
         )
     } else if composite > 0.4 {
-        (
-            true,
-            "Learning pipeline operating normally".to_string(),
-        )
+        (true, "Learning pipeline operating normally".to_string())
     } else if composite > 0.2 {
         (
             false,
@@ -278,8 +275,7 @@ impl Default for MetaCognitiveTracker {
 // SQLite persistence for MetaCognitiveTracker
 // ---------------------------------------------------------------------------
 
-const META_COGNITIVE_TABLE_DDL: &str =
-    "CREATE TABLE IF NOT EXISTS meta_cognitive_log (
+const META_COGNITIVE_TABLE_DDL: &str = "CREATE TABLE IF NOT EXISTS meta_cognitive_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         quality_score REAL NOT NULL,
         bonus REAL NOT NULL,
@@ -289,10 +285,14 @@ const META_COGNITIVE_TABLE_DDL: &str =
     );";
 
 /// Persist a meta-cognitive report to SQLite.
-pub fn persist_report(db_path: &str, report: &MetaCognitiveReport) -> std::result::Result<(), String> {
+pub fn persist_report(
+    db_path: &str,
+    report: &MetaCognitiveReport,
+) -> std::result::Result<(), String> {
     use rusqlite::Connection;
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
-    conn.execute_batch(META_COGNITIVE_TABLE_DDL).map_err(|e| e.to_string())?;
+    conn.execute_batch(META_COGNITIVE_TABLE_DDL)
+        .map_err(|e| e.to_string())?;
     conn.execute(
         "INSERT INTO meta_cognitive_log (quality_score, bonus, is_healthy, assessment) VALUES (?, ?, ?, ?)",
         rusqlite::params![report.quality_score, report.bonus as f64, report.is_healthy as i32, report.assessment],
@@ -310,7 +310,8 @@ pub fn persist_report(db_path: &str, report: &MetaCognitiveReport) -> std::resul
 pub fn load_stats(db_path: &str) -> std::result::Result<(f64, f64, usize), String> {
     use rusqlite::Connection;
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
-    conn.execute_batch(META_COGNITIVE_TABLE_DDL).map_err(|e| e.to_string())?;
+    conn.execute_batch(META_COGNITIVE_TABLE_DDL)
+        .map_err(|e| e.to_string())?;
     let avg_quality: f64 = conn
         .query_row(
             "SELECT COALESCE(AVG(quality_score), 0.0) FROM meta_cognitive_log",
@@ -335,7 +336,8 @@ pub fn load_stats(db_path: &str) -> std::result::Result<(f64, f64, usize), Strin
 pub fn load_latest(db_path: &str) -> std::result::Result<Option<MetaCognitiveReport>, String> {
     use rusqlite::Connection;
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
-    conn.execute_batch(META_COGNITIVE_TABLE_DDL).map_err(|e| e.to_string())?;
+    conn.execute_batch(META_COGNITIVE_TABLE_DDL)
+        .map_err(|e| e.to_string())?;
     let result = conn.query_row(
         "SELECT quality_score, bonus, is_healthy, assessment FROM meta_cognitive_log ORDER BY id DESC LIMIT 1",
         [],

@@ -340,9 +340,15 @@ mod tests {
     fn test_edge_type_from_str() {
         assert_eq!(EdgeType::from_str("leads_to"), Some(EdgeType::LeadsTo));
         assert_eq!(EdgeType::from_str("SIMILAR_TO"), Some(EdgeType::SimilarTo));
-        assert_eq!(EdgeType::from_str("derived_from"), Some(EdgeType::DerivedFrom));
+        assert_eq!(
+            EdgeType::from_str("derived_from"),
+            Some(EdgeType::DerivedFrom)
+        );
         assert_eq!(EdgeType::from_str("wormhole"), Some(EdgeType::Wormhole));
-        assert_eq!(EdgeType::from_str("temporal_link"), Some(EdgeType::TemporalLink));
+        assert_eq!(
+            EdgeType::from_str("temporal_link"),
+            Some(EdgeType::TemporalLink)
+        );
         assert_eq!(EdgeType::from_str("unknown"), None);
     }
 
@@ -362,9 +368,18 @@ mod tests {
 
     #[test]
     fn test_temporal_direction_from_str() {
-        assert_eq!(TemporalDirection::from_str("forward"), Some(TemporalDirection::Forward));
-        assert_eq!(TemporalDirection::from_str("BACKWARD"), Some(TemporalDirection::Backward));
-        assert_eq!(TemporalDirection::from_str("concurrent"), Some(TemporalDirection::Concurrent));
+        assert_eq!(
+            TemporalDirection::from_str("forward"),
+            Some(TemporalDirection::Forward)
+        );
+        assert_eq!(
+            TemporalDirection::from_str("BACKWARD"),
+            Some(TemporalDirection::Backward)
+        );
+        assert_eq!(
+            TemporalDirection::from_str("concurrent"),
+            Some(TemporalDirection::Concurrent)
+        );
         assert_eq!(TemporalDirection::from_str("unknown"), None);
     }
 
@@ -404,7 +419,10 @@ mod tests {
 
         assert_eq!(edge.edge_type, EdgeType::Wormhole);
         assert_eq!(edge.wormhole_strength, Some(0.7));
-        assert_eq!(edge.wormhole_reason, Some("High semantic overlap despite distance".to_string()));
+        assert_eq!(
+            edge.wormhole_reason,
+            Some("High semantic overlap despite distance".to_string())
+        );
     }
 
     #[test]

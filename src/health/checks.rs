@@ -107,9 +107,7 @@ impl SqliteHealthCheck {
 
         // Optional integrity check
         if self.check_integrity {
-            match conn.query_row("PRAGMA integrity_check", [], |row| {
-                row.get::<_, String>(0)
-            }) {
+            match conn.query_row("PRAGMA integrity_check", [], |row| row.get::<_, String>(0)) {
                 Ok(integrity_result) if integrity_result == "ok" => {
                     result = result.with_metadata("integrity", json!("ok"));
                 }
@@ -195,8 +193,9 @@ impl PostgresHealthCheck {
         let start = std::time::Instant::now();
 
         // Try to execute a simple query
-        let result: Result<(i32,), sqlx::Error> =
-            sqlx::query_as("SELECT 1").fetch_one(self.pool.as_ref()).await;
+        let result: Result<(i32,), sqlx::Error> = sqlx::query_as("SELECT 1")
+            .fetch_one(self.pool.as_ref())
+            .await;
 
         let query_time = start.elapsed();
         let query_time_ms = query_time.as_millis() as u64;
@@ -280,8 +279,8 @@ impl DiskHealthCheck {
     pub fn new(path: impl AsRef<Path>) -> Self {
         Self {
             path: path.as_ref().to_path_buf(),
-            warn_threshold_percent: 90.0,  // Warn at 90% usage
-            fail_threshold_percent: 95.0,  // Fail at 95% usage
+            warn_threshold_percent: 90.0, // Warn at 90% usage
+            fail_threshold_percent: 95.0, // Fail at 95% usage
         }
     }
 
@@ -302,10 +301,7 @@ impl DiskHealthCheck {
             let path_cstr = match CString::new(self.path.to_string_lossy().as_bytes()) {
                 Ok(s) => s,
                 Err(e) => {
-                    return HealthCheckResult::unknown(
-                        "disk",
-                        format!("Invalid path: {}", e),
-                    );
+                    return HealthCheckResult::unknown("disk", format!("Invalid path: {}", e));
                 }
             };
 
@@ -390,10 +386,7 @@ impl DiskHealthCheck {
 
         #[cfg(not(unix))]
         {
-            HealthCheckResult::unknown(
-                "disk",
-                "Disk health check not supported on this platform",
-            )
+            HealthCheckResult::unknown("disk", "Disk health check not supported on this platform")
         }
     }
 }
@@ -429,8 +422,8 @@ impl MemoryHealthCheck {
     /// Create a new memory health check with default thresholds
     pub fn new() -> Self {
         Self {
-            warn_threshold_percent: 85.0,  // Warn at 85% usage
-            fail_threshold_percent: 95.0,  // Fail at 95% usage
+            warn_threshold_percent: 85.0, // Warn at 85% usage
+            fail_threshold_percent: 95.0, // Fail at 95% usage
         }
     }
 
@@ -580,7 +573,10 @@ impl MemoryHealthCheck {
             }
         }
 
-        HealthCheckResult::unknown("memory", "Memory health check not available on this platform")
+        HealthCheckResult::unknown(
+            "memory",
+            "Memory health check not available on this platform",
+        )
     }
 }
 
@@ -680,11 +676,7 @@ impl HealthCheck for CompositeHealthCheck {
             .filter(|r| r.status == HealthStatus::Healthy)
             .count();
 
-        let message = format!(
-            "{}/{} checks healthy",
-            healthy_count,
-            results.len()
-        );
+        let message = format!("{}/{} checks healthy", healthy_count, results.len());
 
         HealthCheckResult {
             component: self.name.clone(),
@@ -746,7 +738,13 @@ mod tests {
         let _ = std::fs::remove_file(format!("{}-wal", path.display()));
         let _ = std::fs::remove_file(format!("{}-shm", path.display()));
 
-        assert_eq!(result.status, HealthStatus::Healthy, "Expected Healthy but got {:?}: {}", result.status, result.message);
+        assert_eq!(
+            result.status,
+            HealthStatus::Healthy,
+            "Expected Healthy but got {:?}: {}",
+            result.status,
+            result.message
+        );
     }
 
     #[tokio::test]
@@ -763,7 +761,9 @@ mod tests {
         let check = MemoryHealthCheck::new();
         let result = check.check().await;
         // Should have some result on most platforms
-        assert!(result.metadata.contains_key("total_bytes") || result.status == HealthStatus::Unknown);
+        assert!(
+            result.metadata.contains_key("total_bytes") || result.status == HealthStatus::Unknown
+        );
     }
 
     #[test]
@@ -781,7 +781,9 @@ mod tests {
 
         #[async_trait::async_trait]
         impl HealthCheck for AlwaysHealthy {
-            fn name(&self) -> &str { "healthy" }
+            fn name(&self) -> &str {
+                "healthy"
+            }
             async fn check(&self) -> HealthCheckResult {
                 HealthCheckResult::healthy("healthy", "OK")
             }
@@ -789,7 +791,9 @@ mod tests {
 
         #[async_trait::async_trait]
         impl HealthCheck for AlwaysDegraded {
-            fn name(&self) -> &str { "degraded" }
+            fn name(&self) -> &str {
+                "degraded"
+            }
             async fn check(&self) -> HealthCheckResult {
                 HealthCheckResult::degraded("degraded", "Slow")
             }

@@ -221,7 +221,10 @@ pub async fn update_pattern_pyramid(
 
     adapter
         .sqlite()
-        .execute(sql, &[&title.to_string(), &summary.to_string(), &id.to_string()])
+        .execute(
+            sql,
+            &[&title.to_string(), &summary.to_string(), &id.to_string()],
+        )
         .await?;
 
     debug!(pattern_id = %id, "Updated pyramid summary");
@@ -368,16 +371,18 @@ pub async fn generate_missing_pyramids(
         without_pyramid: total.saturating_sub(with_pyramid),
         with_title_only,
         with_summary_only,
-        generated: if dry_run { patterns_to_process } else { generated },
+        generated: if dry_run {
+            patterns_to_process
+        } else {
+            generated
+        },
     })
 }
 
 /// Initialize the adapter from a database path.
 ///
 /// This also ensures the schema migrations are applied (adding title/summary columns).
-pub async fn init_adapter(
-    db_path: &std::path::Path,
-) -> Result<Arc<DualWriteAdapter>> {
+pub async fn init_adapter(db_path: &std::path::Path) -> Result<Arc<DualWriteAdapter>> {
     // Ensure parent directory exists
     if let Some(parent) = db_path.parent() {
         if !parent.exists() {
@@ -415,7 +420,10 @@ async fn ensure_pyramid_columns(adapter: &Arc<DualWriteAdapter>) -> Result<()> {
         .await;
     let _ = adapter
         .sqlite()
-        .execute("ALTER TABLE reasoning_patterns ADD COLUMN summary TEXT", &[])
+        .execute(
+            "ALTER TABLE reasoning_patterns ADD COLUMN summary TEXT",
+            &[],
+        )
         .await;
 
     debug!("Ensured pyramid columns exist");
@@ -451,7 +459,10 @@ mod tests {
     fn test_generate_title_trailing_punctuation() {
         let problem = "How to implement caching using Redis, with proper expiration,";
         let title = generate_title(problem);
-        assert_eq!(title, "How to implement caching using Redis, with proper expiration");
+        assert_eq!(
+            title,
+            "How to implement caching using Redis, with proper expiration"
+        );
     }
 
     #[test]
@@ -459,7 +470,10 @@ mod tests {
         let problem = "How do you implement caching using Redis? What is the best approach?";
         let title = generate_title(problem);
         // Should take first 10 words
-        assert_eq!(title, "How do you implement caching using Redis? What is the");
+        assert_eq!(
+            title,
+            "How do you implement caching using Redis? What is the"
+        );
     }
 
     #[test]
@@ -485,7 +499,8 @@ mod tests {
 
     #[test]
     fn test_generate_summary_with_paragraph() {
-        let solution = "Use Redis with TTL expiration.\n\nThis provides fast lookups and automatic cleanup.";
+        let solution =
+            "Use Redis with TTL expiration.\n\nThis provides fast lookups and automatic cleanup.";
         let summary = generate_summary(solution);
         assert_eq!(summary, "Use Redis with TTL expiration.");
     }

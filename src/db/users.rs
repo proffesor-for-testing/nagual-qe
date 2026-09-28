@@ -67,12 +67,7 @@ impl UserStore {
     }
 
     /// Create a new user with an argon2-hashed password.
-    pub async fn create_user(
-        &self,
-        username: &str,
-        password: &str,
-        role: &str,
-    ) -> Result<User> {
+    pub async fn create_user(&self, username: &str, password: &str, role: &str) -> Result<User> {
         let id = uuid::Uuid::new_v4().to_string();
         let salt = SaltString::generate(&mut OsRng);
         let hash = Argon2::default()
@@ -114,11 +109,7 @@ impl UserStore {
 
     /// Verify a username/password pair. Returns the user on success, None on failure.
     /// Updates `last_login` on successful verification.
-    pub async fn verify_user(
-        &self,
-        username: &str,
-        password: &str,
-    ) -> Result<Option<User>> {
+    pub async fn verify_user(&self, username: &str, password: &str) -> Result<Option<User>> {
         let username_owned = username.to_string();
 
         // Query user in a sync closure
@@ -141,7 +132,8 @@ impl UserStore {
                         row.get::<_, String>(2).map_err(DatabaseError::from)?,
                         row.get::<_, String>(3).map_err(DatabaseError::from)?,
                         row.get::<_, String>(4).map_err(DatabaseError::from)?,
-                        row.get::<_, Option<String>>(5).map_err(DatabaseError::from)?,
+                        row.get::<_, Option<String>>(5)
+                            .map_err(DatabaseError::from)?,
                     ))),
                     None => Ok(None),
                 }
@@ -154,11 +146,10 @@ impl UserStore {
         };
 
         // Verify password (CPU-bound, but fast enough inline)
-        let parsed_hash = PasswordHash::new(&hash_str).map_err(|e| {
-            crate::error::NagualError::Internal {
+        let parsed_hash =
+            PasswordHash::new(&hash_str).map_err(|e| crate::error::NagualError::Internal {
                 message: format!("Hash parse error: {e}"),
-            }
-        })?;
+            })?;
 
         if Argon2::default()
             .verify_password(password.as_bytes(), &parsed_hash)
@@ -427,10 +418,7 @@ mod tests {
     #[test]
     fn test_extract_from_cookie_header() {
         let header = "other=foo; nagual_session=abc123; another=bar";
-        assert_eq!(
-            session::extract_from_cookie_header(header),
-            Some("abc123")
-        );
+        assert_eq!(session::extract_from_cookie_header(header), Some("abc123"));
         assert!(session::extract_from_cookie_header("other=foo").is_none());
     }
 

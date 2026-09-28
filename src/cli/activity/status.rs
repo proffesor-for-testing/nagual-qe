@@ -97,8 +97,11 @@ pub(super) async fn run_status(args: &StatusArgs) -> Result<()> {
                     }
                 }
 
-                let total = db_rows.frames + db_rows.ocr + db_rows.audio
-                    + db_rows.ui_monitoring + db_rows.accessibility;
+                let total = db_rows.frames
+                    + db_rows.ocr
+                    + db_rows.audio
+                    + db_rows.ui_monitoring
+                    + db_rows.accessibility;
                 println!("\n  Database:");
                 println!("    Frames:         {}", db_rows.frames);
                 println!("    OCR texts:      {}", db_rows.ocr);

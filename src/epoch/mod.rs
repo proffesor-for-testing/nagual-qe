@@ -62,10 +62,7 @@ pub struct EpochManager {
 impl EpochManager {
     /// Create a new EpochManager backed by the given database.
     pub fn new(db: Arc<SqliteDb>) -> Self {
-        Self {
-            db,
-            lineage: None,
-        }
+        Self { db, lineage: None }
     }
 
     /// Attach a lineage query for recording epoch-boundary lineage snapshots.
@@ -143,11 +140,9 @@ impl EpochManager {
             .db
             .with_connection(move |conn| {
                 let pattern_count: i64 = conn
-                    .query_row(
-                        "SELECT COUNT(*) FROM reasoning_patterns",
-                        [],
-                        |row| row.get(0),
-                    )
+                    .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+                        row.get(0)
+                    })
                     .map_err(crate::error::DatabaseError::from)?;
 
                 let domain_count: i64 = conn
@@ -215,11 +210,7 @@ impl EpochManager {
     /// COW branch: copy parent's membership to a new, non-frozen epoch.
     ///
     /// Errors if parent doesn't exist or branch_name already exists.
-    pub async fn branch(
-        &self,
-        parent_name: &str,
-        branch_name: &str,
-    ) -> Result<KnowledgeEpoch> {
+    pub async fn branch(&self, parent_name: &str, branch_name: &str) -> Result<KnowledgeEpoch> {
         let parent = self.get(parent_name).await?;
         let parent = parent.ok_or_else(|| NagualError::Internal {
             message: format!("Parent epoch '{}' not found", parent_name),
@@ -343,11 +334,7 @@ impl EpochManager {
     /// Compute the diff between two named epochs.
     ///
     /// Returns which pattern IDs were added, removed, and how many are common.
-    pub async fn diff(
-        &self,
-        epoch_a_name: &str,
-        epoch_b_name: &str,
-    ) -> Result<EpochDiff> {
+    pub async fn diff(&self, epoch_a_name: &str, epoch_b_name: &str) -> Result<EpochDiff> {
         let a = self.get(epoch_a_name).await?;
         let a = a.ok_or_else(|| NagualError::Internal {
             message: format!("Epoch '{}' not found", epoch_a_name),
@@ -370,10 +357,7 @@ impl EpochManager {
                 "SELECT pattern_id FROM epoch_membership WHERE epoch_id = ?
                  EXCEPT
                  SELECT pattern_id FROM epoch_membership WHERE epoch_id = ?",
-                &[
-                    &bid2 as &dyn rusqlite::ToSql,
-                    &aid2 as &dyn rusqlite::ToSql,
-                ],
+                &[&bid2 as &dyn rusqlite::ToSql, &aid2 as &dyn rusqlite::ToSql],
                 |row| row.get(0),
             )
             .await?;
@@ -387,10 +371,7 @@ impl EpochManager {
                 "SELECT pattern_id FROM epoch_membership WHERE epoch_id = ?
                  EXCEPT
                  SELECT pattern_id FROM epoch_membership WHERE epoch_id = ?",
-                &[
-                    &aid3 as &dyn rusqlite::ToSql,
-                    &bid3 as &dyn rusqlite::ToSql,
-                ],
+                &[&aid3 as &dyn rusqlite::ToSql, &bid3 as &dyn rusqlite::ToSql],
                 |row| row.get(0),
             )
             .await?;
@@ -404,10 +385,7 @@ impl EpochManager {
                 "SELECT pattern_id FROM epoch_membership WHERE epoch_id = ?
                  INTERSECT
                  SELECT pattern_id FROM epoch_membership WHERE epoch_id = ?",
-                &[
-                    &aid4 as &dyn rusqlite::ToSql,
-                    &bid4 as &dyn rusqlite::ToSql,
-                ],
+                &[&aid4 as &dyn rusqlite::ToSql, &bid4 as &dyn rusqlite::ToSql],
                 |row| row.get(0),
             )
             .await?;
@@ -445,8 +423,7 @@ impl EpochManager {
                         .map(|dt| dt.with_timezone(&Utc))
                         .unwrap_or_else(|_| Utc::now());
 
-                    let metadata = metadata_str
-                        .and_then(|s| serde_json::from_str(&s).ok());
+                    let metadata = metadata_str.and_then(|s| serde_json::from_str(&s).ok());
 
                     Ok(KnowledgeEpoch {
                         id,
@@ -490,8 +467,7 @@ impl EpochManager {
                         .map(|dt| dt.with_timezone(&Utc))
                         .unwrap_or_else(|_| Utc::now());
 
-                    let metadata = metadata_str
-                        .and_then(|s| serde_json::from_str(&s).ok());
+                    let metadata = metadata_str.and_then(|s| serde_json::from_str(&s).ok());
 
                     Ok(KnowledgeEpoch {
                         id,
@@ -786,10 +762,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            epoch.description.as_deref(),
-            Some("A detailed description")
-        );
+        assert_eq!(epoch.description.as_deref(), Some("A detailed description"));
 
         let fetched = mgr.get("described").await.unwrap().unwrap();
         assert_eq!(
@@ -911,12 +884,9 @@ mod tests {
         mgr.create_epoch("only-p1", None).await.unwrap();
 
         // Remove p1, add p2
-        db.execute(
-            "DELETE FROM reasoning_patterns WHERE id = 'p1'",
-            &[],
-        )
-        .await
-        .unwrap();
+        db.execute("DELETE FROM reasoning_patterns WHERE id = 'p1'", &[])
+            .await
+            .unwrap();
         insert_pattern(&db, "p2", "python", 0.9).await;
         mgr.create_epoch("only-p2", None).await.unwrap();
 
@@ -972,12 +942,9 @@ mod tests {
         mgr.create_epoch("snapshot", None).await.unwrap();
 
         // Delete p2 from reasoning_patterns after creating epoch
-        db.execute(
-            "DELETE FROM reasoning_patterns WHERE id = 'p2'",
-            &[],
-        )
-        .await
-        .unwrap();
+        db.execute("DELETE FROM reasoning_patterns WHERE id = 'p2'", &[])
+            .await
+            .unwrap();
 
         let result = mgr.rollback("snapshot").await.unwrap();
 

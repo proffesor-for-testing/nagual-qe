@@ -279,9 +279,10 @@ impl OSpipePipeline {
         }
 
         // If explicit paths are configured, use them
-        if let (Some(model_path), Some(tokenizer_path)) =
-            (self.config.model_path.clone(), self.config.tokenizer_path.clone())
-        {
+        if let (Some(model_path), Some(tokenizer_path)) = (
+            self.config.model_path.clone(),
+            self.config.tokenizer_path.clone(),
+        ) {
             if model_path.exists() && tokenizer_path.exists() {
                 return self.load_embedder_from_paths(&model_path, &tokenizer_path);
             }
@@ -294,7 +295,10 @@ impl OSpipePipeline {
 
         let paths: &[(&str, &str)] = &[
             ("models/all-MiniLM-L6-v2.onnx", "models/tokenizer.json"),
-            ("../models/all-MiniLM-L6-v2.onnx", "../models/tokenizer.json"),
+            (
+                "../models/all-MiniLM-L6-v2.onnx",
+                "../models/tokenizer.json",
+            ),
             (&home_model, &home_tokenizer),
         ];
 
@@ -366,11 +370,7 @@ impl OSpipePipeline {
     }
 
     /// Check for duplicate content.
-    pub fn check_duplicate(
-        &mut self,
-        embedding: &[f32],
-        timestamp: DateTime<Utc>,
-    ) -> DedupResult {
+    pub fn check_duplicate(&mut self, embedding: &[f32], timestamp: DateTime<Utc>) -> DedupResult {
         if !self.config.dedup_enabled {
             return DedupResult::first_entry();
         }
@@ -386,17 +386,18 @@ impl OSpipePipeline {
 
         #[cfg(feature = "onnx-embed")]
         {
-            let embedder = self.embedder.as_ref().ok_or_else(|| {
-                crate::error::NagualError::Config {
-                    message: "Embedder not initialized".to_string(),
-                }
-            })?;
+            let embedder =
+                self.embedder
+                    .as_ref()
+                    .ok_or_else(|| crate::error::NagualError::Config {
+                        message: "Embedder not initialized".to_string(),
+                    })?;
 
-            let result = embedder.embed(text).map_err(|e| {
-                crate::error::NagualError::Internal {
+            let result = embedder
+                .embed(text)
+                .map_err(|e| crate::error::NagualError::Internal {
                     message: e.to_string(),
-                }
-            })?;
+                })?;
             return Ok(Some(result.embedding));
         }
 
@@ -455,14 +456,21 @@ impl OSpipePipeline {
             if let Some(ref emb) = embedding {
                 let dedup_result = self.dedup.check_and_add(emb.clone(), timestamp);
                 if dedup_result.is_duplicate {
-                    return IngestItemResult::duplicate(original_length, dedup_result.max_similarity);
+                    return IngestItemResult::duplicate(
+                        original_length,
+                        dedup_result.max_similarity,
+                    );
                 }
             }
         }
 
         // Step 4: Create and store pattern
         let domain = categorize_app(app_name);
-        let problem = format!("Activity from {}: {}", app_name, truncate(&processed_content, 100));
+        let problem = format!(
+            "Activity from {}: {}",
+            app_name,
+            truncate(&processed_content, 100)
+        );
 
         let mut pattern_metadata = metadata.unwrap_or_else(PatternMetadata::new);
         pattern_metadata = pattern_metadata
@@ -542,22 +550,36 @@ impl OSpipePipeline {
 
 fn categorize_app(app_name: &str) -> &'static str {
     let s = app_name.to_lowercase();
-    if s.contains("code") || s.contains("vim") || s.contains("neovim")
-        || s.contains("intellij") || s.contains("xcode") || s.contains("cursor")
+    if s.contains("code")
+        || s.contains("vim")
+        || s.contains("neovim")
+        || s.contains("intellij")
+        || s.contains("xcode")
+        || s.contains("cursor")
     {
         "coding"
-    } else if s.contains("chrome") || s.contains("firefox") || s.contains("safari")
-        || s.contains("arc") || s.contains("brave") || s.contains("edge")
+    } else if s.contains("chrome")
+        || s.contains("firefox")
+        || s.contains("safari")
+        || s.contains("arc")
+        || s.contains("brave")
+        || s.contains("edge")
     {
         "browsing"
-    } else if s.contains("slack") || s.contains("discord") || s.contains("teams")
-        || s.contains("messages") || s.contains("telegram")
+    } else if s.contains("slack")
+        || s.contains("discord")
+        || s.contains("teams")
+        || s.contains("messages")
+        || s.contains("telegram")
     {
         "communication"
     } else if s.contains("zoom") || s.contains("meet") || s.contains("facetime") {
         "meetings"
-    } else if s.contains("terminal") || s.contains("iterm") || s.contains("warp")
-        || s.contains("alacritty") || s.contains("kitty")
+    } else if s.contains("terminal")
+        || s.contains("iterm")
+        || s.contains("warp")
+        || s.contains("alacritty")
+        || s.contains("kitty")
     {
         "terminal"
     } else {
@@ -615,7 +637,12 @@ mod tests {
     fn test_ingest_result_add() {
         let mut summary = IngestResult::new();
 
-        summary.add(&IngestItemResult::success(100, 100, false, "id1".to_string()));
+        summary.add(&IngestItemResult::success(
+            100,
+            100,
+            false,
+            "id1".to_string(),
+        ));
         summary.add(&IngestItemResult::success(100, 90, true, "id2".to_string()));
         summary.add(&IngestItemResult::rejected(100, "PII"));
         summary.add(&IngestItemResult::duplicate(100, 0.95));

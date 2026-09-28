@@ -11,8 +11,8 @@ use tracing::{debug, info, warn};
 
 use super::profiler::{OperationType, ProfDAGProfiler};
 use super::{
-    EdgeType, NodeType, ProfDAGEdge, ProfDAGError, ProfDAGNode, ProfDAGResult,
-    TemporalDirection, SQLITE_PROFDAG_EDGES_TABLE, SQLITE_PROFDAG_NODES_TABLE,
+    EdgeType, NodeType, ProfDAGEdge, ProfDAGError, ProfDAGNode, ProfDAGResult, TemporalDirection,
+    SQLITE_PROFDAG_EDGES_TABLE, SQLITE_PROFDAG_NODES_TABLE,
 };
 use crate::db::DualWriteAdapter;
 
@@ -221,7 +221,10 @@ impl ProfDAGStorage {
 
     /// Insert a new node.
     pub async fn insert_node(&self, node: &ProfDAGNode) -> ProfDAGResult<String> {
-        let _guard = self.profiler.as_ref().map(|p| p.start_operation(OperationType::StorageWrite));
+        let _guard = self
+            .profiler
+            .as_ref()
+            .map(|p| p.start_operation(OperationType::StorageWrite));
         self.validate_node(node)?;
 
         let embedding_json = match &node.embedding {
@@ -268,7 +271,10 @@ impl ProfDAGStorage {
 
     /// Get a node by ID.
     pub async fn get_node(&self, id: &str) -> ProfDAGResult<Option<ProfDAGNode>> {
-        let _guard = self.profiler.as_ref().map(|p| p.start_operation(OperationType::StorageRead));
+        let _guard = self
+            .profiler
+            .as_ref()
+            .map(|p| p.start_operation(OperationType::StorageRead));
         let sql = "SELECT * FROM profdag_nodes WHERE id = ?";
 
         let node = self
@@ -333,7 +339,9 @@ impl ProfDAGStorage {
             .map_err(|e| ProfDAGError::Database(e.to_string()))?;
 
         if rows == 0 {
-            return Err(ProfDAGError::NodeNotFound { id: node.id.clone() });
+            return Err(ProfDAGError::NodeNotFound {
+                id: node.id.clone(),
+            });
         }
 
         debug!(node_id = %node.id, "Node updated");
@@ -415,7 +423,10 @@ impl ProfDAGStorage {
 
     /// Insert a new edge.
     pub async fn insert_edge(&self, edge: &ProfDAGEdge) -> ProfDAGResult<String> {
-        let _guard = self.profiler.as_ref().map(|p| p.start_operation(OperationType::StorageWrite));
+        let _guard = self
+            .profiler
+            .as_ref()
+            .map(|p| p.start_operation(OperationType::StorageWrite));
         self.validate_edge(edge)?;
 
         let metadata_json = serde_json::to_string(&edge.metadata)?;
@@ -517,7 +528,9 @@ impl ProfDAGStorage {
             .map_err(|e| ProfDAGError::Database(e.to_string()))?;
 
         if rows == 0 {
-            return Err(ProfDAGError::EdgeNotFound { id: edge.id.clone() });
+            return Err(ProfDAGError::EdgeNotFound {
+                id: edge.id.clone(),
+            });
         }
 
         debug!(edge_id = %edge.id, "Edge updated");
@@ -583,7 +596,10 @@ impl ProfDAGStorage {
                     &edge.wormhole_strength as &dyn rusqlite::ToSql,
                     &edge.wormhole_reason as &dyn rusqlite::ToSql,
                     &edge.created_at.to_rfc3339(),
-                    &edge.updated_at.map(|t| t.to_rfc3339()).unwrap_or_else(|| Utc::now().to_rfc3339()),
+                    &edge
+                        .updated_at
+                        .map(|t| t.to_rfc3339())
+                        .unwrap_or_else(|| Utc::now().to_rfc3339()),
                 ],
             )
             .await
@@ -608,7 +624,10 @@ impl ProfDAGStorage {
         node_id: &str,
         query: &NeighborQuery,
     ) -> ProfDAGResult<Vec<NeighborResult>> {
-        let _guard = self.profiler.as_ref().map(|p| p.start_operation(OperationType::StorageRead));
+        let _guard = self
+            .profiler
+            .as_ref()
+            .map(|p| p.start_operation(OperationType::StorageRead));
         let mut results = Vec::new();
 
         // Outgoing edges
@@ -650,7 +669,8 @@ impl ProfDAGStorage {
             vec![Box::new(node_id.to_string())];
 
         if !query.edge_types.is_empty() {
-            let type_placeholders: Vec<&str> = query.edge_types.iter().map(|t| t.as_str()).collect();
+            let type_placeholders: Vec<&str> =
+                query.edge_types.iter().map(|t| t.as_str()).collect();
             let placeholders = vec!["?"; type_placeholders.len()].join(", ");
             sql.push_str(&format!(" AND e.edge_type IN ({})", placeholders));
             for t in type_placeholders {
@@ -669,8 +689,10 @@ impl ProfDAGStorage {
             sql.push_str(&format!(" LIMIT {}", limit));
         }
 
-        let param_refs: Vec<&dyn rusqlite::ToSql> =
-            params.iter().map(|p| p.as_ref() as &dyn rusqlite::ToSql).collect();
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params
+            .iter()
+            .map(|p| p.as_ref() as &dyn rusqlite::ToSql)
+            .collect();
 
         let results = self
             .adapter
@@ -709,7 +731,8 @@ impl ProfDAGStorage {
             vec![Box::new(node_id.to_string())];
 
         if !query.edge_types.is_empty() {
-            let type_placeholders: Vec<&str> = query.edge_types.iter().map(|t| t.as_str()).collect();
+            let type_placeholders: Vec<&str> =
+                query.edge_types.iter().map(|t| t.as_str()).collect();
             let placeholders = vec!["?"; type_placeholders.len()].join(", ");
             sql.push_str(&format!(" AND e.edge_type IN ({})", placeholders));
             for t in type_placeholders {
@@ -728,8 +751,10 @@ impl ProfDAGStorage {
             sql.push_str(&format!(" LIMIT {}", limit));
         }
 
-        let param_refs: Vec<&dyn rusqlite::ToSql> =
-            params.iter().map(|p| p.as_ref() as &dyn rusqlite::ToSql).collect();
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params
+            .iter()
+            .map(|p| p.as_ref() as &dyn rusqlite::ToSql)
+            .collect();
 
         let results = self
             .adapter
@@ -872,12 +897,17 @@ impl ProfDAGStorage {
     }
 
     /// Convert a database row to a ProfDAGNode with column offset.
-    fn node_from_row_offset(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<ProfDAGNode> {
+    fn node_from_row_offset(
+        row: &rusqlite::Row<'_>,
+        offset: usize,
+    ) -> rusqlite::Result<ProfDAGNode> {
         let id: String = row.get(offset)?;
         let node_type_str: String = row.get(offset + 1)?;
         let content: String = row.get(offset + 2)?;
         let embedding_json: Option<String> = row.get(offset + 3)?;
-        let metadata_json: String = row.get::<_, Option<String>>(offset + 4)?.unwrap_or_else(|| "{}".to_string());
+        let metadata_json: String = row
+            .get::<_, Option<String>>(offset + 4)?
+            .unwrap_or_else(|| "{}".to_string());
         let source_id: Option<String> = row.get(offset + 5)?;
         let source_type: Option<String> = row.get(offset + 6)?;
         let confidence: f64 = row.get(offset + 7)?;
@@ -887,23 +917,25 @@ impl ProfDAGStorage {
         let created_at_str: String = row.get(offset + 11)?;
         let updated_at_str: Option<String> = row.get(offset + 12)?;
 
-        let node_type = NodeType::from_str(&node_type_str)
-            .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(
+        let node_type = NodeType::from_str(&node_type_str).ok_or_else(|| {
+            rusqlite::Error::FromSqlConversionFailure(
                 offset + 1,
                 rusqlite::types::Type::Text,
-                Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData,
-                    format!("Invalid node type: {}", node_type_str))),
-            ))?;
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Invalid node type: {}", node_type_str),
+                )),
+            )
+        })?;
 
-        let embedding: Option<Vec<f32>> = embedding_json.and_then(|json| {
-            match serde_json::from_str(&json) {
+        let embedding: Option<Vec<f32>> =
+            embedding_json.and_then(|json| match serde_json::from_str(&json) {
                 Ok(e) => Some(e),
                 Err(e) => {
                     warn!(node_id = %id, "Corrupted embedding JSON, treating as None: {}", e);
                     None
                 }
-            }
-        });
+            });
 
         let metadata: serde_json::Value = match serde_json::from_str(&metadata_json) {
             Ok(m) => m,
@@ -947,7 +979,9 @@ impl ProfDAGStorage {
         let target_id: String = row.get(2)?;
         let edge_type_str: String = row.get(3)?;
         let weight: f64 = row.get(4)?;
-        let metadata_json: String = row.get::<_, Option<String>>(5)?.unwrap_or_else(|| "{}".to_string());
+        let metadata_json: String = row
+            .get::<_, Option<String>>(5)?
+            .unwrap_or_else(|| "{}".to_string());
         let temporal_distance_hours: Option<i32> = row.get(6)?;
         let temporal_direction_str: Option<String> = row.get(7)?;
         let similarity_score: Option<f64> = row.get(8)?;
@@ -956,13 +990,16 @@ impl ProfDAGStorage {
         let created_at_str: String = row.get(11)?;
         let updated_at_str: Option<String> = row.get(12)?;
 
-        let edge_type = EdgeType::from_str(&edge_type_str)
-            .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(
+        let edge_type = EdgeType::from_str(&edge_type_str).ok_or_else(|| {
+            rusqlite::Error::FromSqlConversionFailure(
                 3,
                 rusqlite::types::Type::Text,
-                Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData,
-                    format!("Invalid edge type: {}", edge_type_str))),
-            ))?;
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Invalid edge type: {}", edge_type_str),
+                )),
+            )
+        })?;
 
         let metadata: serde_json::Value = match serde_json::from_str(&metadata_json) {
             Ok(m) => m,

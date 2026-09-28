@@ -11,10 +11,10 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info, instrument, trace};
 
 use crate::drift::DriftMonitor;
-use crate::learning::strange_loop::{MetaCognitiveReport, MetaCognitiveTracker};
-use crate::reasoning_bank::pattern::{Pattern, PatternId};
-use crate::reasoning_bank::storage::PatternStorage;
 use crate::error::{NagualError, Result};
+use crate::learning::strange_loop::{MetaCognitiveReport, MetaCognitiveTracker};
+use crate::reasoning_bank::pattern::{FailureMode, Pattern, PatternId};
+use crate::reasoning_bank::storage::PatternStorage;
 
 /// Resolve the SQLite database path for persisting learning data.
 ///
@@ -95,7 +95,11 @@ pub fn get_meta_cognitive_status() -> Option<MetaCognitiveReport> {
 /// Returns `(avg_quality, health_rate, evaluation_count)`.
 pub fn get_meta_cognitive_stats() -> (f64, f64, usize) {
     let tracker = global_meta_tracker().lock();
-    (tracker.avg_quality(), tracker.health_rate(), tracker.count())
+    (
+        tracker.avg_quality(),
+        tracker.health_rate(),
+        tracker.count(),
+    )
 }
 
 /// Outcome of a pattern application.
@@ -297,12 +301,41 @@ impl RewardModifiers {
 pub fn calculate_reward(outcome: Outcome, modifiers: Option<RewardModifiers>) -> f32 {
     let base = outcome.base_reward();
 
-    let modifier = modifiers
-        .map(|m| m.combined_modifier())
-        .unwrap_or(1.0);
+    let modifier = modifiers.map(|m| m.combined_modifier()).unwrap_or(1.0);
 
     // Apply modifier but keep reward in valid range
     (base * modifier).clamp(0.0, 1.0)
+}
+
+/// Reward added to a pattern on success.
+pub const REWARD_STEP_SUCCESS: f32 = 0.10;
+/// Reward added to a pattern on partial success.
+pub const REWARD_STEP_PARTIAL: f32 = 0.05;
+/// Reward removed from a pattern on an ordinary failure.
+pub const REWARD_STEP_FAILURE: f32 = -0.15;
+/// Reward removed from a pattern on a security failure.
+pub const REWARD_STEP_SECURITY_FAILURE: f32 = -0.30;
+
+/// How much one outcome moves a pattern's reward.
+///
+/// Deliberately asymmetric: being confidently wrong costs more than being right earns, and a
+/// security failure costs twice an ordinary one. Neutral outcomes do not move the reward.
+/// This is the single rule for every write path (CLI, HTTP API, MCP) — see `apply_reward_step`.
+pub fn reward_step(outcome: Outcome, failure_mode: Option<FailureMode>) -> f32 {
+    match outcome {
+        Outcome::Success => REWARD_STEP_SUCCESS,
+        Outcome::PartialSuccess => REWARD_STEP_PARTIAL,
+        Outcome::Neutral => 0.0,
+        Outcome::Failure => match failure_mode {
+            Some(FailureMode::SecurityIssue) => REWARD_STEP_SECURITY_FAILURE,
+            _ => REWARD_STEP_FAILURE,
+        },
+    }
+}
+
+/// Apply one outcome to a reward, clamped to `[0.0, 1.0]`.
+pub fn apply_reward_step(current: f32, outcome: Outcome, failure_mode: Option<FailureMode>) -> f32 {
+    (current + reward_step(outcome, failure_mode)).clamp(0.0, 1.0)
 }
 
 /// Record of a single outcome event for logging and analysis.
@@ -584,6 +617,11 @@ impl SonaLearner {
     }
 
     /// Create a new SONA learner with custom configuration.
+    /// The pattern storage this learner writes to.
+    pub fn storage(&self) -> &Arc<PatternStorage> {
+        &self.storage
+    }
+
     pub fn with_config(storage: Arc<PatternStorage>, config: SonaConfig) -> Self {
         Self {
             storage,
@@ -644,13 +682,40 @@ impl SonaLearner {
     ///
     /// Use this method when you have additional context about the outcome
     /// that should affect the reward calculation.
-    #[instrument(skip(self, feedback, modifiers), fields(pattern_id = %pattern_id, outcome = %outcome))]
     pub async fn record_outcome_with_modifiers(
         &self,
         pattern_id: &PatternId,
         outcome: Outcome,
         feedback: Option<String>,
         modifiers: Option<RewardModifiers>,
+    ) -> Result<f32> {
+        self.record_outcome_inner(pattern_id, outcome, feedback, modifiers, None)
+            .await
+    }
+
+    /// Record an outcome together with its failure classification.
+    ///
+    /// The failure mode decides the size of the penalty (`reward_step`): a security failure
+    /// costs twice an ordinary one. It is also stored on the pattern.
+    pub async fn record_outcome_classified(
+        &self,
+        pattern_id: &PatternId,
+        outcome: Outcome,
+        feedback: Option<String>,
+        failure_mode: Option<FailureMode>,
+    ) -> Result<f32> {
+        self.record_outcome_inner(pattern_id, outcome, feedback, None, failure_mode)
+            .await
+    }
+
+    #[instrument(skip(self, feedback, modifiers), fields(pattern_id = %pattern_id, outcome = %outcome))]
+    async fn record_outcome_inner(
+        &self,
+        pattern_id: &PatternId,
+        outcome: Outcome,
+        feedback: Option<String>,
+        modifiers: Option<RewardModifiers>,
+        failure_mode: Option<FailureMode>,
     ) -> Result<f32> {
         // Calculate reward
         let reward = calculate_reward(outcome, modifiers.clone());
@@ -663,13 +728,13 @@ impl SonaLearner {
         );
 
         // Get the pattern
-        let pattern = self
-            .storage
-            .get_pattern(pattern_id)
-            .await?
-            .ok_or_else(|| NagualError::Internal {
-                message: format!("Pattern not found: {}", pattern_id),
-            })?;
+        let pattern =
+            self.storage
+                .get_pattern(pattern_id)
+                .await?
+                .ok_or_else(|| NagualError::Internal {
+                    message: format!("Pattern not found: {}", pattern_id),
+                })?;
 
         // Record embedding in the drift monitor so we can detect domain drift.
         if let Some(embedding) = pattern.embedding() {
@@ -686,7 +751,12 @@ impl SonaLearner {
 
         // Update pattern with new reward
         let mut updated_pattern = pattern.clone();
-        self.update_pattern_reward(&mut updated_pattern, outcome, reward);
+        if outcome == Outcome::Failure {
+            if let Some(ref mode) = failure_mode {
+                updated_pattern.set_failure_mode(mode.clone());
+            }
+        }
+        self.update_pattern_reward(&mut updated_pattern, outcome, failure_mode);
 
         // Update Bayesian quality score (Beta distribution)
         match outcome {
@@ -805,20 +875,17 @@ impl SonaLearner {
     }
 
     /// Update a pattern's reward based on the new outcome.
-    fn update_pattern_reward(&self, pattern: &mut Pattern, outcome: Outcome, new_reward: f32) {
-        let current_reward = pattern.reward();
-
-        let updated_reward = if self.config.use_ema {
-            // Exponential moving average
-            let decay = self.config.ema_decay;
-            decay * current_reward + (1.0 - decay) * new_reward
-        } else {
-            // Simple learning rate update
-            let lr = self.config.learning_rate;
-            current_reward + lr * (new_reward - current_reward)
-        };
-
-        pattern.set_reward(updated_reward);
+    fn update_pattern_reward(
+        &self,
+        pattern: &mut Pattern,
+        outcome: Outcome,
+        failure_mode: Option<FailureMode>,
+    ) {
+        // Reward moves by a fixed, asymmetric step per outcome (`reward_step`). It used to be an
+        // EMA toward the outcome's target reward, which made one failure cost about as much as
+        // one success earned (0.50 -> 0.47 vs 0.47 -> 0.51) — and the HTTP API used a different
+        // rule again. Effectiveness below still uses the configured EMA / learning rate.
+        pattern.set_reward(apply_reward_step(pattern.reward(), outcome, failure_mode));
 
         // Also update effectiveness based on outcome
         let current_effectiveness = pattern.effectiveness();
@@ -903,6 +970,113 @@ impl SonaLearner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── Reward rule: +0.10 success, +0.05 partial, -0.15 failure, -0.30 security failure ──
+
+    fn approx(a: f32, b: f32) -> bool {
+        (a - b).abs() < 1e-5
+    }
+
+    #[test]
+    fn test_reward_step_is_asymmetric() {
+        assert!(approx(reward_step(Outcome::Success, None), 0.10));
+        assert!(approx(reward_step(Outcome::PartialSuccess, None), 0.05));
+        assert!(approx(reward_step(Outcome::Neutral, None), 0.0));
+        assert!(approx(reward_step(Outcome::Failure, None), -0.15));
+        assert!(approx(
+            reward_step(Outcome::Failure, Some(FailureMode::TaskVerification)),
+            -0.15
+        ));
+        assert!(approx(
+            reward_step(Outcome::Failure, Some(FailureMode::SecurityIssue)),
+            -0.30
+        ));
+        // A failure must cost more than a success earns.
+        assert!(reward_step(Outcome::Failure, None).abs() > reward_step(Outcome::Success, None));
+        // A failure mode on a non-failure outcome changes nothing.
+        assert!(approx(
+            reward_step(Outcome::Success, Some(FailureMode::SecurityIssue)),
+            0.10
+        ));
+    }
+
+    #[test]
+    fn test_apply_reward_step_clamps() {
+        assert!(approx(apply_reward_step(0.95, Outcome::Success, None), 1.0));
+        assert!(approx(apply_reward_step(0.10, Outcome::Failure, None), 0.0));
+        assert!(approx(
+            apply_reward_step(0.20, Outcome::Failure, Some(FailureMode::SecurityIssue)),
+            0.0
+        ));
+    }
+
+    async fn learner_with_pattern() -> (tempfile::TempDir, SonaLearner, PatternId) {
+        let dir = tempfile::TempDir::new().unwrap();
+        let storage = crate::cli::common::init_storage_sqlite_only(&dir.path().join("sona.db"))
+            .await
+            .unwrap();
+        let pattern = Pattern::builder().problem("p").solution("s").build(); // reward 0.5
+        let id = pattern.id().clone();
+        storage.store_pattern(&pattern).await.unwrap();
+        (dir, SonaLearner::new(Arc::new(storage)), id)
+    }
+
+    async fn reward_of(learner: &SonaLearner, id: &PatternId) -> f32 {
+        learner
+            .storage()
+            .get_pattern(id)
+            .await
+            .unwrap()
+            .unwrap()
+            .reward()
+    }
+
+    #[tokio::test]
+    async fn test_learner_applies_reward_steps_to_stored_pattern() {
+        let (_dir, learner, id) = learner_with_pattern().await;
+        assert!(approx(reward_of(&learner, &id).await, 0.5));
+
+        learner
+            .record_outcome(&id, Outcome::Failure, None)
+            .await
+            .unwrap();
+        assert!(
+            approx(reward_of(&learner, &id).await, 0.35),
+            "one failure: 0.50 -> 0.35"
+        );
+
+        learner
+            .record_outcome(&id, Outcome::Success, None)
+            .await
+            .unwrap();
+        assert!(
+            approx(reward_of(&learner, &id).await, 0.45),
+            "then one success: 0.35 -> 0.45"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_learner_security_failure_costs_double_and_is_stored() {
+        let (_dir, learner, id) = learner_with_pattern().await;
+
+        learner
+            .record_outcome_classified(
+                &id,
+                Outcome::Failure,
+                None,
+                Some(FailureMode::SecurityIssue),
+            )
+            .await
+            .unwrap();
+
+        let p = learner.storage().get_pattern(&id).await.unwrap().unwrap();
+        assert!(
+            approx(p.reward(), 0.20),
+            "security failure: 0.50 -> 0.20, got {}",
+            p.reward()
+        );
+        assert_eq!(p.failure_mode(), Some(&FailureMode::SecurityIssue));
+    }
 
     #[test]
     fn test_outcome_base_reward() {

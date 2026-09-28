@@ -313,7 +313,11 @@ where
     let elapsed = start.elapsed();
 
     collector.timer_duration(name, elapsed);
-    debug!(operation = name, duration_ms = elapsed.as_secs_f64() * 1000.0, "Operation completed");
+    debug!(
+        operation = name,
+        duration_ms = elapsed.as_secs_f64() * 1000.0,
+        "Operation completed"
+    );
 
     result
 }
@@ -330,7 +334,11 @@ where
     let elapsed = start.elapsed();
 
     collector.timer_duration(name, elapsed);
-    debug!(operation = name, duration_ms = elapsed.as_secs_f64() * 1000.0, "Async operation completed");
+    debug!(
+        operation = name,
+        duration_ms = elapsed.as_secs_f64() * 1000.0,
+        "Async operation completed"
+    );
 
     result
 }
@@ -350,11 +358,21 @@ where
     match &result {
         Ok(_) => {
             collector.increment(&format!("{}.success", name));
-            debug!(operation = name, duration_ms = elapsed.as_secs_f64() * 1000.0, success = true, "Operation succeeded");
+            debug!(
+                operation = name,
+                duration_ms = elapsed.as_secs_f64() * 1000.0,
+                success = true,
+                "Operation succeeded"
+            );
         }
         Err(_) => {
             collector.increment(&format!("{}.failure", name));
-            warn!(operation = name, duration_ms = elapsed.as_secs_f64() * 1000.0, success = false, "Operation failed");
+            warn!(
+                operation = name,
+                duration_ms = elapsed.as_secs_f64() * 1000.0,
+                success = false,
+                "Operation failed"
+            );
         }
     }
 
@@ -381,11 +399,21 @@ where
     match &result {
         Ok(_) => {
             collector.increment(&format!("{}.success", name));
-            debug!(operation = name, duration_ms = elapsed.as_secs_f64() * 1000.0, success = true, "Async operation succeeded");
+            debug!(
+                operation = name,
+                duration_ms = elapsed.as_secs_f64() * 1000.0,
+                success = true,
+                "Async operation succeeded"
+            );
         }
         Err(_) => {
             collector.increment(&format!("{}.failure", name));
-            warn!(operation = name, duration_ms = elapsed.as_secs_f64() * 1000.0, success = false, "Async operation failed");
+            warn!(
+                operation = name,
+                duration_ms = elapsed.as_secs_f64() * 1000.0,
+                success = false,
+                "Async operation failed"
+            );
         }
     }
 
@@ -411,10 +439,8 @@ impl DbOperationMetrics {
                 .with_tag("table", table)
                 .with_tag("type", "query"),
         );
-        self.collector.record(
-            SystemMetric::new("db.query.rows", row_count as f64)
-                .with_tag("table", table),
-        );
+        self.collector
+            .record(SystemMetric::new("db.query.rows", row_count as f64).with_tag("table", table));
     }
 
     /// Record an insert operation.
@@ -425,10 +451,8 @@ impl DbOperationMetrics {
                 .with_tag("table", table)
                 .with_tag("type", "insert"),
         );
-        self.collector.record(
-            SystemMetric::new("db.insert.rows", row_count as f64)
-                .with_tag("table", table),
-        );
+        self.collector
+            .record(SystemMetric::new("db.insert.rows", row_count as f64).with_tag("table", table));
     }
 
     /// Record an update operation.
@@ -454,8 +478,7 @@ impl DbOperationMetrics {
                 .with_tag("type", "delete"),
         );
         self.collector.record(
-            SystemMetric::new("db.delete.rows", deleted_rows as f64)
-                .with_tag("table", table),
+            SystemMetric::new("db.delete.rows", deleted_rows as f64).with_tag("table", table),
         );
     }
 
@@ -610,7 +633,8 @@ mod tests {
         let result = timed_async("async_test", &collector, || async {
             tokio::time::sleep(Duration::from_millis(5)).await;
             "async done"
-        }).await;
+        })
+        .await;
 
         assert_eq!(result, "async done");
     }
@@ -619,9 +643,8 @@ mod tests {
     async fn test_timed_result_async() {
         let collector = MetricsCollector::new(MetricsConfig::default());
 
-        let result: Result<i32, &str> = timed_result_async("async_result", &collector, || async {
-            Ok(42)
-        }).await;
+        let result: Result<i32, &str> =
+            timed_result_async("async_result", &collector, || async { Ok(42) }).await;
 
         assert_eq!(result.unwrap(), 42);
         assert!(collector.get_counter("async_result.success") >= 1.0);

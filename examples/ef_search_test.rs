@@ -19,55 +19,87 @@ fn generate_random_embedding(dim: usize, rng: &mut StdRng) -> Vec<f32> {
 
 fn generate_embedding_set(count: usize, dim: usize, seed: u64) -> Vec<Vec<f32>> {
     let mut rng = StdRng::seed_from_u64(seed);
-    (0..count).map(|_| generate_random_embedding(dim, &mut rng)).collect()
+    (0..count)
+        .map(|_| generate_random_embedding(dim, &mut rng))
+        .collect()
 }
 
 fn generate_related_queries(base: &[Vec<f32>], num: usize, noise: f32, seed: u64) -> Vec<Vec<f32>> {
     let mut rng = StdRng::seed_from_u64(seed);
-    (0..num).map(|_| {
-        let base_idx = rng.gen_range(0..base.len());
-        let mut query: Vec<f32> = base[base_idx].iter()
-            .map(|&x| x + rng.gen_range(-noise..noise))
-            .collect();
-        let norm: f32 = query.iter().map(|x| x * x).sum::<f32>().sqrt();
-        if norm > f32::EPSILON { query.iter_mut().for_each(|x| *x /= norm); }
-        query
-    }).collect()
+    (0..num)
+        .map(|_| {
+            let base_idx = rng.gen_range(0..base.len());
+            let mut query: Vec<f32> = base[base_idx]
+                .iter()
+                .map(|&x| x + rng.gen_range(-noise..noise))
+                .collect();
+            let norm: f32 = query.iter().map(|x| x * x).sum::<f32>().sqrt();
+            if norm > f32::EPSILON {
+                query.iter_mut().for_each(|x| *x /= norm);
+            }
+            query
+        })
+        .collect()
 }
 
 #[derive(Clone)]
-struct NodePoint { embedding: Vec<f32> }
+struct NodePoint {
+    embedding: Vec<f32>,
+}
 
 impl instant_distance::Point for NodePoint {
     fn distance(&self, other: &Self) -> f32 {
-        1.0 - self.embedding.iter().zip(&other.embedding).map(|(a,b)| a*b).sum::<f32>()
+        1.0 - self
+            .embedding
+            .iter()
+            .zip(&other.embedding)
+            .map(|(a, b)| a * b)
+            .sum::<f32>()
     }
 }
 
 fn brute_force_knn(embeddings: &[Vec<f32>], query: &[f32], k: usize) -> Vec<usize> {
-    let mut scores: Vec<(usize, f32)> = embeddings.iter().enumerate()
-        .map(|(i, e)| (i, e.iter().zip(query).map(|(a,b)| a*b).sum::<f32>()))
+    let mut scores: Vec<(usize, f32)> = embeddings
+        .iter()
+        .enumerate()
+        .map(|(i, e)| (i, e.iter().zip(query).map(|(a, b)| a * b).sum::<f32>()))
         .collect();
     scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
     scores.into_iter().take(k).map(|(i, _)| i).collect()
 }
 
 fn hnsw_search(index: &HnswMap<NodePoint, usize>, query: &[f32], k: usize) -> Vec<usize> {
-    let q = NodePoint { embedding: query.to_vec() };
+    let q = NodePoint {
+        embedding: query.to_vec(),
+    };
     let mut search = Search::default();
-    index.search(&q, &mut search).take(k).map(|n| *n.value).collect()
+    index
+        .search(&q, &mut search)
+        .take(k)
+        .map(|n| *n.value)
+        .collect()
 }
 
-fn test_recall(embeddings: &[Vec<f32>], queries: &[Vec<f32>], ef_construction: usize, ef_search: usize, k: usize) -> (f32, f64) {
+fn test_recall(
+    embeddings: &[Vec<f32>],
+    queries: &[Vec<f32>],
+    ef_construction: usize,
+    ef_search: usize,
+    k: usize,
+) -> (f32, f64) {
     let start = Instant::now();
 
-    let points: Vec<NodePoint> = embeddings.iter()
-        .map(|e| NodePoint { embedding: e.clone() }).collect();
+    let points: Vec<NodePoint> = embeddings
+        .iter()
+        .map(|e| NodePoint {
+            embedding: e.clone(),
+        })
+        .collect();
     let values: Vec<usize> = (0..embeddings.len()).collect();
 
     let index = HnswBuilder::default()
         .ef_construction(ef_construction)
-        .ef_search(ef_search)  // THE KEY PARAMETER
+        .ef_search(ef_search) // THE KEY PARAMETER
         .build(points, values);
 
     let build_time = start.elapsed().as_secs_f64();
@@ -96,7 +128,10 @@ fn main() {
     let num_queries = 50;
     let ef_construction = 200;
 
-    println!("Test setup: {} nodes, dim={}, k={}, queries={}", node_count, dim, k, num_queries);
+    println!(
+        "Test setup: {} nodes, dim={}, k={}, queries={}",
+        node_count, dim, k, num_queries
+    );
     println!("ef_construction={} (fixed)\n", ef_construction);
 
     let embeddings = generate_embedding_set(node_count, dim, 42);
@@ -108,10 +143,17 @@ fn main() {
 
     // Test different ef_search values
     for ef_search in [20, 50, 100, 150, 200, 300] {
-        let (recall, build_time) = test_recall(&embeddings, &queries, ef_construction, ef_search, k);
-        let status = if recall >= 0.95 { "✓ PASS" } else { "✗ FAIL" };
-        println!("| ef_s={:4}   |   {:5.2}s   |    {:.4}     | {} |",
-            ef_search, build_time, recall, status);
+        let (recall, build_time) =
+            test_recall(&embeddings, &queries, ef_construction, ef_search, k);
+        let status = if recall >= 0.95 {
+            "✓ PASS"
+        } else {
+            "✗ FAIL"
+        };
+        println!(
+            "| ef_s={:4}   |   {:5.2}s   |    {:.4}     | {} |",
+            ef_search, build_time, recall, status
+        );
     }
 
     println!("+-------------+------------+---------------+--------+");

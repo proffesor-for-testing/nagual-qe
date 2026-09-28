@@ -698,31 +698,25 @@ impl EwcManager {
     pub async fn stats(&self) -> Result<EwcStats> {
         let domains_tracked: u64 = self
             .db
-            .query_one(
-                "SELECT COUNT(*) FROM ewc_fisher",
-                &[],
-                |row| row.get::<_, i64>(0),
-            )
+            .query_one("SELECT COUNT(*) FROM ewc_fisher", &[], |row| {
+                row.get::<_, i64>(0)
+            })
             .await?
             .unwrap_or(0) as u64;
 
         let total_boundaries_detected: u64 = self
             .db
-            .query_one(
-                "SELECT COUNT(*) FROM ewc_boundaries",
-                &[],
-                |row| row.get::<_, i64>(0),
-            )
+            .query_one("SELECT COUNT(*) FROM ewc_boundaries", &[], |row| {
+                row.get::<_, i64>(0)
+            })
             .await?
             .unwrap_or(0) as u64;
 
         let total_consolidations: u64 = self
             .db
-            .query_one(
-                "SELECT COUNT(*) FROM ewc_consolidations",
-                &[],
-                |row| row.get::<_, i64>(0),
-            )
+            .query_one("SELECT COUNT(*) FROM ewc_consolidations", &[], |row| {
+                row.get::<_, i64>(0)
+            })
             .await?
             .unwrap_or(0) as u64;
 
@@ -772,10 +766,7 @@ impl EwcManager {
 
     /// Return pattern IDs with high importance in the given domain,
     /// sorted descending by importance.
-    pub async fn protected_patterns(
-        &self,
-        domain: &str,
-    ) -> Result<Vec<(String, f64)>> {
+    pub async fn protected_patterns(&self, domain: &str) -> Result<Vec<(String, f64)>> {
         let fisher = self.get_fisher(domain).await?;
         match fisher {
             Some(f) => {
@@ -789,7 +780,8 @@ impl EwcManager {
                     .into_iter()
                     .filter(|(_, v)| *v > threshold)
                     .collect();
-                protected.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                protected
+                    .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
                 Ok(protected)
             }
             None => Ok(Vec::new()),
@@ -1146,7 +1138,10 @@ mod tests {
         let penalty = mgr.get_penalty("p1", "rust").await.unwrap();
         // Penalty should be lambda * importance.
         // p1 is the only pattern so importance = 1.0, lambda = 1000.
-        assert!(penalty > 0.0, "penalty should be positive for known pattern");
+        assert!(
+            penalty > 0.0,
+            "penalty should be positive for known pattern"
+        );
         assert!(
             (penalty - 1000.0).abs() < f64::EPSILON,
             "expected 1000 * 1.0, got {}",

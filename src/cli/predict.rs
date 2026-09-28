@@ -411,7 +411,10 @@ async fn run_create(args: &CreateArgs) -> Result<()> {
         println!("  Description: {}", args.description);
         println!("  Probability: {:.1}%", args.probability * 100.0);
         println!("  Confidence: {:.1}%", args.confidence * 100.0);
-        println!("  Timeline: {}-{} days", args.timeline_min, args.timeline_max);
+        println!(
+            "  Timeline: {}-{} days",
+            args.timeline_min, args.timeline_max
+        );
         println!("  Domain: {}", args.domain);
         println!("  Status: pending");
     }
@@ -459,12 +462,10 @@ async fn run_resolve(args: &ResolveArgs) -> Result<()> {
         println!("  Brier Score: {:.4}", brier_score);
         println!(
             "  Correct: {}",
-            prediction.is_correct().map_or("N/A".to_string(), |c| if c {
-                "YES"
-            } else {
-                "NO"
-            }
-            .to_string())
+            prediction
+                .is_correct()
+                .map_or("N/A".to_string(), |c| if c { "YES" } else { "NO" }
+                    .to_string())
         );
 
         // Quality assessment
@@ -712,7 +713,10 @@ async fn run_delete(args: &DeleteArgs) -> Result<()> {
     tracing::info!(prediction_id = %args.id, "Deleting prediction");
 
     if !args.force {
-        println!("Warning: This will permanently delete prediction {}.", args.id);
+        println!(
+            "Warning: This will permanently delete prediction {}.",
+            args.id
+        );
         println!("Use --force to confirm deletion.");
         return Ok(());
     }
@@ -924,13 +928,7 @@ mod tests {
     #[test]
     fn test_cli_parse_list() {
         let args = vec![
-            "test",
-            "predict",
-            "list",
-            "--status",
-            "pending",
-            "--limit",
-            "10",
+            "test", "predict", "list", "--status", "pending", "--limit", "10",
         ];
         let cli = TestCli::try_parse_from(args);
         assert!(cli.is_ok());

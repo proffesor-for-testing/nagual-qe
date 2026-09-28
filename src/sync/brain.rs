@@ -176,10 +176,7 @@ mod inner {
             limit: usize,
         ) -> Result<Vec<BrainMemory>, BrainError> {
             // Build URL with query parameters using reqwest's built-in support
-            let mut params = vec![
-                ("q", query.to_string()),
-                ("limit", limit.to_string()),
-            ];
+            let mut params = vec![("q", query.to_string()), ("limit", limit.to_string())];
 
             if let Some(cat) = category {
                 params.push(("category", cat.to_string()));
@@ -203,16 +200,13 @@ mod inner {
             }
 
             // Pi Brain returns a plain JSON array, not {"memories": [...]}
-            let memories: Vec<BrainMemory> =
-                response.json().await.map_err(BrainError::Http)?;
+            let memories: Vec<BrainMemory> = response.json().await.map_err(BrainError::Http)?;
             Ok(memories)
         }
 
         /// Get system status from the brain API.
         pub async fn status(&self) -> Result<serde_json::Value, BrainError> {
-            let mut request = self
-                .client
-                .get(format!("{}/v1/status", self.base_url));
+            let mut request = self.client.get(format!("{}/v1/status", self.base_url));
 
             if let Some(key) = &self.api_key {
                 request = request.header("Authorization", format!("Bearer {}", key));
@@ -384,8 +378,7 @@ mod inner {
             // Verify the server received the request with PII stripped
             let received = mock_server.received_requests().await.unwrap();
             assert_eq!(received.len(), 1);
-            let body: serde_json::Value =
-                serde_json::from_slice(&received[0].body).unwrap();
+            let body: serde_json::Value = serde_json::from_slice(&received[0].body).unwrap();
             let title = body["title"].as_str().unwrap();
             let content = body["content"].as_str().unwrap();
 
@@ -439,9 +432,7 @@ mod inner {
 
             Mock::given(method("GET"))
                 .and(path("/v1/memories/search"))
-                .respond_with(
-                    ResponseTemplate::new(200).set_body_json(response_body),
-                )
+                .respond_with(ResponseTemplate::new(200).set_body_json(response_body))
                 .expect(1)
                 .mount(&mock_server)
                 .await;
@@ -449,7 +440,11 @@ mod inner {
             let client = BrainClient::with_config(mock_server.uri(), None);
             let results = client.search("error handling", Some("rust"), 10).await;
 
-            assert!(results.is_ok(), "search should succeed: {:?}", results.err());
+            assert!(
+                results.is_ok(),
+                "search should succeed: {:?}",
+                results.err()
+            );
             let memories = results.unwrap();
             assert_eq!(memories.len(), 2);
             assert_eq!(memories[0].id, "mem-001");
@@ -470,23 +465,29 @@ mod inner {
                 .and(path("/v1/memories"))
                 .and(header("Authorization", "Bearer test-api-key-12345"))
                 .respond_with(
-                    ResponseTemplate::new(200)
-                        .set_body_json(serde_json::json!({"id": "mem-auth"})),
+                    ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": "mem-auth"})),
                 )
                 .expect(1)
                 .mount(&mock_server)
                 .await;
 
-            let client = BrainClient::with_config(
-                mock_server.uri(),
-                Some("test-api-key-12345".to_string()),
-            );
+            let client =
+                BrainClient::with_config(mock_server.uri(), Some("test-api-key-12345".to_string()));
 
             let result = client
-                .share("testing", "Auth test", "Verify bearer token is sent", vec![])
+                .share(
+                    "testing",
+                    "Auth test",
+                    "Verify bearer token is sent",
+                    vec![],
+                )
                 .await;
 
-            assert!(result.is_ok(), "share with auth should succeed: {:?}", result.err());
+            assert!(
+                result.is_ok(),
+                "share with auth should succeed: {:?}",
+                result.err()
+            );
             assert_eq!(result.unwrap(), "mem-auth");
         }
 
@@ -499,18 +500,13 @@ mod inner {
 
             Mock::given(method("POST"))
                 .and(path("/v1/memories"))
-                .respond_with(
-                    ResponseTemplate::new(500)
-                        .set_body_string("Internal Server Error"),
-                )
+                .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
                 .expect(1)
                 .mount(&mock_server)
                 .await;
 
             let client = BrainClient::with_config(mock_server.uri(), None);
-            let result = client
-                .share("rust", "Test", "Content", vec![])
-                .await;
+            let result = client.share("rust", "Test", "Content", vec![]).await;
 
             assert!(result.is_err());
             let err = result.unwrap_err();

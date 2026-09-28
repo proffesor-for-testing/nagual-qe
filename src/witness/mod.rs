@@ -177,10 +177,7 @@ pub struct WitnessChain {
 impl WitnessChain {
     /// Create a new WitnessChain backed by the given SQLite database.
     pub fn new(db: Arc<SqliteDb>) -> Self {
-        Self {
-            db,
-            lineage: None,
-        }
+        Self { db, lineage: None }
     }
 
     /// Attach a lineage query for automatic lineage recording on witness entries.
@@ -473,8 +470,11 @@ fn verify_entries(entries: &[WitnessEntry]) -> Result<WitnessVerification> {
 
     // Verify that each entry's action_hash is correct.
     for entry in entries {
-        let expected_action =
-            compute_action_hash(&entry.pattern_id, &entry.operation, entry.metadata.as_deref());
+        let expected_action = compute_action_hash(
+            &entry.pattern_id,
+            &entry.operation,
+            entry.metadata.as_deref(),
+        );
         if expected_action != entry.action_hash {
             return Ok(WitnessVerification {
                 valid: false,
@@ -618,8 +618,16 @@ mod tests {
         // Changing prev_hash changes entry_hash
         let mut different_prev = [0u8; 32];
         different_prev[0] = 1;
-        let h2 = compute_entry_hash(&different_prev, &action, ts, WitnessType::Provenance.as_u8());
-        assert_ne!(h1, h2, "Different prev_hash should produce different entry_hash");
+        let h2 = compute_entry_hash(
+            &different_prev,
+            &action,
+            ts,
+            WitnessType::Provenance.as_u8(),
+        );
+        assert_ne!(
+            h1, h2,
+            "Different prev_hash should produce different entry_hash"
+        );
     }
 
     #[test]
@@ -650,14 +658,23 @@ mod tests {
         let chain = setup_chain().await;
 
         let seq = chain
-            .append("p1", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
         assert_eq!(seq, 1);
 
         let entry = chain.latest("p1").await.unwrap().unwrap();
-        assert_eq!(entry.prev_hash, [0u8; 32], "Genesis entry must have zero prev_hash");
+        assert_eq!(
+            entry.prev_hash, [0u8; 32],
+            "Genesis entry must have zero prev_hash"
+        );
     }
 
     #[tokio::test]
@@ -665,13 +682,25 @@ mod tests {
         let chain = setup_chain().await;
 
         chain
-            .append("p1", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         let first = chain.latest("p1").await.unwrap().unwrap();
 
         chain
-            .append("p1", WitnessOperation::Update, WitnessType::Computation, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Update,
+                WitnessType::Computation,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -690,15 +719,33 @@ mod tests {
         let chain = setup_chain().await;
 
         chain
-            .append("p1", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("p1", WitnessOperation::Update, WitnessType::Computation, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Update,
+                WitnessType::Computation,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("p1", WitnessOperation::Delete, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Delete,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -734,15 +781,33 @@ mod tests {
         let chain = setup_chain().await;
 
         let s1 = chain
-            .append("p1", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         let s2 = chain
-            .append("p2", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p2",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         let s3 = chain
-            .append("p1", WitnessOperation::Update, WitnessType::Computation, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Update,
+                WitnessType::Computation,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -758,15 +823,33 @@ mod tests {
         let chain = setup_chain().await;
 
         chain
-            .append("p1", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("p1", WitnessOperation::Update, WitnessType::Computation, None, Some("data"))
+            .append(
+                "p1",
+                WitnessOperation::Update,
+                WitnessType::Computation,
+                None,
+                Some("data"),
+            )
             .await
             .unwrap();
         chain
-            .append("p2", WitnessOperation::Store, WitnessType::Provenance, Some("bot"), None)
+            .append(
+                "p2",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                Some("bot"),
+                None,
+            )
             .await
             .unwrap();
 
@@ -791,11 +874,23 @@ mod tests {
         let chain = setup_chain().await;
 
         chain
-            .append("p1", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("p1", WitnessOperation::Update, WitnessType::Computation, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Update,
+                WitnessType::Computation,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -819,11 +914,23 @@ mod tests {
         let chain = setup_chain().await;
 
         chain
-            .append("p1", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("p1", WitnessOperation::Update, WitnessType::Computation, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Update,
+                WitnessType::Computation,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -847,7 +954,13 @@ mod tests {
         let chain = setup_chain().await;
 
         chain
-            .append("p1", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -864,15 +977,33 @@ mod tests {
         let chain = setup_chain().await;
 
         chain
-            .append("p1", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("p2", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p2",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("p1", WitnessOperation::Update, WitnessType::Computation, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Update,
+                WitnessType::Computation,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -887,7 +1018,13 @@ mod tests {
         let chain = setup_chain().await;
 
         chain
-            .append("p1", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -901,15 +1038,33 @@ mod tests {
         let chain = setup_chain().await;
 
         chain
-            .append("p1", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("p2", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p2",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("p1", WitnessOperation::Update, WitnessType::Computation, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Update,
+                WitnessType::Computation,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -927,15 +1082,33 @@ mod tests {
         let chain = setup_chain().await;
 
         chain
-            .append("p1", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("p1", WitnessOperation::Update, WitnessType::Computation, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Update,
+                WitnessType::Computation,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("p1", WitnessOperation::Merge, WitnessType::Consolidation, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Merge,
+                WitnessType::Consolidation,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -959,19 +1132,43 @@ mod tests {
 
         // Interleave entries for different patterns in the global chain.
         chain
-            .append("a", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "a",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("b", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "b",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("a", WitnessOperation::Update, WitnessType::Computation, None, None)
+            .append(
+                "a",
+                WitnessOperation::Update,
+                WitnessType::Computation,
+                None,
+                None,
+            )
             .await
             .unwrap();
         chain
-            .append("b", WitnessOperation::Update, WitnessType::Computation, None, None)
+            .append(
+                "b",
+                WitnessOperation::Update,
+                WitnessType::Computation,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -996,13 +1193,25 @@ mod tests {
         assert_eq!(chain.count().await.unwrap(), 0);
 
         chain
-            .append("p1", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p1",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         assert_eq!(chain.count().await.unwrap(), 1);
 
         chain
-            .append("p2", WitnessOperation::Store, WitnessType::Provenance, None, None)
+            .append(
+                "p2",
+                WitnessOperation::Store,
+                WitnessType::Provenance,
+                None,
+                None,
+            )
             .await
             .unwrap();
         assert_eq!(chain.count().await.unwrap(), 2);

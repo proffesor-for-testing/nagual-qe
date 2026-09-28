@@ -132,17 +132,23 @@ impl PatternDNA {
              <span>{}</span> \
              <span>{}</span>\
              </span>",
-            tier_color, tier_icon, domain_glyph, reward_color, reward_blocks,
-            age_indicator, reuse_label, surprise_bar
+            tier_color,
+            tier_icon,
+            domain_glyph,
+            reward_color,
+            reward_blocks,
+            age_indicator,
+            reuse_label,
+            surprise_bar
         )
     }
 
     /// Get the tier icon prefix.
     fn tier_icon(tier: PatternTier) -> &'static str {
         match tier {
-            PatternTier::Booster => "\u{1F680}",  // rocket
-            PatternTier::Crystal => "\u{1F48E}",  // gem stone
-            PatternTier::Reflex => "\u{26A1}",    // high voltage / lightning
+            PatternTier::Booster => "\u{1F680}", // rocket
+            PatternTier::Crystal => "\u{1F48E}", // gem stone
+            PatternTier::Reflex => "\u{26A1}",   // high voltage / lightning
         }
     }
 
@@ -151,17 +157,17 @@ impl PatternDNA {
         // Use the root domain (before the first dot) for mapping.
         let root = domain.split('.').next().unwrap_or(domain);
         match root.to_lowercase().as_str() {
-            "rust" => "\u{2590}",         // RIGHT HALF BLOCK ▐
-            "python" => "\u{258C}",       // LEFT HALF BLOCK ▌
+            "rust" => "\u{2590}",              // RIGHT HALF BLOCK ▐
+            "python" => "\u{258C}",            // LEFT HALF BLOCK ▌
             "javascript" | "js" => "\u{2588}", // FULL BLOCK █
             "typescript" | "ts" => "\u{2593}", // DARK SHADE ▓
             "go" | "golang" => "\u{2592}",     // MEDIUM SHADE ▒
-            "java" => "\u{2591}",         // LIGHT SHADE ░
-            "security" => "\u{2584}",     // LOWER HALF BLOCK ▄
-            "performance" => "\u{2580}",  // UPPER HALF BLOCK ▀
-            "testing" => "\u{259A}",      // QUADRANT UPPER LEFT AND LOWER RIGHT ▚
-            "resilience" => "\u{259E}",   // QUADRANT UPPER RIGHT AND LOWER LEFT ▞
-            _ => "\u{2596}",              // QUADRANT LOWER LEFT ▖
+            "java" => "\u{2591}",              // LIGHT SHADE ░
+            "security" => "\u{2584}",          // LOWER HALF BLOCK ▄
+            "performance" => "\u{2580}",       // UPPER HALF BLOCK ▀
+            "testing" => "\u{259A}",           // QUADRANT UPPER LEFT AND LOWER RIGHT ▚
+            "resilience" => "\u{259E}",        // QUADRANT UPPER RIGHT AND LOWER LEFT ▞
+            _ => "\u{2596}",                   // QUADRANT LOWER LEFT ▖
         }
     }
 
@@ -187,7 +193,7 @@ impl PatternDNA {
         } else if age_days < 30 {
             "\u{1F7E1}" // YELLOW CIRCLE 🟡 recent
         } else if age_days <= 90 {
-            "\u{26AA}"  // WHITE CIRCLE ⚪ middle
+            "\u{26AA}" // WHITE CIRCLE ⚪ middle
         } else {
             "\u{1F534}" // RED CIRCLE 🔴 stale
         }

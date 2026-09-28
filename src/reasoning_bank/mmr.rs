@@ -158,7 +158,9 @@ impl MmrSelector {
         if let Some((best_idx, _)) = remaining_indices
             .iter()
             .filter_map(|&i| {
-                candidate_embeddings[i].as_ref().map(|_| (i, filtered[i].similarity))
+                candidate_embeddings[i]
+                    .as_ref()
+                    .map(|_| (i, filtered[i].similarity))
             })
             .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
         {
@@ -181,7 +183,8 @@ impl MmrSelector {
 
                 // Relevance to query
                 let query_arr = Array1::from_vec(query_vec.clone());
-                let relevance = cosine_similarity_normalized(&candidate_arr.view(), &query_arr.view());
+                let relevance =
+                    cosine_similarity_normalized(&candidate_arr.view(), &query_arr.view());
 
                 // Maximum similarity to already selected
                 let max_selected_sim = selected_indices
@@ -195,8 +198,8 @@ impl MmrSelector {
                     .fold(0.0f32, |max, sim| max.max(sim));
 
                 // MMR score
-                let mmr_score = self.config.lambda * relevance
-                    - (1.0 - self.config.lambda) * max_selected_sim;
+                let mmr_score =
+                    self.config.lambda * relevance - (1.0 - self.config.lambda) * max_selected_sim;
 
                 if mmr_score > best_mmr_score {
                     best_mmr_score = mmr_score;
@@ -232,8 +235,8 @@ impl MmrSelector {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::pattern::Pattern;
+    use super::*;
 
     fn create_pattern_with_embedding(id: &str, embedding: Vec<f32>) -> Pattern {
         Pattern::builder()
@@ -280,9 +283,7 @@ mod tests {
         let mmr = MmrSelector::new(MmrConfig::default());
         let query = vec![1.0, 0.0, 0.0, 0.0];
 
-        let candidates = vec![
-            create_search_result("1", vec![1.0, 0.0, 0.0, 0.0], 0.95),
-        ];
+        let candidates = vec![create_search_result("1", vec![1.0, 0.0, 0.0, 0.0], 0.95)];
 
         let results = mmr.select(&candidates, &query, 5);
         assert_eq!(results.len(), 1);
@@ -371,9 +372,7 @@ mod tests {
         let mmr = MmrSelector::new(MmrConfig::default());
         let query = vec![1.0, 0.0, 0.0, 0.0];
 
-        let candidates = vec![
-            create_search_result("1", vec![1.0, 0.0, 0.0, 0.0], 0.95),
-        ];
+        let candidates = vec![create_search_result("1", vec![1.0, 0.0, 0.0, 0.0], 0.95)];
 
         let results = mmr.select(&candidates, &query, 1);
 

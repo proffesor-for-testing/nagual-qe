@@ -145,7 +145,8 @@ impl MetaLearningEngine {
         let scaled_proposed = current_reward + scaled_change;
 
         // Apply EWC protection
-        self.ewc.protected_reward_update(pattern_id, current_reward, scaled_proposed)
+        self.ewc
+            .protected_reward_update(pattern_id, current_reward, scaled_proposed)
     }
 
     /// Update pattern importance after an outcome
@@ -158,11 +159,10 @@ impl MetaLearningEngine {
         total_count: u32,
     ) {
         // Build outcomes array for Fisher calculation
-        let outcomes: Vec<bool> = (0..total_count)
-            .map(|i| i < success_count)
-            .collect();
+        let outcomes: Vec<bool> = (0..total_count).map(|i| i < success_count).collect();
 
-        self.ewc.update_importance(pattern_id, success_count, total_count, &outcomes);
+        self.ewc
+            .update_importance(pattern_id, success_count, total_count, &outcomes);
 
         // Update domain performance
         let success_rate = success_count as f64 / total_count.max(1) as f64;
@@ -175,19 +175,14 @@ impl MetaLearningEngine {
             return Vec::new();
         }
 
-        self.transfer.suggest_transfer_candidates(target_domain, 0.4)
+        self.transfer
+            .suggest_transfer_candidates(target_domain, 0.4)
     }
 
     /// Record a transfer attempt
     pub fn record_transfer(&self, source_domain: &str, target_domain: &str, success: bool) {
-        self.transfer.record_transfer(
-            source_domain,
-            target_domain,
-            success,
-            None,
-            None,
-            None,
-        );
+        self.transfer
+            .record_transfer(source_domain, target_domain, success, None, None, None);
     }
 
     /// Run optimization cycle (called during dream cycle)

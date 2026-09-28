@@ -184,21 +184,15 @@ impl RustErrorHandlingDetector {
     /// Create a new Rust error handling detector.
     pub fn new() -> Self {
         Self {
-            custom_error_regex: Regex::new(
-                r"(?m)impl\s+(?:std::)?(?:error::)?Error\s+for\s+(\w+)"
-            ).unwrap(),
-            thiserror_regex: Regex::new(
-                r"(?m)#\[derive\([^\)]*Error[^\)]*\)\]"
-            ).unwrap(),
-            map_err_regex: Regex::new(
-                r"(?m)\.map_err\(\|[^|]*\|\s*([^)]+)\)"
-            ).unwrap(),
-            context_regex: Regex::new(
-                r"(?m)\.context\(([^)]+)\)"
-            ).unwrap(),
+            custom_error_regex: Regex::new(r"(?m)impl\s+(?:std::)?(?:error::)?Error\s+for\s+(\w+)")
+                .unwrap(),
+            thiserror_regex: Regex::new(r"(?m)#\[derive\([^\)]*Error[^\)]*\)\]").unwrap(),
+            map_err_regex: Regex::new(r"(?m)\.map_err\(\|[^|]*\|\s*([^)]+)\)").unwrap(),
+            context_regex: Regex::new(r"(?m)\.context\(([^)]+)\)").unwrap(),
             result_fn_regex: Regex::new(
-                r"(?m)pub\s+(?:async\s+)?fn\s+(\w+)[^)]*\)\s*->\s*(?:anyhow::)?Result<"
-            ).unwrap(),
+                r"(?m)pub\s+(?:async\s+)?fn\s+(\w+)[^)]*\)\s*->\s*(?:anyhow::)?Result<",
+            )
+            .unwrap(),
         }
     }
 
@@ -216,7 +210,8 @@ impl RustErrorHandlingDetector {
             if in_impl {
                 result.push(*line);
                 brace_count += line.chars().filter(|c| *c == '{').count();
-                brace_count = brace_count.saturating_sub(line.chars().filter(|c| *c == '}').count());
+                brace_count =
+                    brace_count.saturating_sub(line.chars().filter(|c| *c == '}').count());
 
                 if brace_count == 0 && result.len() > 1 {
                     break;
@@ -249,9 +244,7 @@ impl PatternDetector for RustErrorHandlingDetector {
         // Detect custom Error impl
         for caps in self.custom_error_regex.captures_iter(content) {
             let error_type = caps.get(1).map(|m| m.as_str()).unwrap_or("CustomError");
-            let line_num = content[..caps.get(0).unwrap().start()]
-                .lines()
-                .count();
+            let line_num = content[..caps.get(0).unwrap().start()].lines().count();
             let impl_block = self.extract_impl_block(content, line_num.saturating_sub(1));
 
             if impl_block.contains("fn source") || impl_block.contains("fn description") {
@@ -309,9 +302,7 @@ impl PatternDetector for RustErrorHandlingDetector {
             if map_err_count >= 2 {
                 // Extract a representative example
                 if let Some(caps) = self.map_err_regex.captures(content) {
-                    let line_num = content[..caps.get(0).unwrap().start()]
-                        .lines()
-                        .count();
+                    let line_num = content[..caps.get(0).unwrap().start()].lines().count();
 
                     // Get surrounding context (5 lines before, 5 after)
                     let start = line_num.saturating_sub(5);
@@ -385,7 +376,8 @@ impl RustAsyncDetector {
 
             if started {
                 brace_count += line.chars().filter(|c| *c == '{').count();
-                brace_count = brace_count.saturating_sub(line.chars().filter(|c| *c == '}').count());
+                brace_count =
+                    brace_count.saturating_sub(line.chars().filter(|c| *c == '}').count());
 
                 if brace_count == 0 {
                     break;
@@ -467,9 +459,7 @@ impl PatternDetector for RustAsyncDetector {
         // Detect channel patterns
         for caps in self.channel_regex.captures_iter(content) {
             let channel_type = caps.get(1).map(|m| m.as_str()).unwrap_or("channel");
-            let line_num = content[..caps.get(0).unwrap().start()]
-                .lines()
-                .count();
+            let line_num = content[..caps.get(0).unwrap().start()].lines().count();
             let start = line_num.saturating_sub(2);
             let end = (line_num + 20).min(lines.len());
             let context: String = lines[start..end].join("\n");
@@ -552,18 +542,16 @@ impl ApiPatternDetector {
     /// Create a new API pattern detector.
     pub fn new() -> Self {
         Self {
-            axum_route_regex: Regex::new(
-                r#"(?m)\.route\s*\(\s*["']([^"']+)["']"#
-            ).unwrap(),
+            axum_route_regex: Regex::new(r#"(?m)\.route\s*\(\s*["']([^"']+)["']"#).unwrap(),
             actix_route_regex: Regex::new(
-                r#"(?m)#\[(?:get|post|put|delete|patch)\s*\(\s*["']([^"']+)["']"#
-            ).unwrap(),
-            middleware_regex: Regex::new(
-                r"(?m)\.layer\s*\(\s*(\w+)"
-            ).unwrap(),
+                r#"(?m)#\[(?:get|post|put|delete|patch)\s*\(\s*["']([^"']+)["']"#,
+            )
+            .unwrap(),
+            middleware_regex: Regex::new(r"(?m)\.layer\s*\(\s*(\w+)").unwrap(),
             handler_regex: Regex::new(
-                r"(?m)async\s+fn\s+(\w+)\s*\([^)]*(?:State|Json|Path|Query|Extension)"
-            ).unwrap(),
+                r"(?m)async\s+fn\s+(\w+)\s*\([^)]*(?:State|Json|Path|Query|Extension)",
+            )
+            .unwrap(),
         }
     }
 
@@ -582,7 +570,8 @@ impl ApiPatternDetector {
 
             if started {
                 paren_count += line.chars().filter(|c| *c == '(').count();
-                paren_count = paren_count.saturating_sub(line.chars().filter(|c| *c == ')').count());
+                paren_count =
+                    paren_count.saturating_sub(line.chars().filter(|c| *c == ')').count());
 
                 // Look for semicolon at end to stop
                 if line.trim().ends_with(';') && paren_count == 0 {
@@ -622,12 +611,7 @@ impl PatternDetector for ApiPatternDetector {
                     problem: "Defining API routes with Axum router".into(),
                     solution: router_block,
                     domain: "rust.api".into(),
-                    tags: vec![
-                        "api".into(),
-                        "axum".into(),
-                        "router".into(),
-                        "web".into(),
-                    ],
+                    tags: vec!["api".into(), "axum".into(), "router".into(), "web".into()],
                     source_file: file_path.into(),
                     line_number: line_num,
                     confidence: 0.85,
@@ -642,9 +626,7 @@ impl PatternDetector for ApiPatternDetector {
         // Detect Actix-web route attributes
         for caps in self.actix_route_regex.captures_iter(content) {
             let route_path = caps.get(1).map(|m| m.as_str()).unwrap_or("/");
-            let line_num = content[..caps.get(0).unwrap().start()]
-                .lines()
-                .count();
+            let line_num = content[..caps.get(0).unwrap().start()].lines().count();
             let start = line_num.saturating_sub(1);
             let end = (line_num + 20).min(lines.len());
             let context: String = lines[start..end].join("\n");
@@ -653,12 +635,7 @@ impl PatternDetector for ApiPatternDetector {
                 problem: format!("Actix-web route handler for '{}'", route_path),
                 solution: context,
                 domain: "rust.api".into(),
-                tags: vec![
-                    "api".into(),
-                    "actix".into(),
-                    "handler".into(),
-                    "web".into(),
-                ],
+                tags: vec!["api".into(), "actix".into(), "handler".into(), "web".into()],
                 source_file: file_path.into(),
                 line_number: line_num,
                 confidence: 0.85,
@@ -747,7 +724,8 @@ impl TestPatternDetector {
             }
 
             if started && line.contains('}') {
-                brace_count = brace_count.saturating_sub(line.chars().filter(|c| *c == '}').count());
+                brace_count =
+                    brace_count.saturating_sub(line.chars().filter(|c| *c == '}').count());
                 if brace_count == 0 {
                     break;
                 }
@@ -873,18 +851,14 @@ impl DatabasePatternDetector {
     /// Create a new database pattern detector.
     pub fn new() -> Self {
         Self {
-            sqlx_query_regex: Regex::new(
-                r"(?m)sqlx::query(?:_as|_scalar)?\s*(?:!\s*)?\("
-            ).unwrap(),
-            transaction_regex: Regex::new(
-                r"(?m)\.begin\s*\(\s*\)|transaction|\.commit\s*\(\s*\)"
-            ).unwrap(),
+            sqlx_query_regex: Regex::new(r"(?m)sqlx::query(?:_as|_scalar)?\s*(?:!\s*)?\(").unwrap(),
+            transaction_regex: Regex::new(r"(?m)\.begin\s*\(\s*\)|transaction|\.commit\s*\(\s*\)")
+                .unwrap(),
             migration_regex: Regex::new(
-                r"(?m)(?:migration|migrate|MIGRATION|CREATE\s+TABLE|ALTER\s+TABLE)"
-            ).unwrap(),
-            pool_regex: Regex::new(
-                r"(?m)(?:Pool|PgPool|SqlitePool|MySqlPool)::connect"
-            ).unwrap(),
+                r"(?m)(?:migration|migrate|MIGRATION|CREATE\s+TABLE|ALTER\s+TABLE)",
+            )
+            .unwrap(),
+            pool_regex: Regex::new(r"(?m)(?:Pool|PgPool|SqlitePool|MySqlPool)::connect").unwrap(),
         }
     }
 }
@@ -1063,10 +1037,9 @@ impl Transfuser {
                     c
                 }
                 Err(e) => {
-                    result.errors.insert(
-                        entry.path().to_string_lossy().to_string(),
-                        e.to_string(),
-                    );
+                    result
+                        .errors
+                        .insert(entry.path().to_string_lossy().to_string(), e.to_string());
                     continue;
                 }
             };
@@ -1294,8 +1267,14 @@ async fn create_pool() -> PgPool {
         // Create a mock entry for testing
         // In a real test we'd need actual directory entries
         // This test verifies the config is set correctly
-        assert!(transfuser.config.exclude_dirs.contains(&"target".to_string()));
-        assert!(transfuser.config.exclude_dirs.contains(&"node_modules".to_string()));
+        assert!(transfuser
+            .config
+            .exclude_dirs
+            .contains(&"target".to_string()));
+        assert!(transfuser
+            .config
+            .exclude_dirs
+            .contains(&"node_modules".to_string()));
     }
 
     #[test]

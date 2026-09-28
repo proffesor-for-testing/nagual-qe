@@ -3,10 +3,7 @@
 //! Provides key derivation using Argon2id, salt management,
 //! and secure key handling for SQLCipher encryption.
 
-use argon2::{
-    password_hash::SaltString,
-    Argon2, Params, Version,
-};
+use argon2::{password_hash::SaltString, Argon2, Params, Version};
 use rand::rngs::OsRng;
 use std::fmt;
 use thiserror::Error;
@@ -76,7 +73,7 @@ impl Argon2Params {
     /// Create params for testing (faster but less secure).
     pub fn for_testing() -> Self {
         Self {
-            memory_cost: 1024,   // 1 MiB
+            memory_cost: 1024, // 1 MiB
             time_cost: 1,
             parallelism: 1,
             output_length: 32,

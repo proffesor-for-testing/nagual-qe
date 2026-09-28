@@ -209,10 +209,7 @@ impl ConstitutionCommand {
         );
 
         if stats.total_violations > 0 {
-            println!(
-                "         {} violations recorded",
-                stats.total_violations
-            );
+            println!("         {} violations recorded", stats.total_violations);
         }
 
         println!();
@@ -395,7 +392,9 @@ impl ConstitutionCommand {
             println!("     Require MAST failure mode classification for failure outcomes.");
             println!();
             println!("  3. SurpriseReview");
-            println!("     Flag patterns with surprise > 0.8 for human review before consolidation.");
+            println!(
+                "     Flag patterns with surprise > 0.8 for human review before consolidation."
+            );
             println!();
             println!("  4. ConflictEscalation");
             println!("     Create conflict record instead of silently overwriting patterns.");

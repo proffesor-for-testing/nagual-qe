@@ -11,10 +11,7 @@
 //!
 //! This embedder is deterministic, fast, and requires zero external files.
 
-use sha3::{
-    digest::{ExtendableOutput, Update, XofReader},
-    Shake256,
-};
+use shake::{ExtendableOutput, Shake256, Update, XofReader};
 
 use super::{EmbeddingResult, MlResult};
 
@@ -183,7 +180,11 @@ mod tests {
         let embedder = HashEmbedder::new();
         assert_eq!(embedder.embedding_dim(), 128);
 
-        for text in &["a", "hello world", "the quick brown fox jumps over the lazy dog"] {
+        for text in &[
+            "a",
+            "hello world",
+            "the quick brown fox jumps over the lazy dog",
+        ] {
             let result = embedder.embed(text).unwrap();
             assert_eq!(result.embedding.len(), 128);
         }
@@ -192,12 +193,11 @@ mod tests {
     #[test]
     fn test_l2_normalized() {
         let embedder = HashEmbedder::new();
-        let result = embedder.embed("a longer text for normalization testing").unwrap();
+        let result = embedder
+            .embed("a longer text for normalization testing")
+            .unwrap();
         let norm: f32 = result.embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-        assert!(
-            (norm - 1.0).abs() < 0.01,
-            "Expected norm ~1.0, got {norm}"
-        );
+        assert!((norm - 1.0).abs() < 0.01, "Expected norm ~1.0, got {norm}");
     }
 
     #[test]
@@ -219,9 +219,13 @@ mod tests {
     #[test]
     fn test_similar_texts_closer() {
         let embedder = HashEmbedder::new();
-        let e1 = embedder.embed("rust programming language features").unwrap();
+        let e1 = embedder
+            .embed("rust programming language features")
+            .unwrap();
         let e2 = embedder.embed("rust programming language syntax").unwrap();
-        let e3 = embedder.embed("cooking recipes for dinner tonight").unwrap();
+        let e3 = embedder
+            .embed("cooking recipes for dinner tonight")
+            .unwrap();
 
         let sim12 = cosine_sim(&e1.embedding, &e2.embedding);
         let sim13 = cosine_sim(&e1.embedding, &e3.embedding);
@@ -262,7 +266,10 @@ mod tests {
             .iter()
             .map(|x| x * x)
             .sum();
-        assert_eq!(bi_energy, 0.0, "Bigram subspace should be inactive for single word");
+        assert_eq!(
+            bi_energy, 0.0,
+            "Bigram subspace should be inactive for single word"
+        );
     }
 
     #[test]

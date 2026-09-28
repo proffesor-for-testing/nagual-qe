@@ -740,11 +740,7 @@ mod tests {
         let n = 5000;
         let sum: f64 = (0..n).map(|_| standard_normal(&mut rng)).sum();
         let mean = sum / n as f64;
-        assert!(
-            mean.abs() < 0.1,
-            "Normal mean {} should be near 0",
-            mean,
-        );
+        assert!(mean.abs() < 0.1, "Normal mean {} should be near 0", mean,);
     }
 
     // -----------------------------------------------------------------------
@@ -939,7 +935,9 @@ mod tests {
         engine.record_outcome("rust", "python", false);
 
         let history = engine.transfer_history.lock();
-        let prior = history.get(&("rust".to_string(), "python".to_string())).unwrap();
+        let prior = history
+            .get(&("rust".to_string(), "python".to_string()))
+            .unwrap();
         assert_eq!(prior.alpha, 3.0); // 1 (uniform) + 2 successes
         assert_eq!(prior.beta, 2.0); // 1 (uniform) + 1 failure
     }
@@ -964,7 +962,11 @@ mod tests {
         engine.record_outcome("rust", "go", false);
 
         let score = engine.acceleration_score("rust", "go");
-        assert!(score > 0.5, "Score {} should indicate positive transfer", score);
+        assert!(
+            score > 0.5,
+            "Score {} should indicate positive transfer",
+            score
+        );
     }
 
     #[test]
@@ -977,7 +979,11 @@ mod tests {
         engine.record_outcome("java", "rust", false);
 
         let score = engine.acceleration_score("java", "rust");
-        assert!(score < 0.5, "Score {} should indicate negative transfer", score);
+        assert!(
+            score < 0.5,
+            "Score {} should indicate negative transfer",
+            score
+        );
     }
 
     #[test]
@@ -1032,11 +1038,15 @@ mod tests {
         engine2.load_history().await.unwrap();
 
         let history = engine2.transfer_history.lock();
-        let rp = history.get(&("rust".to_string(), "python".to_string())).unwrap();
+        let rp = history
+            .get(&("rust".to_string(), "python".to_string()))
+            .unwrap();
         assert_eq!(rp.alpha, 3.0);
         assert_eq!(rp.beta, 1.0);
 
-        let gr = history.get(&("go".to_string(), "rust".to_string())).unwrap();
+        let gr = history
+            .get(&("go".to_string(), "rust".to_string()))
+            .unwrap();
         assert_eq!(gr.alpha, 1.0);
         assert_eq!(gr.beta, 2.0);
     }
@@ -1055,11 +1065,9 @@ mod tests {
 
         // Should have exactly one row (upserted)
         let count: Vec<i64> = db
-            .query(
-                "SELECT COUNT(*) FROM transfer_priors",
-                &[],
-                |row| row.get(0),
-            )
+            .query("SELECT COUNT(*) FROM transfer_priors", &[], |row| {
+                row.get(0)
+            })
             .await
             .unwrap();
         assert_eq!(count[0], 1);

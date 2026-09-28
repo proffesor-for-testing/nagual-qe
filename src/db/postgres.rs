@@ -272,10 +272,7 @@ impl PostgresConfig {
     ///
     /// Format: `postgresql://user:password@host:port/database?sslmode=mode`
     pub fn connection_string(&self) -> String {
-        let mut url = format!(
-            "postgresql://{}",
-            self.username
-        );
+        let mut url = format!("postgresql://{}", self.username);
 
         if let Some(ref password) = self.password {
             url.push(':');
@@ -304,7 +301,10 @@ impl PostgresConfig {
 
         // Application name
         if let Some(ref app_name) = self.application_name {
-            params.push(format!("application_name={}", urlencoding::encode(app_name)));
+            params.push(format!(
+                "application_name={}",
+                urlencoding::encode(app_name)
+            ));
         }
 
         // Connect timeout
@@ -314,7 +314,10 @@ impl PostgresConfig {
 
         // Statement timeout
         if self.statement_timeout_secs > 0 {
-            params.push(format!("statement_timeout={}000", self.statement_timeout_secs));
+            params.push(format!(
+                "statement_timeout={}000",
+                self.statement_timeout_secs
+            ));
         }
 
         // Schema (search_path)
@@ -431,7 +434,7 @@ impl Default for PoolConfig {
             max_connections: 10,
             min_connections: 1,
             acquire_timeout_secs: 30,
-            idle_timeout_secs: Some(600), // 10 minutes
+            idle_timeout_secs: Some(600),  // 10 minutes
             max_lifetime_secs: Some(1800), // 30 minutes
             test_before_acquire: true,
         }

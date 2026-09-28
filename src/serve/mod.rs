@@ -125,15 +125,14 @@ impl ServeCommand {
 
         // --- Initialize pattern storage for write API ---
         let pg_url = resolve_postgres_url(self.postgres_url.as_deref());
-        let storage = match crate::cli::common::init_storage(
-            &self.db_path,
-            pg_url.as_deref(),
-        )
-        .await
+        let storage = match crate::cli::common::init_storage(&self.db_path, pg_url.as_deref()).await
         {
             Ok(s) => Some(Arc::new(TokioMutex::new(s))),
             Err(e) => {
-                warn!("Failed to initialize pattern storage: {} (write API disabled)", e);
+                warn!(
+                    "Failed to initialize pattern storage: {} (write API disabled)",
+                    e
+                );
                 None
             }
         };
@@ -148,7 +147,10 @@ impl ServeCommand {
                     Some(handle)
                 }
                 Err(e) => {
-                    warn!("pg_notify listener failed to start: {} (continuing without)", e);
+                    warn!(
+                        "pg_notify listener failed to start: {} (continuing without)",
+                        e
+                    );
                     None
                 }
             }
@@ -164,7 +166,10 @@ impl ServeCommand {
                     Some(Arc::new(ks))
                 }
                 Err(e) => {
-                    warn!("Failed to initialize API key store: {} (key auth disabled)", e);
+                    warn!(
+                        "Failed to initialize API key store: {} (key auth disabled)",
+                        e
+                    );
                     None
                 }
             },
@@ -241,83 +246,13 @@ impl ServeCommand {
             login_required,
         };
 
-        let cors = CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any);
-
-        let app = Router::new()
-            // Dashboard HTML (session-gated)
-            .route("/", get(serve_dashboard))
-            // Login / Logout
-            .route("/login", get(serve_login).post(handle_login))
-            .route("/logout", get(handle_logout))
-            // REST API endpoints (read-only dashboard)
-            .route("/api/status", get(handlers::api_status))
-            .route("/api/patterns", get(handlers::api_patterns)
-                .post(write_handlers::api_store_pattern))
-            .route("/api/patterns/search", post(write_handlers::api_search_patterns))
-            .route("/api/patterns/bulk", post(action_handlers::api_patterns_bulk))
-            .route("/api/patterns/:id", get(write_handlers::api_get_pattern)
-                .put(write_handlers::api_update_pattern)
-                .delete(write_handlers::api_delete_pattern))
-            .route("/api/patterns/:id/outcome", post(write_handlers::api_record_outcome))
-            .route("/api/patterns/:id/history", get(action_handlers::api_pattern_history))
-            .route("/api/patterns/:id/archive", post(action_handlers::api_pattern_archive))
-            .route("/api/patterns/:id/promote", post(action_handlers::api_pattern_promote))
-            .route("/api/domains", get(handlers::api_domains))
-            .route("/api/tiers", get(handlers::api_tiers))
-            .route("/api/pulse", get(handlers::api_pulse))
-            .route("/api/graph", get(handlers::api_graph))
-            .route("/api/graph/3d", get(handlers::api_graph_3d))
-            // Sync endpoints (cloud push/pull)
-            .route("/api/sync/push", post(sync_handlers::api_sync_push))
-            .route("/api/sync/pull", get(sync_handlers::api_sync_pull))
-            // Auth endpoints
-            .route("/api/auth/login", post(apikey_handlers::api_auth_login))
-            .route("/api/auth/whoami", get(apikey_handlers::api_whoami))
-            // Compaction endpoint
-            .route("/api/compaction/flush", post(compaction::compaction_flush_handler))
-            // Action endpoints (learning jobs)
-            .route("/api/actions/embed", post(action_handlers::api_action_embed))
-            .route("/api/actions/consolidate", post(action_handlers::api_action_consolidate))
-            .route("/api/actions/dedup", post(action_handlers::api_action_dedup))
-            .route("/api/actions/pyramid", post(action_handlers::api_action_pyramid))
-            .route("/api/actions/status/:job_id", get(action_handlers::api_action_status))
-            .route("/api/actions/jobs", get(action_handlers::api_action_jobs))
-            // Insights & recommendations
-            .route("/api/insights", get(action_handlers::api_insights))
-            .route("/api/recommendations", get(action_handlers::api_recommendations))
-            // Phase 2: Pattern management
-            .route("/api/tags", get(action_handlers::api_tags))
-            // Phase 3: Intelligence & Visualization
-            .route("/api/search/semantic", post(action_handlers::api_semantic_search))
-            .route("/api/domains/stats", get(action_handlers::api_domain_stats))
-            .route("/api/graph/nodes", get(action_handlers::api_graph_nodes))
-            .route("/api/graph/edges", get(action_handlers::api_graph_edges))
-            .route("/api/predictions", get(action_handlers::api_predictions_list)
-                .post(action_handlers::api_predictions_create))
-            .route("/api/predictions/calibration", get(action_handlers::api_predictions_calibration))
-            .route("/api/predictions/:id/resolve", put(action_handlers::api_predictions_resolve))
-            .route("/api/sessions/stats", get(action_handlers::api_session_stats))
-            .route("/api/surprise", get(action_handlers::api_surprise_patterns))
-            // Phase 4: Automation & Integration
-            .route("/api/schedule", get(action_handlers::api_schedule_list)
-                .post(action_handlers::api_schedule_create))
-            .route("/api/schedule/:id", delete(action_handlers::api_schedule_delete))
-            .route("/api/webhook/learn", post(action_handlers::api_webhook_learn))
-            .route("/api/events/recent", get(action_handlers::api_events_recent))
-            .route("/api/health/detailed", get(action_handlers::api_health_detailed))
-            .route("/api/export", get(action_handlers::api_export))
-            .route("/api/import", post(action_handlers::api_import))
-            // WebSocket endpoint
-            .route("/ws", get(websocket::ws_handler))
-            .layer(cors)
-            .with_state(state);
+        let app = build_router(state);
 
         let addr = format!("0.0.0.0:{}", self.port);
         let listener = tokio::net::TcpListener::bind(&addr).await.map_err(|e| {
-            crate::error::NagualError::Internal { message: format!("Failed to bind to {}: {}", addr, e) }
+            crate::error::NagualError::Internal {
+                message: format!("Failed to bind to {}: {}", addr, e),
+            }
         })?;
 
         info!(port = self.port, "Nagual dashboard running");
@@ -328,17 +263,48 @@ impl ServeCommand {
         println!("  Database:  {}", self.db_path.display());
         println!("  WebSocket: ws://localhost:{}/ws", self.port);
         println!("  Socket:    {}", self.socket_path);
-        println!("  Write API: {}", if write_api_enabled { "enabled" } else { "disabled (storage init failed)" });
-        println!("  Auth:      {}", if self.api_token.is_some() { "bearer token required" } else { "open (local-only mode)" });
-        println!("  Login:     {}", if login_required { "enabled (users configured)" } else { "disabled (no users — nagual user create <name> --role admin)" });
-        println!("  Heartbeat: {}", if self.heartbeat_interval > 0 { format!("every {} min", self.heartbeat_interval) } else { "disabled".to_string() });
+        println!(
+            "  Write API: {}",
+            if write_api_enabled {
+                "enabled"
+            } else {
+                "disabled (storage init failed)"
+            }
+        );
+        println!(
+            "  Auth:      {}",
+            if self.api_token.is_some() {
+                "bearer token required"
+            } else {
+                "open (local-only mode)"
+            }
+        );
+        println!(
+            "  Login:     {}",
+            if login_required {
+                "enabled (users configured)"
+            } else {
+                "disabled (no users — nagual user create <name> --role admin)"
+            }
+        );
+        println!(
+            "  Heartbeat: {}",
+            if self.heartbeat_interval > 0 {
+                format!("every {} min", self.heartbeat_interval)
+            } else {
+                "disabled".to_string()
+            }
+        );
         if let Some(ref url) = pg_url {
             let masked = mask_pg_url(url);
-            println!("  pg_notify: {}", if pg_handle.is_some() {
-                format!("listening ({})", masked)
-            } else {
-                format!("failed ({})", masked)
-            });
+            println!(
+                "  pg_notify: {}",
+                if pg_handle.is_some() {
+                    format!("listening ({})", masked)
+                } else {
+                    format!("failed ({})", masked)
+                }
+            );
         } else {
             println!("  pg_notify: not configured");
         }
@@ -362,7 +328,9 @@ impl ServeCommand {
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown_signal())
             .await
-            .map_err(|e| crate::error::NagualError::Internal { message: format!("Server error: {}", e) })?;
+            .map_err(|e| crate::error::NagualError::Internal {
+                message: format!("Server error: {}", e),
+            })?;
 
         // Cleanup
         info!("Shutting down...");
@@ -421,8 +389,7 @@ async fn handle_login(
     let store = match &state.user_store {
         Some(s) => s,
         None => {
-            return (StatusCode::SERVICE_UNAVAILABLE, "Login not configured")
-                .into_response();
+            return (StatusCode::SERVICE_UNAVAILABLE, "Login not configured").into_response();
         }
     };
 
@@ -439,9 +406,7 @@ async fn handle_login(
                 .body(axum::body::Body::from("ok"))
                 .unwrap()
         }
-        Ok(None) => {
-            (StatusCode::UNAUTHORIZED, "Invalid username or password").into_response()
-        }
+        Ok(None) => (StatusCode::UNAUTHORIZED, "Invalid username or password").into_response(),
         Err(e) => {
             warn!("Login error: {}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, "Login error").into_response()
@@ -481,13 +446,238 @@ fn mask_pg_url(url: &str) -> String {
     url.to_string()
 }
 
+/// All HTTP routes of `nagual serve`.
+///
+/// Path parameters use axum 0.8 `{name}` syntax — the old `:name` form panics when the
+/// router is built, which is exactly what happened after the axum 0.8 bump.
+pub(crate) fn build_router(state: AppState) -> Router {
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    Router::new()
+        // Dashboard HTML (session-gated)
+        .route("/", get(serve_dashboard))
+        // Login / Logout
+        .route("/login", get(serve_login).post(handle_login))
+        .route("/logout", get(handle_logout))
+        // REST API endpoints (read-only dashboard)
+        .route("/api/status", get(handlers::api_status))
+        .route(
+            "/api/patterns",
+            get(handlers::api_patterns).post(write_handlers::api_store_pattern),
+        )
+        .route(
+            "/api/patterns/search",
+            post(write_handlers::api_search_patterns),
+        )
+        .route(
+            "/api/patterns/bulk",
+            post(action_handlers::api_patterns_bulk),
+        )
+        .route(
+            "/api/patterns/{id}",
+            get(write_handlers::api_get_pattern)
+                .put(write_handlers::api_update_pattern)
+                .delete(write_handlers::api_delete_pattern),
+        )
+        .route(
+            "/api/patterns/{id}/outcome",
+            post(write_handlers::api_record_outcome),
+        )
+        .route(
+            "/api/patterns/{id}/history",
+            get(action_handlers::api_pattern_history),
+        )
+        .route(
+            "/api/patterns/{id}/archive",
+            post(action_handlers::api_pattern_archive),
+        )
+        .route(
+            "/api/patterns/{id}/promote",
+            post(action_handlers::api_pattern_promote),
+        )
+        .route("/api/domains", get(handlers::api_domains))
+        .route("/api/tiers", get(handlers::api_tiers))
+        .route("/api/pulse", get(handlers::api_pulse))
+        .route("/api/graph", get(handlers::api_graph))
+        .route("/api/graph/3d", get(handlers::api_graph_3d))
+        // Sync endpoints (cloud push/pull)
+        .route("/api/sync/push", post(sync_handlers::api_sync_push))
+        .route("/api/sync/pull", get(sync_handlers::api_sync_pull))
+        // Auth endpoints
+        .route("/api/auth/login", post(apikey_handlers::api_auth_login))
+        .route("/api/auth/whoami", get(apikey_handlers::api_whoami))
+        // Compaction endpoint
+        .route(
+            "/api/compaction/flush",
+            post(compaction::compaction_flush_handler),
+        )
+        // Action endpoints (learning jobs)
+        .route(
+            "/api/actions/embed",
+            post(action_handlers::api_action_embed),
+        )
+        .route(
+            "/api/actions/consolidate",
+            post(action_handlers::api_action_consolidate),
+        )
+        .route(
+            "/api/actions/dedup",
+            post(action_handlers::api_action_dedup),
+        )
+        .route(
+            "/api/actions/pyramid",
+            post(action_handlers::api_action_pyramid),
+        )
+        .route(
+            "/api/actions/status/{job_id}",
+            get(action_handlers::api_action_status),
+        )
+        .route("/api/actions/jobs", get(action_handlers::api_action_jobs))
+        // Insights & recommendations
+        .route("/api/insights", get(action_handlers::api_insights))
+        .route(
+            "/api/recommendations",
+            get(action_handlers::api_recommendations),
+        )
+        // Phase 2: Pattern management
+        .route("/api/tags", get(action_handlers::api_tags))
+        // Phase 3: Intelligence & Visualization
+        .route(
+            "/api/search/semantic",
+            post(action_handlers::api_semantic_search),
+        )
+        .route("/api/domains/stats", get(action_handlers::api_domain_stats))
+        .route("/api/graph/nodes", get(action_handlers::api_graph_nodes))
+        .route("/api/graph/edges", get(action_handlers::api_graph_edges))
+        .route(
+            "/api/predictions",
+            get(action_handlers::api_predictions_list)
+                .post(action_handlers::api_predictions_create),
+        )
+        .route(
+            "/api/predictions/calibration",
+            get(action_handlers::api_predictions_calibration),
+        )
+        .route(
+            "/api/predictions/{id}/resolve",
+            put(action_handlers::api_predictions_resolve),
+        )
+        .route(
+            "/api/sessions/stats",
+            get(action_handlers::api_session_stats),
+        )
+        .route("/api/surprise", get(action_handlers::api_surprise_patterns))
+        // Phase 4: Automation & Integration
+        .route(
+            "/api/schedule",
+            get(action_handlers::api_schedule_list).post(action_handlers::api_schedule_create),
+        )
+        .route(
+            "/api/schedule/{id}",
+            delete(action_handlers::api_schedule_delete),
+        )
+        .route(
+            "/api/webhook/learn",
+            post(action_handlers::api_webhook_learn),
+        )
+        .route(
+            "/api/events/recent",
+            get(action_handlers::api_events_recent),
+        )
+        .route(
+            "/api/health/detailed",
+            get(action_handlers::api_health_detailed),
+        )
+        .route("/api/export", get(action_handlers::api_export))
+        .route("/api/import", post(action_handlers::api_import))
+        // WebSocket endpoint
+        .route("/ws", get(websocket::ws_handler))
+        .layer(cors)
+        .with_state(state)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn router_test_state() -> AppState {
+        AppState {
+            db_path: PathBuf::from("unused-by-these-routes.db"),
+            event_bus: Arc::new(EventBus::new()),
+            storage: None,
+            auth_token: None,
+            key_store: None,
+            user_store: None,
+            session_secret: vec![0u8; 32],
+            login_required: false,
+        }
+    }
+
+    async fn status_of(method: &str, uri: &str) -> axum::http::StatusCode {
+        use tower::Service;
+        let mut app = build_router(router_test_state());
+        let req = axum::http::Request::builder()
+            .method(method)
+            .uri(uri)
+            .body(axum::body::Body::empty())
+            .unwrap();
+        app.call(req).await.unwrap().status()
+    }
+
+    // Regression: axum 0.8 panics while *building* the router if a path uses the old `:id`
+    // syntax. The handler unit tests never built the router, so `nagual serve` crashed on start
+    // while the suite stayed green.
+    #[test]
+    fn test_build_router_does_not_panic() {
+        let _ = build_router(router_test_state());
+    }
+
+    #[tokio::test]
+    async fn test_path_param_routes_match() {
+        // With no storage configured the handler itself errors (not 404). A route that failed to
+        // match (e.g. a literal `:id` segment) would fall through to the router's 404.
+        for (method, uri) in [
+            ("GET", "/api/patterns/abc-123"),
+            ("GET", "/api/patterns/abc-123/history"),
+        ] {
+            assert_ne!(
+                status_of(method, uri).await,
+                axum::http::StatusCode::NOT_FOUND,
+                "{method} {uri} did not match a route"
+            );
+        }
+        assert_eq!(
+            status_of("GET", "/api/no-such-route").await,
+            axum::http::StatusCode::NOT_FOUND
+        );
+
+        // The job-status handler legitimately answers 404 for an unknown job, so tell it apart
+        // from a router miss (empty body) by the handler's JSON error.
+        use tower::Service;
+        let mut app = build_router(router_test_state());
+        let req = axum::http::Request::builder()
+            .uri("/api/actions/status/job-1")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let body = axum::body::to_bytes(app.call(req).await.unwrap().into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        assert!(
+            String::from_utf8_lossy(&body).contains("Job not found"),
+            "/api/actions/status/{{job_id}} did not reach its handler: {:?}",
+            String::from_utf8_lossy(&body)
+        );
+    }
+
     #[test]
     fn test_dashboard_html_embedded() {
-        assert!(!DASHBOARD_HTML.is_empty(), "Dashboard HTML should be embedded");
+        assert!(
+            !DASHBOARD_HTML.is_empty(),
+            "Dashboard HTML should be embedded"
+        );
         assert!(
             DASHBOARD_HTML.contains("<!DOCTYPE html>"),
             "Dashboard should be valid HTML"
@@ -554,12 +744,17 @@ mod tests {
         }
 
         let args = vec![
-            "test", "serve",
-            "--port", "8080",
-            "--db-path", "/tmp/test.db",
+            "test",
+            "serve",
+            "--port",
+            "8080",
+            "--db-path",
+            "/tmp/test.db",
             "--open",
-            "--postgres-url", "postgres://nagual:pass@localhost/nagual",
-            "--socket-path", "/tmp/custom.sock",
+            "--postgres-url",
+            "postgres://nagual:pass@localhost/nagual",
+            "--socket-path",
+            "/tmp/custom.sock",
         ];
         let cli = TestCli::try_parse_from(args).unwrap();
         match cli.cmd {

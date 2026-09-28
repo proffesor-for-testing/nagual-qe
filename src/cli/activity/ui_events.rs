@@ -179,10 +179,7 @@ async fn run_events_stats(args: &EventsStatsArgs) -> Result<()> {
         if stats.is_empty() {
             println!("  No UI event statistics available.");
         } else {
-            println!(
-                "  {:<20} {:>8} {}",
-                "Event Type", "Count", "App"
-            );
+            println!("  {:<20} {:>8} {}", "Event Type", "Count", "App");
             println!("  {:-<55}", "");
             for s in &stats {
                 let app = s.app_name.as_deref().unwrap_or("all");

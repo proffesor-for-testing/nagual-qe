@@ -435,7 +435,9 @@ impl IncrementalSync {
 
                     {
                         let mut progress = self.progress.write().await;
-                        progress.errors.push(format!("Batch {} failed: {}", table_name, e));
+                        progress
+                            .errors
+                            .push(format!("Batch {} failed: {}", table_name, e));
                     }
                 }
             }
@@ -555,10 +557,7 @@ impl IncrementalSync {
         }
 
         // Flatten into single list
-        batches_by_table
-            .into_values()
-            .flatten()
-            .collect()
+        batches_by_table.into_values().flatten().collect()
     }
 
     /// Upload a batch to GCS.
@@ -698,10 +697,7 @@ impl SyncScheduler {
                 match sync.sync().await {
                     Ok(result) => {
                         if result.success {
-                            debug!(
-                                records = result.records_synced,
-                                "Scheduled sync completed"
-                            );
+                            debug!(records = result.records_synced, "Scheduled sync completed");
                         } else {
                             warn!(
                                 errors = result.errors.len(),

@@ -211,10 +211,7 @@ impl DriftMonitor {
 
     /// Return the number of recorded embeddings for a domain.
     pub fn count(&self, domain: &str) -> usize {
-        self.centroids
-            .get(domain)
-            .map(|h| h.len())
-            .unwrap_or(0)
+        self.centroids.get(domain).map(|h| h.len()).unwrap_or(0)
     }
 
     /// Determine the trend direction from recent vs historical distances.
@@ -224,9 +221,10 @@ impl DriftMonitor {
         }
 
         let recent_count = 5.min(distances.len());
-        let recent_avg: f64 =
-            distances[distances.len() - recent_count..].iter().sum::<f64>()
-                / recent_count as f64;
+        let recent_avg: f64 = distances[distances.len() - recent_count..]
+            .iter()
+            .sum::<f64>()
+            / recent_count as f64;
 
         if recent_avg > mean_dist * 1.3 {
             DriftTrend::Increasing
@@ -265,8 +263,7 @@ fn l2_distance(a: &[f32], b: &[f32]) -> f64 {
 // SQLite persistence for DriftReport
 // ---------------------------------------------------------------------------
 
-const DRIFT_TABLE_DDL: &str =
-    "CREATE TABLE IF NOT EXISTS drift_log (
+const DRIFT_TABLE_DDL: &str = "CREATE TABLE IF NOT EXISTS drift_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         domain TEXT NOT NULL,
         coefficient_of_variation REAL NOT NULL,
@@ -278,10 +275,14 @@ const DRIFT_TABLE_DDL: &str =
     );";
 
 /// Persist a drift report to SQLite.
-pub fn persist_drift_report(db_path: &str, report: &DriftReport) -> std::result::Result<(), String> {
+pub fn persist_drift_report(
+    db_path: &str,
+    report: &DriftReport,
+) -> std::result::Result<(), String> {
     use rusqlite::Connection;
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
-    conn.execute_batch(DRIFT_TABLE_DDL).map_err(|e| e.to_string())?;
+    conn.execute_batch(DRIFT_TABLE_DDL)
+        .map_err(|e| e.to_string())?;
     conn.execute(
         "INSERT INTO drift_log (domain, coefficient_of_variation, is_drifting, trend, suggested_action, window_size)
          VALUES (?, ?, ?, ?, ?, ?)",
@@ -307,7 +308,8 @@ pub fn persist_drift_report(db_path: &str, report: &DriftReport) -> std::result:
 pub fn load_drift_reports(db_path: &str) -> std::result::Result<Vec<DriftReport>, String> {
     use rusqlite::Connection;
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
-    conn.execute_batch(DRIFT_TABLE_DDL).map_err(|e| e.to_string())?;
+    conn.execute_batch(DRIFT_TABLE_DDL)
+        .map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
             "SELECT domain, coefficient_of_variation, is_drifting, trend, suggested_action, window_size
@@ -346,7 +348,8 @@ pub fn load_drift_reports_for_domain(
 ) -> std::result::Result<Vec<DriftReport>, String> {
     use rusqlite::Connection;
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
-    conn.execute_batch(DRIFT_TABLE_DDL).map_err(|e| e.to_string())?;
+    conn.execute_batch(DRIFT_TABLE_DDL)
+        .map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
             "SELECT domain, coefficient_of_variation, is_drifting, trend, suggested_action, window_size
@@ -546,12 +549,12 @@ mod tests {
         // Start with small consistent distances, then increase
         let embeddings = vec![
             vec![0.0],
-            vec![0.1],  // dist 0.1
-            vec![0.2],  // dist 0.1
-            vec![0.3],  // dist 0.1
-            vec![0.4],  // dist 0.1
-            vec![0.5],  // dist 0.1
-            vec![0.6],  // dist 0.1
+            vec![0.1], // dist 0.1
+            vec![0.2], // dist 0.1
+            vec![0.3], // dist 0.1
+            vec![0.4], // dist 0.1
+            vec![0.5], // dist 0.1
+            vec![0.6], // dist 0.1
             // Now jump to large distances
             vec![5.6],  // dist 5.0
             vec![10.6], // dist 5.0

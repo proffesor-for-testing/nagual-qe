@@ -811,8 +811,16 @@ mod future_cone_tests {
         assert_eq!(cone.predicted_outcomes.len(), 2);
 
         // C1 should have higher probability
-        let c1_prob = cone.predicted_outcomes.iter().find(|(id, _)| id == "C1").map(|(_, p)| *p);
-        let c2_prob = cone.predicted_outcomes.iter().find(|(id, _)| id == "C2").map(|(_, p)| *p);
+        let c1_prob = cone
+            .predicted_outcomes
+            .iter()
+            .find(|(id, _)| id == "C1")
+            .map(|(_, p)| *p);
+        let c2_prob = cone
+            .predicted_outcomes
+            .iter()
+            .find(|(id, _)| id == "C2")
+            .map(|(_, p)| *p);
 
         assert!(c1_prob.unwrap() > c2_prob.unwrap());
     }
@@ -1176,7 +1184,10 @@ mod edge_cases {
 
         // Add many children
         for i in 0..50 {
-            let child = engine.add_node(CausalNode::new(format!("child_{}", i), format!("Child {}", i)));
+            let child = engine.add_node(CausalNode::new(
+                format!("child_{}", i),
+                format!("Child {}", i),
+            ));
             engine.add_link(CausalLink::new(&root, &child, CausalLinkType::Causes, 0.9));
         }
 
@@ -1322,7 +1333,10 @@ mod performance_tests {
 
         // Create a large graph with 1000 nodes
         for i in 0..1000 {
-            engine.add_node(CausalNode::new(format!("node_{}", i), format!("Content {}", i)));
+            engine.add_node(CausalNode::new(
+                format!("node_{}", i),
+                format!("Content {}", i),
+            ));
         }
 
         // Add random links
@@ -1356,7 +1370,10 @@ mod performance_tests {
         // Create a graph with branching
         engine.add_node(CausalNode::new("root", "Root"));
         for i in 0..100 {
-            let node = engine.add_node(CausalNode::new(format!("child_{}", i), format!("Child {}", i)));
+            let node = engine.add_node(CausalNode::new(
+                format!("child_{}", i),
+                format!("Child {}", i),
+            ));
             engine.add_link(CausalLink::new("root", &node, CausalLinkType::Causes, 0.9));
         }
 

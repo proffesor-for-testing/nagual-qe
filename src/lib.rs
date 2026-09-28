@@ -115,8 +115,8 @@ pub mod cloud;
 pub mod coherence;
 pub mod constitution;
 pub mod db;
-pub mod drift;
 pub mod dream;
+pub mod drift;
 pub mod error;
 pub mod events;
 pub mod graph;
@@ -130,19 +130,19 @@ pub mod ml;
 pub mod observability;
 pub mod planning;
 pub mod prediction;
-pub mod research;
 pub mod profdag;
 pub mod reasoning_bank;
+pub mod research;
 pub mod router;
 pub mod security;
 pub mod sync;
 
-pub mod lineage;
-pub mod witness;
+pub mod agent_views;
 pub mod delta;
 pub mod epoch;
+pub mod lineage;
 pub mod tiering;
-pub mod agent_views;
+pub mod witness;
 
 #[cfg(feature = "serve")]
 pub mod serve;
@@ -152,23 +152,37 @@ pub use error::{NagualError, Result};
 
 // Re-export API types for easy access
 pub use api::{
-    HealthStatus, Nagual, NagualConfig, NagualConfigBuilder,
-    // Knowledge API
-    KnowledgeApi, KnowledgeItem, KnowledgeSearchResult,
-    // Learning API
-    LearningApi, ConsolidationResult, ImprovementResult, InsightsResult,
-    // Sync API
-    SyncApi, BackupStatus, RestoreStatus, SyncStatus,
+    BackupStatus,
+    ConsolidationResult,
     // Graph API
-    GraphApi, GraphQueryResult,
-    // Patterns API
-    PatternsApi, PatternSearchResult, PatternStatsResult,
-    // ProfDAG API
-    ProfDAGApi,
-    // Router API
-    RouterApi,
+    GraphApi,
+    GraphQueryResult,
+    HealthStatus,
+    ImprovementResult,
     // Injection API
     InjectionApi,
+    InsightsResult,
+    // Knowledge API
+    KnowledgeApi,
+    KnowledgeItem,
+    KnowledgeSearchResult,
+    // Learning API
+    LearningApi,
+    Nagual,
+    NagualConfig,
+    NagualConfigBuilder,
+    PatternSearchResult,
+    PatternStatsResult,
+    // Patterns API
+    PatternsApi,
+    // ProfDAG API
+    ProfDAGApi,
+    RestoreStatus,
+    // Router API
+    RouterApi,
+    // Sync API
+    SyncApi,
+    SyncStatus,
 };
 
 // Re-export KOS API
@@ -182,17 +196,32 @@ pub use mcp::{McpRegistry, NagualContext, ToolDefinition, ToolResult};
 
 // Re-export injection types for E_nagual
 pub use injection::{
-    ENagual, ENagualBuilder, ENagualConfig, ContextBuilder, ContextConfig, Provider,
-    InjectionContext, format_for_anthropic, format_for_openai, format_for_local,
+    format_for_anthropic,
+    format_for_local,
+    format_for_openai,
     // Attention surgery for open-weight models
-    AttentionBias, AttentionSurgery, AttentionSurgeryConfig, BiasMethod, ModelConfig,
-    AttentionState, ENagualHook, HookRegistry, ModelHook,
+    AttentionBias,
+    AttentionState,
+    AttentionSurgery,
+    AttentionSurgeryConfig,
+    BiasMethod,
+    ContextBuilder,
+    ContextConfig,
+    ENagual,
+    ENagualBuilder,
+    ENagualConfig,
+    ENagualHook,
+    HookRegistry,
+    InjectionContext,
+    ModelConfig,
+    ModelHook,
+    Provider,
 };
 
 // Re-export router types for vendor selection
 pub use router::{
-    ComplexityEstimator, ComplexityFeatures, ComplexityScore, EstimatorConfig,
-    FastGRNN, FastGRNNConfig, FastGRNNWeights, GRNNCell,
-    FallbackChain, RoutingDecision, RoutingMetrics, Vendor, VendorConfig, VendorRouter,
-    VendorSelector, VendorStatus, RouterConfig, RouterError, RouterResult,
+    ComplexityEstimator, ComplexityFeatures, ComplexityScore, EstimatorConfig, FallbackChain,
+    FastGRNN, FastGRNNConfig, FastGRNNWeights, GRNNCell, RouterConfig, RouterError, RouterResult,
+    RoutingDecision, RoutingMetrics, Vendor, VendorConfig, VendorRouter, VendorSelector,
+    VendorStatus,
 };

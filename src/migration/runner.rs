@@ -73,9 +73,9 @@ impl Migration {
                 if let Some(parsed) = parse_migration_filename(filename) {
                     let content = fs::read_to_string(&path).map_err(MigrationError::FileError)?;
 
-                    let entry = migrations.entry(parsed.version).or_insert_with(|| {
-                        (parsed.name.clone(), None, None)
-                    });
+                    let entry = migrations
+                        .entry(parsed.version)
+                        .or_insert_with(|| (parsed.name.clone(), None, None));
 
                     match parsed.direction {
                         MigrationDirection::Up => entry.1 = Some(content),
@@ -323,11 +323,9 @@ impl MigrationRunner {
         // Check lock status
         let is_locked = self
             .db
-            .query_one(
-                "SELECT 1 FROM migration_lock WHERE id = 1",
-                &[],
-                |_| Ok(true),
-            )
+            .query_one("SELECT 1 FROM migration_lock WHERE id = 1", &[], |_| {
+                Ok(true)
+            })
             .await?
             .unwrap_or(false);
 
@@ -469,9 +467,10 @@ impl MigrationRunner {
     async fn run_down_internal(&self) -> Result<SchemaVersion> {
         let status = self.status().await?;
 
-        let last_applied = status.applied.last().ok_or(MigrationError::NotFound {
-            version: 0,
-        })?;
+        let last_applied = status
+            .applied
+            .last()
+            .ok_or(MigrationError::NotFound { version: 0 })?;
 
         // Find the migration file to get the down script
         let migrations = Migration::load_from_files(&self.migrations_path)?;
@@ -482,10 +481,13 @@ impl MigrationRunner {
                 version: last_applied.version,
             })?;
 
-        let down_script = migration.down_script.as_ref().ok_or(MigrationError::RollbackFailed {
-            version: migration.version,
-            reason: "No down script available".to_string(),
-        })?;
+        let down_script = migration
+            .down_script
+            .as_ref()
+            .ok_or(MigrationError::RollbackFailed {
+                version: migration.version,
+                reason: "No down script available".to_string(),
+            })?;
 
         // Verify checksum matches
         if migration.checksum != last_applied.checksum {
@@ -510,16 +512,19 @@ impl MigrationRunner {
 
         self.db
             .with_connection_mut(|conn| {
-                let tx = conn.transaction().map_err(|e| MigrationError::RollbackFailed {
-                    version: migration.version,
-                    reason: e.to_string(),
-                })?;
+                let tx = conn
+                    .transaction()
+                    .map_err(|e| MigrationError::RollbackFailed {
+                        version: migration.version,
+                        reason: e.to_string(),
+                    })?;
 
                 // Execute down script
-                tx.execute_batch(down_script).map_err(|e| MigrationError::RollbackFailed {
-                    version: migration.version,
-                    reason: e.to_string(),
-                })?;
+                tx.execute_batch(down_script)
+                    .map_err(|e| MigrationError::RollbackFailed {
+                        version: migration.version,
+                        reason: e.to_string(),
+                    })?;
 
                 // Mark as rolled back
                 let now = Utc::now();
@@ -832,7 +837,7 @@ impl PostgresMigrationRunner {
             })?;
 
         // Execute migration
-        sqlx::query(&migration.up_script)
+        sqlx::query(sqlx::AssertSqlSafe(migration.up_script.clone()))
             .execute(&mut *tx)
             .await
             .map_err(|e| MigrationError::ExecutionFailed {
@@ -898,9 +903,10 @@ impl PostgresMigrationRunner {
     async fn run_down_internal(&self) -> Result<SchemaVersion> {
         let status = self.status().await?;
 
-        let last_applied = status.applied.last().ok_or(MigrationError::NotFound {
-            version: 0,
-        })?;
+        let last_applied = status
+            .applied
+            .last()
+            .ok_or(MigrationError::NotFound { version: 0 })?;
 
         let migrations = Migration::load_from_files(&self.migrations_path)?;
         let migration = migrations
@@ -910,10 +916,13 @@ impl PostgresMigrationRunner {
                 version: last_applied.version,
             })?;
 
-        let down_script = migration.down_script.as_ref().ok_or(MigrationError::RollbackFailed {
-            version: migration.version,
-            reason: "No down script available".to_string(),
-        })?;
+        let down_script = migration
+            .down_script
+            .as_ref()
+            .ok_or(MigrationError::RollbackFailed {
+                version: migration.version,
+                reason: "No down script available".to_string(),
+            })?;
 
         if migration.checksum != last_applied.checksum {
             return Err(MigrationError::ChecksumMismatch {
@@ -935,7 +944,7 @@ impl PostgresMigrationRunner {
                 reason: e.to_string(),
             })?;
 
-        sqlx::query(down_script)
+        sqlx::query(sqlx::AssertSqlSafe(down_script.to_owned()))
             .execute(&mut *tx)
             .await
             .map_err(|e| MigrationError::RollbackFailed {

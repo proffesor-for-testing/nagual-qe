@@ -238,10 +238,17 @@ async fn handle_client(
                 events_sent.fetch_add(1, Ordering::Relaxed);
             }
             Err(broadcast::error::RecvError::Lagged(n)) => {
-                warn!(connection = conn_num, missed = n, "Client lagged, skipping events");
+                warn!(
+                    connection = conn_num,
+                    missed = n,
+                    "Client lagged, skipping events"
+                );
             }
             Err(broadcast::error::RecvError::Closed) => {
-                info!(connection = conn_num, "Event bus closed, disconnecting client");
+                info!(
+                    connection = conn_num,
+                    "Event bus closed, disconnecting client"
+                );
                 break;
             }
         }
@@ -284,11 +291,8 @@ mod tests {
 
         // Read the NDJSON line
         let mut line = String::new();
-        let read_result = tokio::time::timeout(
-            Duration::from_millis(500),
-            reader.read_line(&mut line),
-        )
-        .await;
+        let read_result =
+            tokio::time::timeout(Duration::from_millis(500), reader.read_line(&mut line)).await;
 
         assert!(read_result.is_ok());
         let bytes_read = read_result.unwrap().unwrap();

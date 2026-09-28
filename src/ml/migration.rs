@@ -182,7 +182,12 @@ impl MigrationCheckpoint {
     pub fn new(config: &MigrationConfig) -> Self {
         let now = Utc::now();
         Self {
-            id: format!("migration-{}-to-{}-{}", config.source_dim, config.target_dim, now.timestamp()),
+            id: format!(
+                "migration-{}-to-{}-{}",
+                config.source_dim,
+                config.target_dim,
+                now.timestamp()
+            ),
             last_id: String::new(),
             records_processed: 0,
             records_migrated: 0,
@@ -221,7 +226,11 @@ impl MigrationCheckpoint {
 
     /// Get the elapsed time.
     pub fn elapsed(&self) -> Duration {
-        let end = if self.completed { self.checkpoint_at } else { Utc::now() };
+        let end = if self.completed {
+            self.checkpoint_at
+        } else {
+            Utc::now()
+        };
         (end - self.started_at).to_std().unwrap_or_default()
     }
 
@@ -365,8 +374,12 @@ pub struct EmbeddingMigration<D> {
 /// Database operations required for migration.
 pub trait MigrationDb: Send + Sync {
     /// Count records needing migration.
-    fn count_records_to_migrate(&self, source_dim: usize, table: &str, embedding_col: &str)
-        -> MlResult<usize>;
+    fn count_records_to_migrate(
+        &self,
+        source_dim: usize,
+        table: &str,
+        embedding_col: &str,
+    ) -> MlResult<usize>;
 
     /// Fetch a batch of records to migrate.
     fn fetch_records_batch(
@@ -430,7 +443,12 @@ impl<D: MigrationDb> EmbeddingMigration<D> {
     }
 
     /// Resume from a checkpoint.
-    pub fn resume(db: D, embedder: Embedder, config: MigrationConfig, checkpoint: MigrationCheckpoint) -> Self {
+    pub fn resume(
+        db: D,
+        embedder: Embedder,
+        config: MigrationConfig,
+        checkpoint: MigrationCheckpoint,
+    ) -> Self {
         Self {
             db: Arc::new(db),
             embedder: Arc::new(embedder),
@@ -470,8 +488,11 @@ impl<D: MigrationDb> EmbeddingMigration<D> {
         let start = Instant::now();
 
         // Phase 1: Scanning
-        tracing::info!("Scanning for records to migrate ({} -> {} dim)",
-            self.config.source_dim, self.config.target_dim);
+        tracing::info!(
+            "Scanning for records to migrate ({} -> {} dim)",
+            self.config.source_dim,
+            self.config.target_dim
+        );
 
         let total = self.db.count_records_to_migrate(
             self.config.source_dim,
@@ -669,28 +690,29 @@ impl<D: MigrationDb> EmbeddingMigration<D> {
         }
 
         // Phase 3: Quality validation
-        let (quality_passed, recall_at_10, precision) = if self.config.validate_quality && migrated > 0 {
-            tracing::info!("Validating migration quality...");
+        let (quality_passed, recall_at_10, precision) =
+            if self.config.validate_quality && migrated > 0 {
+                tracing::info!("Validating migration quality...");
 
-            let progress = MigrationProgress {
-                total,
-                processed,
-                migrated: migrated as usize,
-                skipped: skipped as usize,
-                failed: failed as usize,
-                current_batch: batch_num,
-                elapsed: start.elapsed(),
-                eta: None,
-                phase: MigrationPhase::Validating,
+                let progress = MigrationProgress {
+                    total,
+                    processed,
+                    migrated: migrated as usize,
+                    skipped: skipped as usize,
+                    failed: failed as usize,
+                    current_batch: batch_num,
+                    elapsed: start.elapsed(),
+                    eta: None,
+                    phase: MigrationPhase::Validating,
+                };
+                callback(&progress);
+
+                // Note: Quality validation would need actual implementation
+                // with sample-based validation. For now, we assume pass.
+                (Some(true), Some(0.90f32), Some(0.85f32))
+            } else {
+                (None, None, None)
             };
-            callback(&progress);
-
-            // Note: Quality validation would need actual implementation
-            // with sample-based validation. For now, we assume pass.
-            (Some(true), Some(0.90f32), Some(0.85f32))
-        } else {
-            (None, None, None)
-        };
 
         // Rollback if quality failed
         let rolled_back = if quality_passed == Some(false) {

@@ -363,7 +363,10 @@ steps:
         assert_eq!(wf.steps[1].on_failure, FailurePolicy::Skip);
         assert_eq!(wf.steps[2].on_failure, FailurePolicy::Abort); // default
         assert!(wf.steps[3].approval_gate);
-        assert_eq!(wf.steps[4].depends_on, vec!["integration-tests", "security-audit"]);
+        assert_eq!(
+            wf.steps[4].depends_on,
+            vec!["integration-tests", "security-audit"]
+        );
     }
 
     #[test]

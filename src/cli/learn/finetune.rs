@@ -120,10 +120,7 @@ pub async fn run(args: &FinetuneArgs) -> Result<()> {
         .count();
 
     println!("Total patterns with embeddings: {}", total_patterns);
-    println!(
-        "Patterns in '{}' domain: {}",
-        args.domain, domain_count
-    );
+    println!("Patterns in '{}' domain: {}", args.domain, domain_count);
 
     // Check minimum patterns threshold
     let training_config = TrainingConfig {
@@ -169,9 +166,12 @@ pub async fn run(args: &FinetuneArgs) -> Result<()> {
 
     println!("\nTraining LoRA adapter...");
     let start = std::time::Instant::now();
-    let result = trainer.train(&mut adapter, &pairs).map_err(|e| {
-        crate::error::NagualError::Internal { message: format!("Training failed: {}", e) }
-    })?;
+    let result =
+        trainer
+            .train(&mut adapter, &pairs)
+            .map_err(|e| crate::error::NagualError::Internal {
+                message: format!("Training failed: {}", e),
+            })?;
     let elapsed = start.elapsed();
 
     println!("\n=== Training Complete ===");
@@ -188,9 +188,12 @@ pub async fn run(args: &FinetuneArgs) -> Result<()> {
 
     // Save the adapter
     let lora_storage = LoraStorage::new(&args.adapter_dir);
-    let saved_path = lora_storage.save(&adapter).map_err(|e| {
-        crate::error::NagualError::Internal { message: format!("Failed to save adapter: {}", e) }
-    })?;
+    let saved_path =
+        lora_storage
+            .save(&adapter)
+            .map_err(|e| crate::error::NagualError::Internal {
+                message: format!("Failed to save adapter: {}", e),
+            })?;
     println!("\n  Saved to: {}", saved_path.display());
 
     // List existing adapters

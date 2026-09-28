@@ -285,8 +285,7 @@ pub async fn find_near_duplicates(
 
         if !similar.is_empty() {
             // Create a group with this pattern as initial candidate
-            let mut group_patterns: Vec<(&Pattern, f32)> =
-                vec![(p_i, 1.0)]; // Self is similarity 1.0
+            let mut group_patterns: Vec<(&Pattern, f32)> = vec![(p_i, 1.0)]; // Self is similarity 1.0
             group_patterns.extend(similar);
 
             // Sort by reward descending to find canonical
@@ -307,10 +306,7 @@ pub async fn find_near_duplicates(
             let avg_similarity: f32 = if duplicates.is_empty() {
                 1.0
             } else {
-                group_patterns[1..]
-                    .iter()
-                    .map(|(_, sim)| sim)
-                    .sum::<f32>()
+                group_patterns[1..].iter().map(|(_, sim)| sim).sum::<f32>()
                     / duplicates.len() as f32
             };
 
@@ -408,8 +404,7 @@ pub async fn scan_duplicates(
     result.exact_duplicates = find_exact_duplicates(storage).await?;
 
     // Find near-duplicates
-    result.near_duplicates =
-        find_near_duplicates(storage, config.similarity_threshold).await?;
+    result.near_duplicates = find_near_duplicates(storage, config.similarity_threshold).await?;
 
     // Calculate statistics
     result.duplicate_count = result
@@ -449,8 +444,7 @@ pub async fn auto_merge(
     result.exact_duplicates = find_exact_duplicates(storage).await?;
 
     // Also find near-duplicates for reporting (but don't auto-merge them)
-    result.near_duplicates =
-        find_near_duplicates(storage, config.similarity_threshold).await?;
+    result.near_duplicates = find_near_duplicates(storage, config.similarity_threshold).await?;
 
     // Merge exact duplicates
     for group in &result.exact_duplicates {
@@ -536,12 +530,12 @@ pub fn print_report(result: &DedupResult) {
     println!("\nDeduplication Report");
     println!("{:-<60}", "");
     println!("  Total patterns scanned: {}", result.total_patterns);
-    println!("  Exact duplicates found: {}", result.exact_duplicates.len());
-    println!("  Near-duplicates found: {}", result.near_duplicates.len());
     println!(
-        "  Total duplicate patterns: {}",
-        result.duplicate_count
+        "  Exact duplicates found: {}",
+        result.exact_duplicates.len()
     );
+    println!("  Near-duplicates found: {}", result.near_duplicates.len());
+    println!("  Total duplicate patterns: {}", result.duplicate_count);
     println!(
         "  Estimated space savings: {} bytes ({:.1} KB)",
         result.space_savings_bytes,
@@ -556,7 +550,10 @@ pub fn print_report(result: &DedupResult) {
     }
 
     if !result.exact_duplicates.is_empty() {
-        println!("\nExact Duplicate Groups ({}):", result.exact_duplicates.len());
+        println!(
+            "\nExact Duplicate Groups ({}):",
+            result.exact_duplicates.len()
+        );
         for (i, group) in result.exact_duplicates.iter().take(10).enumerate() {
             println!(
                 "  {}. Canonical: {} | Duplicates: {} | Total reuse: {}",
@@ -575,7 +572,10 @@ pub fn print_report(result: &DedupResult) {
     }
 
     if !result.near_duplicates.is_empty() {
-        println!("\nNear-Duplicate Groups ({}):", result.near_duplicates.len());
+        println!(
+            "\nNear-Duplicate Groups ({}):",
+            result.near_duplicates.len()
+        );
         for (i, group) in result.near_duplicates.iter().take(10).enumerate() {
             println!(
                 "  {}. Canonical: {} | Duplicates: {} | Similarity: {:.2} | Total reuse: {}",
@@ -791,9 +791,15 @@ mod tests {
         storage.store_pattern(&p2).await.unwrap();
 
         // Verify patterns are stored
-        let stored_p1 = storage.get_pattern(&PatternId::from_string(&p1_id)).await.unwrap();
+        let stored_p1 = storage
+            .get_pattern(&PatternId::from_string(&p1_id))
+            .await
+            .unwrap();
         assert!(stored_p1.is_some(), "p1 should be stored");
-        let stored_p2 = storage.get_pattern(&PatternId::from_string(&p2_id)).await.unwrap();
+        let stored_p2 = storage
+            .get_pattern(&PatternId::from_string(&p2_id))
+            .await
+            .unwrap();
         assert!(stored_p2.is_some(), "p2 should be stored");
 
         let group = DuplicateGroup {
@@ -809,11 +815,18 @@ mod tests {
         assert_eq!(merged, 1);
 
         // Verify p2 is deleted
-        let p2_check = storage.get_pattern(&PatternId::from_string(&p2_id)).await.unwrap();
+        let p2_check = storage
+            .get_pattern(&PatternId::from_string(&p2_id))
+            .await
+            .unwrap();
         assert!(p2_check.is_none());
 
         // Verify p1 has updated reuse count
-        let p1_check = storage.get_pattern(&PatternId::from_string(&p1_id)).await.unwrap().unwrap();
+        let p1_check = storage
+            .get_pattern(&PatternId::from_string(&p1_id))
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(p1_check.reuse_count(), 2); // p2 had 2 reuse counts
     }
 

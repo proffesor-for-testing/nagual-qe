@@ -83,7 +83,7 @@ impl Default for OSpipeConfig {
             dedup_enabled: true,
             dedup_threshold: 0.9,
             dedup_window: Duration::from_secs(5 * 60), // 5 minutes
-            embedding_dim: EmbeddingDim::Dim128, // nagual native dimension
+            embedding_dim: EmbeddingDim::Dim128,       // nagual native dimension
             generate_embeddings: true,
             model_path: None,
             tokenizer_path: None,

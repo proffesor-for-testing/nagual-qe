@@ -465,8 +465,15 @@ impl RegressionDetector {
         let mut alerts = Vec::new();
 
         for metric in &self.config.monitored_metrics {
-            if let (Some(&base_val), Some(&curr_val)) = (baseline.values.get(metric), current.get(metric)) {
-                let higher_is_better = self.config.higher_is_better.get(metric).copied().unwrap_or(true);
+            if let (Some(&base_val), Some(&curr_val)) =
+                (baseline.values.get(metric), current.get(metric))
+            {
+                let higher_is_better = self
+                    .config
+                    .higher_is_better
+                    .get(metric)
+                    .copied()
+                    .unwrap_or(true);
 
                 let change = if higher_is_better {
                     (base_val - curr_val) / base_val // Decrease is bad
@@ -595,15 +602,19 @@ impl ImprovementTracker {
     }
 
     /// Check progress against quarterly targets.
-    pub fn check_quarterly_progress(&self, current: &HashMap<MetricType, f64>) -> ImprovementReport {
+    pub fn check_quarterly_progress(
+        &self,
+        current: &HashMap<MetricType, f64>,
+    ) -> ImprovementReport {
         let mut progress_reports = Vec::new();
         let mut total_progress = 0.0;
         let mut targets_met = 0;
 
         for target in &self.targets {
-            if let (Some(&base_val), Some(&curr_val)) =
-                (self.baseline.values.get(&target.metric), current.get(&target.metric))
-            {
+            if let (Some(&base_val), Some(&curr_val)) = (
+                self.baseline.values.get(&target.metric),
+                current.get(&target.metric),
+            ) {
                 let improvement = (curr_val - base_val) / base_val;
                 let progress = improvement / (target.target_improvement / 100.0);
                 let target_met = progress >= 1.0;
@@ -620,7 +631,7 @@ impl ImprovementTracker {
                     baseline: base_val,
                     current: curr_val,
                     target_met,
-                    days_remaining: 90, // Simplified
+                    days_remaining: 90,        // Simplified
                     projected_value: curr_val, // Simplified
                 });
             }
@@ -634,10 +645,14 @@ impl ImprovementTracker {
 
         let mut recommendations = Vec::new();
         if overall_progress < 0.5 {
-            recommendations.push("Progress is behind schedule. Consider accelerating optimization efforts.".to_string());
+            recommendations.push(
+                "Progress is behind schedule. Consider accelerating optimization efforts."
+                    .to_string(),
+            );
         }
         if targets_met == self.targets.len() {
-            recommendations.push("All targets met! Consider setting more ambitious goals.".to_string());
+            recommendations
+                .push("All targets met! Consider setting more ambitious goals.".to_string());
         }
 
         ImprovementReport {
@@ -742,8 +757,7 @@ mod tests {
             quarter: "Q1 2024".to_string(),
         }];
 
-        let baseline = BaselineMetrics::new("baseline")
-            .with_metric(MetricType::Relevance, 0.8);
+        let baseline = BaselineMetrics::new("baseline").with_metric(MetricType::Relevance, 0.8);
 
         let tracker = ImprovementTracker::new(targets, baseline);
 

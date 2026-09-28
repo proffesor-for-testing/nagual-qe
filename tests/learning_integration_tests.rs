@@ -125,7 +125,11 @@ impl LearningEdge {
         }
     }
 
-    pub fn wormhole(source_id: impl Into<String>, target_id: impl Into<String>, strength: f64) -> Self {
+    pub fn wormhole(
+        source_id: impl Into<String>,
+        target_id: impl Into<String>,
+        strength: f64,
+    ) -> Self {
         Self::new(source_id, target_id, EdgeType::Wormhole, strength)
     }
 
@@ -162,7 +166,10 @@ impl TrajectoryOutcome {
     }
 
     pub fn is_successful(&self) -> bool {
-        matches!(self, TrajectoryOutcome::Success | TrajectoryOutcome::PartialSuccess)
+        matches!(
+            self,
+            TrajectoryOutcome::Success | TrajectoryOutcome::PartialSuccess
+        )
     }
 }
 
@@ -408,7 +415,12 @@ impl IntegratedLearningSystem {
     }
 
     /// Create a wormhole if conditions are met.
-    fn maybe_create_wormhole(&mut self, source: &str, target: &str, co_access_count: u32) -> Option<String> {
+    fn maybe_create_wormhole(
+        &mut self,
+        source: &str,
+        target: &str,
+        co_access_count: u32,
+    ) -> Option<String> {
         // Check if wormhole already exists
         let wormhole_key = format!("wh_{}_{}", source, target);
         if self.edges.contains_key(&wormhole_key) {
@@ -431,8 +443,8 @@ impl IntegratedLearningSystem {
         }
 
         // Calculate wormhole strength
-        let strength = co_access_count as f64
-            / (co_access_count as f64 + self.config.wormhole_decay_constant);
+        let strength =
+            co_access_count as f64 / (co_access_count as f64 + self.config.wormhole_decay_constant);
 
         let mut edge = LearningEdge::wormhole(source, target, strength);
         edge.id = wormhole_key.clone();
@@ -587,7 +599,10 @@ impl IntegratedLearningSystem {
 
     /// Activate a pattern in the cognitive core.
     pub fn activate_pattern(&mut self, pattern_id: &str, activation: f64) {
-        let entry = self.active_patterns.entry(pattern_id.to_string()).or_insert(0.0);
+        let entry = self
+            .active_patterns
+            .entry(pattern_id.to_string())
+            .or_insert(0.0);
         *entry = (*entry + activation).min(1.0);
 
         // Limit active patterns
@@ -730,7 +745,12 @@ mod e2e_tests {
         }
 
         for i in 0..(nodes.len() - 1) {
-            system.add_edge(LearningEdge::new(nodes[i], nodes[i + 1], EdgeType::LeadsTo, 0.9));
+            system.add_edge(LearningEdge::new(
+                nodes[i],
+                nodes[i + 1],
+                EdgeType::LeadsTo,
+                0.9,
+            ));
         }
 
         // Before wormhole: path from A to F should be 6 nodes
@@ -761,7 +781,10 @@ mod e2e_tests {
             "Wormhole path should be direct A->F"
         );
 
-        assert!(comparison_after.uses_wormhole, "Should detect wormhole usage");
+        assert!(
+            comparison_after.uses_wormhole,
+            "Should detect wormhole usage"
+        );
         assert!(
             comparison_after.savings_ratio > 0.5,
             "Should provide >50% savings, got {}",
@@ -793,7 +816,12 @@ mod e2e_tests {
 
         // Add effects
         let effect = system.add_node(LearningNode::pattern("effect", "Effect pattern"));
-        system.add_edge(LearningEdge::new(&root, &effect, EdgeType::CausalLink, 0.85));
+        system.add_edge(LearningEdge::new(
+            &root,
+            &effect,
+            EdgeType::CausalLink,
+            0.85,
+        ));
 
         // Future cone should include the effect
         let future = system.predict_future(&root, 10);
@@ -843,7 +871,10 @@ mod e2e_tests {
 
         // Add patterns
         for i in 0..10 {
-            system.add_node(LearningNode::pattern(format!("pat_{}", i), format!("Pattern {}", i)));
+            system.add_node(LearningNode::pattern(
+                format!("pat_{}", i),
+                format!("Pattern {}", i),
+            ));
         }
 
         // Activate some patterns
@@ -912,7 +943,10 @@ mod wormhole_lightcone_tests {
         system.add_edge(LearningEdge::wormhole("A", "E", 0.95));
 
         let future = system.predict_future("A", 3);
-        let future_map: HashMap<_, _> = future.iter().map(|(id, depth, prob)| (id.as_str(), (*depth, *prob))).collect();
+        let future_map: HashMap<_, _> = future
+            .iter()
+            .map(|(id, depth, prob)| (id.as_str(), (*depth, *prob)))
+            .collect();
 
         // E should be reachable at depth 1 with high probability
         assert!(future_map.contains_key("E"));
@@ -1020,7 +1054,10 @@ mod performance_tests {
 
         // Create a large graph
         for i in 0..500 {
-            system.add_node(LearningNode::pattern(format!("n_{}", i), format!("Node {}", i)));
+            system.add_node(LearningNode::pattern(
+                format!("n_{}", i),
+                format!("Node {}", i),
+            ));
         }
 
         // Add edges

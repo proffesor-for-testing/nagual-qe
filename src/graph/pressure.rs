@@ -600,24 +600,16 @@ mod tests {
         .unwrap();
 
         // With low damping, A retains more pressure
-        assert!(
-            low_damping.get_pressure("A").unwrap()
-                > high_damping.get_pressure("A").unwrap()
-        );
+        assert!(low_damping.get_pressure("A").unwrap() > high_damping.get_pressure("A").unwrap());
 
         // With high damping, first-hop neighbors (B) get more pressure in single iteration
-        assert!(
-            high_damping.get_pressure("B").unwrap()
-                > low_damping.get_pressure("B").unwrap()
-        );
+        assert!(high_damping.get_pressure("B").unwrap() > low_damping.get_pressure("B").unwrap());
     }
 
     #[test]
     fn test_convergence() {
         let graph = create_test_graph();
-        let config = PressureConfig::default()
-            .iterations(100)
-            .epsilon(1e-10);
+        let config = PressureConfig::default().iterations(100).epsilon(1e-10);
 
         let result = propagate_pressure(&graph, "A", &config).unwrap();
 

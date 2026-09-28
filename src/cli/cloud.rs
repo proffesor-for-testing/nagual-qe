@@ -88,8 +88,7 @@ impl CloudCommand {
                 let db = SqliteDb::open(db_path)?;
 
                 println!("Pushing to {}...", remote);
-                let summary =
-                    crate::cloud::push::cloud_push(&db, &remote, &token, *full).await?;
+                let summary = crate::cloud::push::cloud_push(&db, &remote, &token, *full).await?;
 
                 if summary.total == 0 {
                     println!("Already up to date. No patterns to push.");
@@ -117,8 +116,7 @@ impl CloudCommand {
 
                 println!("Pulling from {}...", remote);
                 let summary =
-                    crate::cloud::pull::cloud_pull(&storage, &db, &remote, &token, *full)
-                        .await?;
+                    crate::cloud::pull::cloud_pull(&storage, &db, &remote, &token, *full).await?;
 
                 if summary.total == 0 {
                     println!("Already up to date. No new patterns from cloud.");
@@ -147,12 +145,20 @@ impl CloudCommand {
 
                 if let Some(ref state) = state {
                     if let Some(ref push_at) = state.last_push_at {
-                        println!("  Last push:   {} ({} patterns)", push_at.format("%Y-%m-%d %H:%M:%S UTC"), state.last_push_count);
+                        println!(
+                            "  Last push:   {} ({} patterns)",
+                            push_at.format("%Y-%m-%d %H:%M:%S UTC"),
+                            state.last_push_count
+                        );
                     } else {
                         println!("  Last push:   never");
                     }
                     if let Some(ref pull_at) = state.last_pull_at {
-                        println!("  Last pull:   {} ({} patterns)", pull_at.format("%Y-%m-%d %H:%M:%S UTC"), state.last_pull_count);
+                        println!(
+                            "  Last pull:   {} ({} patterns)",
+                            pull_at.format("%Y-%m-%d %H:%M:%S UTC"),
+                            state.last_pull_count
+                        );
                     } else {
                         println!("  Last pull:   never");
                     }
@@ -166,8 +172,16 @@ impl CloudCommand {
                     let client = CloudClient::new(&remote, token);
                     match client.status().await {
                         Ok(status) => {
-                            println!("  Server:      {} ({})", status.status,
-                                status.pattern_count.map_or("? patterns".to_string(), |c| format!("{} patterns", c)));
+                            println!(
+                                "  Server:      {} ({})",
+                                status.status,
+                                status
+                                    .pattern_count
+                                    .map_or("? patterns".to_string(), |c| format!(
+                                        "{} patterns",
+                                        c
+                                    ))
+                            );
                         }
                         Err(e) => {
                             println!("  Server:      unreachable ({})", e);
@@ -180,8 +194,14 @@ impl CloudCommand {
                             let client = CloudClient::new(&remote, &token);
                             match client.status().await {
                                 Ok(status) => {
-                                    println!("  Server:      {} ({})", status.status,
-                                        status.pattern_count.map_or("? patterns".to_string(), |c| format!("{} patterns", c)));
+                                    println!(
+                                        "  Server:      {} ({})",
+                                        status.status,
+                                        status.pattern_count.map_or(
+                                            "? patterns".to_string(),
+                                            |c| format!("{} patterns", c)
+                                        )
+                                    );
                                 }
                                 Err(e) => {
                                     println!("  Server:      unreachable ({})", e);
@@ -328,10 +348,15 @@ mod tests {
     #[test]
     fn test_cloud_push_with_remote() {
         let args = vec![
-            "test", "cloud", "push",
-            "--remote", "http://localhost:3334",
-            "--token", "test-token",
-            "--db-path", "/tmp/test.db",
+            "test",
+            "cloud",
+            "push",
+            "--remote",
+            "http://localhost:3334",
+            "--token",
+            "test-token",
+            "--db-path",
+            "/tmp/test.db",
         ];
         let cli = TestCli::try_parse_from(args);
         assert!(cli.is_ok());

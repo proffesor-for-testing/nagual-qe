@@ -168,26 +168,56 @@ impl ConflictsCommand {
         let conflict_log = ConflictLog::new(&self.db)?;
 
         match &self.action {
-            ConflictAction::List { table, since, limit, all } => {
-                self.list_conflicts(&conflict_log, table.as_deref(), since.as_deref(), *limit, *all).await
+            ConflictAction::List {
+                table,
+                since,
+                limit,
+                all,
+            } => {
+                self.list_conflicts(
+                    &conflict_log,
+                    table.as_deref(),
+                    since.as_deref(),
+                    *limit,
+                    *all,
+                )
+                .await
             }
             ConflictAction::Show { conflict_id, diff } => {
                 self.show_conflict(&conflict_log, conflict_id, *diff).await
             }
-            ConflictAction::Resolve { conflict_id, strategy, data_file } => {
-                self.resolve_conflict(&conflict_log, conflict_id, strategy, data_file.as_deref()).await
+            ConflictAction::Resolve {
+                conflict_id,
+                strategy,
+                data_file,
+            } => {
+                self.resolve_conflict(&conflict_log, conflict_id, strategy, data_file.as_deref())
+                    .await
             }
-            ConflictAction::AutoResolve { strategy, dry_run, table, limit } => {
-                self.auto_resolve(&conflict_log, strategy, *dry_run, table.as_deref(), *limit).await
+            ConflictAction::AutoResolve {
+                strategy,
+                dry_run,
+                table,
+                limit,
+            } => {
+                self.auto_resolve(&conflict_log, strategy, *dry_run, table.as_deref(), *limit)
+                    .await
             }
-            ConflictAction::Export { output, format, limit } => {
-                self.export_conflicts(&conflict_log, output, format, *limit).await
+            ConflictAction::Export {
+                output,
+                format,
+                limit,
+            } => {
+                self.export_conflicts(&conflict_log, output, format, *limit)
+                    .await
             }
-            ConflictAction::Stats => {
-                self.show_stats(&conflict_log).await
-            }
-            ConflictAction::Cleanup { older_than_days, dry_run } => {
-                self.cleanup(&conflict_log, *older_than_days, *dry_run).await
+            ConflictAction::Stats => self.show_stats(&conflict_log).await,
+            ConflictAction::Cleanup {
+                older_than_days,
+                dry_run,
+            } => {
+                self.cleanup(&conflict_log, *older_than_days, *dry_run)
+                    .await
             }
         }
     }
@@ -229,7 +259,11 @@ impl ConflictsCommand {
             return Ok(());
         }
 
-        println!("Conflicts (showing {} of up to {}):", conflicts.len(), limit);
+        println!(
+            "Conflicts (showing {} of up to {}):",
+            conflicts.len(),
+            limit
+        );
         println!("{:-<80}", "");
         println!(
             "{:<36} {:<15} {:<15} {:<12}",
@@ -254,7 +288,12 @@ impl ConflictsCommand {
     }
 
     /// Show detailed conflict information
-    async fn show_conflict(&self, conflict_log: &ConflictLog, conflict_id: &str, show_diff: bool) -> Result<()> {
+    async fn show_conflict(
+        &self,
+        conflict_log: &ConflictLog,
+        conflict_id: &str,
+        show_diff: bool,
+    ) -> Result<()> {
         tracing::debug!(conflict_id = conflict_id, "Showing conflict details");
 
         match conflict_log.get(conflict_id)? {
@@ -314,8 +353,7 @@ impl ConflictsCommand {
             conflict.remote_data.as_object(),
         ) {
             // Collect all keys
-            let mut all_keys: std::collections::HashSet<&String> =
-                local_obj.keys().collect();
+            let mut all_keys: std::collections::HashSet<&String> = local_obj.keys().collect();
             all_keys.extend(remote_obj.keys());
 
             let mut keys: Vec<_> = all_keys.into_iter().collect();
@@ -429,8 +467,19 @@ impl ConflictsCommand {
     }
 
     /// Export conflicts to file
-    async fn export_conflicts(&self, conflict_log: &ConflictLog, output: &str, format: &str, limit: usize) -> Result<()> {
-        tracing::info!(output = output, format = format, limit = limit, "Exporting conflicts");
+    async fn export_conflicts(
+        &self,
+        conflict_log: &ConflictLog,
+        output: &str,
+        format: &str,
+        limit: usize,
+    ) -> Result<()> {
+        tracing::info!(
+            output = output,
+            format = format,
+            limit = limit,
+            "Exporting conflicts"
+        );
 
         match format {
             "json" => {
@@ -479,8 +528,17 @@ impl ConflictsCommand {
     }
 
     /// Clean up old resolved conflicts
-    async fn cleanup(&self, conflict_log: &ConflictLog, older_than_days: u32, dry_run: bool) -> Result<()> {
-        tracing::info!(older_than_days = older_than_days, dry_run = dry_run, "Cleaning up conflicts");
+    async fn cleanup(
+        &self,
+        conflict_log: &ConflictLog,
+        older_than_days: u32,
+        dry_run: bool,
+    ) -> Result<()> {
+        tracing::info!(
+            older_than_days = older_than_days,
+            dry_run = dry_run,
+            "Cleaning up conflicts"
+        );
 
         if dry_run {
             // For dry run, we'd need to query how many would be deleted
@@ -505,6 +563,9 @@ mod tests {
     #[test]
     fn test_conflict_type_display() {
         assert_eq!(format!("{}", ConflictType::UpdateUpdate), "update-update");
-        assert_eq!(format!("{}", ConflictType::SchemaMismatch), "schema-mismatch");
+        assert_eq!(
+            format!("{}", ConflictType::SchemaMismatch),
+            "schema-mismatch"
+        );
     }
 }

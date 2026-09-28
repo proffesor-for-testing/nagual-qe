@@ -61,18 +61,17 @@ pub use backup::{
 };
 pub use drill::{DrillReport, DrillResult, RestoreDrill, RestoreDrillConfig};
 pub use gcloud::{
-    EncryptionConfig, GCloudAdapter, GCloudConfig, GCloudError, GCloudResult,
-    KeyNameComponents, ObjectInfo,
+    EncryptionConfig, GCloudAdapter, GCloudConfig, GCloudError, GCloudResult, KeyNameComponents,
+    ObjectInfo,
 };
 pub use incremental::{
-    IncrementalSync, IncrementalSyncConfig, SyncBatch, SyncLogEntry, SyncProgress,
-    SyncResult,
+    IncrementalSync, IncrementalSyncConfig, SyncBatch, SyncLogEntry, SyncProgress, SyncResult,
 };
 pub use restore::{RecoveryPlan, RestoreConfig, RestoreManager, RestoreResult};
 pub use retention::{CleanupResult, RetentionConfig, RetentionPolicy, RetentionStats};
 pub use scheduler::{
-    ScheduledTask, SchedulerEvent, SchedulerState, SyncHealth, SyncScheduler,
-    SyncSchedulerConfig, SyncStatus, SyncStatusReport,
+    ScheduledTask, SchedulerEvent, SchedulerState, SyncHealth, SyncScheduler, SyncSchedulerConfig,
+    SyncStatus, SyncStatusReport,
 };
 
 use crate::error::Result;
@@ -167,8 +166,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_gcloud_config() {
-        let config = GCloudConfig::new("my-bucket", "my-project")
-            .with_prefix("nagual/sync");
+        let config = GCloudConfig::new("my-bucket", "my-project").with_prefix("nagual/sync");
 
         assert_eq!(config.bucket, "my-bucket");
         assert_eq!(config.project_id, "my-project");

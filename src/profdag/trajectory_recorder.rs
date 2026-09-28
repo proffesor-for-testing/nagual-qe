@@ -49,11 +49,10 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info, instrument, warn};
 
 use crate::error::{NagualError, Result};
-use crate::learning::Outcome;
 use crate::learning::trajectory::{
-    CompactTrajectory, Trajectory, TrajectoryBuilder, TrajectoryId, TrajectoryStats,
-    TrajectoryStep,
+    CompactTrajectory, Trajectory, TrajectoryBuilder, TrajectoryId, TrajectoryStats, TrajectoryStep,
 };
+use crate::learning::Outcome;
 use crate::reasoning_bank::pattern::PatternId;
 
 use super::storage::ProfDAGStorage;
@@ -316,9 +315,8 @@ impl TrajectoryRecorder {
         Self {
             active: RwLock::new(HashMap::new()),
             completed: RwLock::new(lru::LruCache::new(
-                std::num::NonZeroUsize::new(config.cache_size).unwrap_or(
-                    std::num::NonZeroUsize::new(1000).unwrap(),
-                ),
+                std::num::NonZeroUsize::new(config.cache_size)
+                    .unwrap_or(std::num::NonZeroUsize::new(1000).unwrap()),
             )),
             stats: RwLock::new(TrajectoryStats::new()),
             trajectory_store: RwLock::new(HashMap::new()),
@@ -335,9 +333,8 @@ impl TrajectoryRecorder {
         Self {
             active: RwLock::new(HashMap::new()),
             completed: RwLock::new(lru::LruCache::new(
-                std::num::NonZeroUsize::new(config.cache_size).unwrap_or(
-                    std::num::NonZeroUsize::new(1000).unwrap(),
-                ),
+                std::num::NonZeroUsize::new(config.cache_size)
+                    .unwrap_or(std::num::NonZeroUsize::new(1000).unwrap()),
             )),
             stats: RwLock::new(TrajectoryStats::new()),
             trajectory_store: RwLock::new(HashMap::new()),
@@ -376,11 +373,7 @@ impl TrajectoryRecorder {
     /// # Returns
     ///
     /// The new trajectory ID
-    pub fn start(
-        &self,
-        query: impl Into<String>,
-        session_id: Option<String>,
-    ) -> TrajectoryId {
+    pub fn start(&self, query: impl Into<String>, session_id: Option<String>) -> TrajectoryId {
         self.start_with_agent(query, session_id, None)
     }
 
@@ -393,8 +386,7 @@ impl TrajectoryRecorder {
     ) -> TrajectoryId {
         let query_str = query.into();
 
-        let mut builder = TrajectoryBuilder::new()
-            .query(query_str.clone());
+        let mut builder = TrajectoryBuilder::new().query(query_str.clone());
 
         if let Some(sid) = session_id {
             builder = builder.session_id(sid);
@@ -408,7 +400,9 @@ impl TrajectoryRecorder {
         let id = trajectory.id.clone();
 
         let recording = ActiveRecording::new(trajectory);
-        self.active.write().insert(id.as_str().to_string(), recording);
+        self.active
+            .write()
+            .insert(id.as_str().to_string(), recording);
 
         debug!(trajectory_id = %id, "Started trajectory recording");
         id
@@ -425,18 +419,15 @@ impl TrajectoryRecorder {
     ///
     /// The step index (0-based)
     #[instrument(skip(self, step), fields(trajectory_id = %trajectory_id))]
-    pub fn record_step(
-        &self,
-        trajectory_id: &TrajectoryId,
-        step: TrajectoryStep,
-    ) -> Result<usize> {
+    pub fn record_step(&self, trajectory_id: &TrajectoryId, step: TrajectoryStep) -> Result<usize> {
         let mut active = self.active.write();
 
-        let recording = active
-            .get_mut(trajectory_id.as_str())
-            .ok_or_else(|| NagualError::Internal {
-                message: format!("Trajectory not found: {}", trajectory_id),
-            })?;
+        let recording =
+            active
+                .get_mut(trajectory_id.as_str())
+                .ok_or_else(|| NagualError::Internal {
+                    message: format!("Trajectory not found: {}", trajectory_id),
+                })?;
 
         // Check max steps
         if recording.trajectory.step_count() >= self.config.max_steps {
@@ -631,23 +622,24 @@ impl TrajectoryRecorder {
         let profdag_node_id;
 
         // Collect pattern edges
-        let pending_edges = if self.config.auto_create_edges
-            && reward >= self.config.min_reward_for_edges
-        {
-            self.collect_pattern_edges(&trajectory, &node.id)
-        } else {
-            Vec::new()
-        };
+        let pending_edges =
+            if self.config.auto_create_edges && reward >= self.config.min_reward_for_edges {
+                self.collect_pattern_edges(&trajectory, &node.id)
+            } else {
+                Vec::new()
+            };
         let edges_created = pending_edges.len();
 
         // Persist to storage if available
         if let Some(ref storage) = self.storage {
             // Insert the trajectory node
-            profdag_node_id = storage.insert_node(&node).await.map_err(|e| {
-                NagualError::Internal {
-                    message: format!("Failed to insert ProfDAG node: {}", e),
-                }
-            })?;
+            profdag_node_id =
+                storage
+                    .insert_node(&node)
+                    .await
+                    .map_err(|e| NagualError::Internal {
+                        message: format!("Failed to insert ProfDAG node: {}", e),
+                    })?;
 
             // Insert all pattern edges
             for edge in &pending_edges {
@@ -752,7 +744,11 @@ impl TrajectoryRecorder {
                 step_type: step.step_type.as_str().to_string(),
                 decision: step.decision.clone(),
                 confidence: step.confidence,
-                pattern_ids: step.pattern_ids.iter().map(|p| p.as_str().to_string()).collect(),
+                pattern_ids: step
+                    .pattern_ids
+                    .iter()
+                    .map(|p| p.as_str().to_string())
+                    .collect(),
                 duration_ms: step.duration_ms,
             })
             .collect();
@@ -778,10 +774,7 @@ impl TrajectoryRecorder {
 
     /// Get a compact representation of a completed trajectory.
     pub fn get_compact(&self, trajectory_id: &TrajectoryId) -> Option<CompactTrajectory> {
-        self.completed
-            .write()
-            .get(trajectory_id.as_str())
-            .cloned()
+        self.completed.write().get(trajectory_id.as_str()).cloned()
     }
 
     /// Clean up timed-out active recordings.
@@ -867,11 +860,7 @@ impl TrajectoryRecorder {
             let target = &window[1];
 
             let weight = trajectory.total_reward as f64;
-            let edge = ProfDAGEdge::leads_to(
-                source.as_str(),
-                target.as_str(),
-                weight,
-            );
+            let edge = ProfDAGEdge::leads_to(source.as_str(), target.as_str(), weight);
 
             debug!(
                 edge_id = %edge.id,
@@ -929,10 +918,8 @@ impl TrajectoryRecorder {
 
     /// Compress data using gzip via flate2.
     fn compress_data(&self, data: &[u8]) -> Result<Vec<u8>> {
-        let mut encoder = GzEncoder::new(
-            Vec::new(),
-            Compression::new(self.config.compression_level),
-        );
+        let mut encoder =
+            GzEncoder::new(Vec::new(), Compression::new(self.config.compression_level));
         encoder.write_all(data).map_err(|e| NagualError::Internal {
             message: format!("Compression failed: {}", e),
         })?;
@@ -1006,7 +993,11 @@ impl RecordingSession {
         query: impl Into<String>,
         confidence: f32,
     ) -> Result<usize> {
-        self.record(TrajectoryStep::pattern_retrieval(pattern_ids, query, confidence))
+        self.record(TrajectoryStep::pattern_retrieval(
+            pattern_ids,
+            query,
+            confidence,
+        ))
     }
 
     /// Record a decision step.
@@ -1108,7 +1099,10 @@ mod tests {
             .record_step(
                 &id,
                 TrajectoryStep::pattern_retrieval(
-                    vec![PatternId::from_string("pat_1"), PatternId::from_string("pat_2")],
+                    vec![
+                        PatternId::from_string("pat_1"),
+                        PatternId::from_string("pat_2"),
+                    ],
                     "optimize",
                     0.85,
                 ),
@@ -1140,30 +1134,39 @@ mod tests {
         let id = recorder.start("test", None);
 
         recorder
-            .record_step(&id, TrajectoryStep::new(
-                crate::learning::trajectory::StepType::Decision,
-                vec![],
-                "step1",
-                0.9,
-            ))
+            .record_step(
+                &id,
+                TrajectoryStep::new(
+                    crate::learning::trajectory::StepType::Decision,
+                    vec![],
+                    "step1",
+                    0.9,
+                ),
+            )
             .unwrap();
 
         recorder
-            .record_step(&id, TrajectoryStep::new(
-                crate::learning::trajectory::StepType::Decision,
-                vec![],
-                "step2",
-                0.9,
-            ))
+            .record_step(
+                &id,
+                TrajectoryStep::new(
+                    crate::learning::trajectory::StepType::Decision,
+                    vec![],
+                    "step2",
+                    0.9,
+                ),
+            )
             .unwrap();
 
         // Third step should fail
-        let result = recorder.record_step(&id, TrajectoryStep::new(
-            crate::learning::trajectory::StepType::Decision,
-            vec![],
-            "step3",
-            0.9,
-        ));
+        let result = recorder.record_step(
+            &id,
+            TrajectoryStep::new(
+                crate::learning::trajectory::StepType::Decision,
+                vec![],
+                "step3",
+                0.9,
+            ),
+        );
 
         assert!(result.is_err());
     }
@@ -1188,26 +1191,14 @@ mod tests {
     fn test_recording_session() {
         let recorder = Arc::new(TrajectoryRecorder::new());
 
-        let session = RecordingSession::with_session(
-            recorder.clone(),
-            "test query",
-            "session-123",
-        );
+        let session = RecordingSession::with_session(recorder.clone(), "test query", "session-123");
 
         session
-            .record_retrieval(
-                vec![PatternId::from_string("pat_1")],
-                "search",
-                0.9,
-            )
+            .record_retrieval(vec![PatternId::from_string("pat_1")], "search", 0.9)
             .unwrap();
 
         session
-            .record_decision(
-                vec![PatternId::from_string("pat_1")],
-                "selected",
-                0.85,
-            )
+            .record_decision(vec![PatternId::from_string("pat_1")], "selected", 0.85)
             .unwrap();
 
         let result = session.complete(Outcome::Success, 0.9).unwrap();
@@ -1269,7 +1260,10 @@ mod tests {
             )
             .unwrap();
 
-        let result = recorder.complete_async(&id, Outcome::Success, 0.85).await.unwrap();
+        let result = recorder
+            .complete_async(&id, Outcome::Success, 0.85)
+            .await
+            .unwrap();
 
         assert!(!recorder.is_active(&id));
         assert_eq!(result.outcome, Outcome::Success);
@@ -1299,9 +1293,7 @@ mod tests {
         let recorder = TrajectoryRecorder::new();
 
         // Create a larger payload that compresses well
-        let original_data: Vec<u8> = (0..10_000)
-            .map(|i| (i % 256) as u8)
-            .collect();
+        let original_data: Vec<u8> = (0..10_000).map(|i| (i % 256) as u8).collect();
 
         let compressed = recorder.compress_data(&original_data).unwrap();
 
@@ -1333,7 +1325,10 @@ mod tests {
         // Build a trajectory with multiple patterns
         let mut trajectory = Trajectory::new();
         trajectory.add_step(TrajectoryStep::pattern_retrieval(
-            vec![PatternId::from_string("pat_1"), PatternId::from_string("pat_2")],
+            vec![
+                PatternId::from_string("pat_1"),
+                PatternId::from_string("pat_2"),
+            ],
             "first search",
             0.9,
         ));
@@ -1444,6 +1439,9 @@ mod tests {
         // Replay should decompress correctly
         let replay = recorder.replay(&id).unwrap();
         assert_eq!(replay.step_summaries.len(), 1);
-        assert_eq!(replay.trajectory.query.as_deref(), Some("compression roundtrip test"));
+        assert_eq!(
+            replay.trajectory.query.as_deref(),
+            Some("compression roundtrip test")
+        );
     }
 }

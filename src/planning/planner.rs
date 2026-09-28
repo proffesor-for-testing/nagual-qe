@@ -1,9 +1,9 @@
 //! A* Planning Algorithm for GOAP
 
 use std::cmp::Ordering;
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{BinaryHeap, HashSet};
 use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
 
 use thiserror::Error;
 use tracing::{debug, info, instrument, warn};
@@ -61,7 +61,9 @@ impl Eq for PlanNode {}
 impl Ord for PlanNode {
     fn cmp(&self, other: &Self) -> Ordering {
         // Reverse ordering for min-heap (lower f_cost = higher priority)
-        other.f_cost().partial_cmp(&self.f_cost())
+        other
+            .f_cost()
+            .partial_cmp(&self.f_cost())
             .unwrap_or(Ordering::Equal)
     }
 }
@@ -141,7 +143,9 @@ impl GOAPPlanner {
 
             if iterations > self.config.max_iterations {
                 warn!("Max iterations exceeded: {}", self.config.max_iterations);
-                return Err(PlanningError::MaxIterationsExceeded(self.config.max_iterations));
+                return Err(PlanningError::MaxIterationsExceeded(
+                    self.config.max_iterations,
+                ));
             }
 
             // Check if goal is satisfied
@@ -201,7 +205,9 @@ impl GOAPPlanner {
 
     /// Heuristic: count unsatisfied goal conditions
     fn heuristic(&self, state: &WorldState, goal: &Goal) -> f64 {
-        let unsatisfied = goal.conditions.iter()
+        let unsatisfied = goal
+            .conditions
+            .iter()
             .filter(|c| !self.condition_met(state, c))
             .count();
         unsatisfied as f64
@@ -214,29 +220,38 @@ impl GOAPPlanner {
 
     /// Check if all preconditions of an action are met
     fn preconditions_met(&self, state: &WorldState, action: &Action) -> bool {
-        action.preconditions.iter().all(|c| self.condition_met(state, c))
+        action
+            .preconditions
+            .iter()
+            .all(|c| self.condition_met(state, c))
     }
 
     /// Check if a single condition is met
     fn condition_met(&self, state: &WorldState, condition: &Condition) -> bool {
         match state.propositions.get(&condition.proposition) {
-            Some(value) => {
-                match (&condition.operator, value, &condition.value) {
-                    (ConditionOp::Equals, a, b) => a == b,
-                    (ConditionOp::NotEquals, a, b) => a != b,
-                    (ConditionOp::GreaterThan, StateValue::Number(a), StateValue::Number(b)) => a > b,
-                    (ConditionOp::LessThan, StateValue::Number(a), StateValue::Number(b)) => a < b,
-                    (ConditionOp::GreaterThanOrEqual, StateValue::Number(a), StateValue::Number(b)) => a >= b,
-                    (ConditionOp::LessThanOrEqual, StateValue::Number(a), StateValue::Number(b)) => a <= b,
-                    (ConditionOp::Contains, StateValue::Text(a), StateValue::Text(b)) => a.contains(b.as_str()),
-                    _ => false,
+            Some(value) => match (&condition.operator, value, &condition.value) {
+                (ConditionOp::Equals, a, b) => a == b,
+                (ConditionOp::NotEquals, a, b) => a != b,
+                (ConditionOp::GreaterThan, StateValue::Number(a), StateValue::Number(b)) => a > b,
+                (ConditionOp::LessThan, StateValue::Number(a), StateValue::Number(b)) => a < b,
+                (ConditionOp::GreaterThanOrEqual, StateValue::Number(a), StateValue::Number(b)) => {
+                    a >= b
                 }
-            }
+                (ConditionOp::LessThanOrEqual, StateValue::Number(a), StateValue::Number(b)) => {
+                    a <= b
+                }
+                (ConditionOp::Contains, StateValue::Text(a), StateValue::Text(b)) => {
+                    a.contains(b.as_str())
+                }
+                _ => false,
+            },
             None => {
                 // Proposition not in state - check if condition is for "false" or default
-                matches!((&condition.operator, &condition.value),
-                    (ConditionOp::Equals, StateValue::Bool(false)) |
-                    (ConditionOp::NotEquals, StateValue::Bool(true)))
+                matches!(
+                    (&condition.operator, &condition.value),
+                    (ConditionOp::Equals, StateValue::Bool(false))
+                        | (ConditionOp::NotEquals, StateValue::Bool(true))
+                )
             }
         }
     }
@@ -248,10 +263,9 @@ impl GOAPPlanner {
         for effect in &action.effects {
             match &effect.operation {
                 EffectOp::Set => {
-                    new_state.propositions.insert(
-                        effect.proposition.clone(),
-                        effect.value.clone(),
-                    );
+                    new_state
+                        .propositions
+                        .insert(effect.proposition.clone(), effect.value.clone());
                 }
                 EffectOp::Increment => {
                     if let StateValue::Number(delta) = &effect.value {
@@ -365,8 +379,8 @@ mod tests {
         let mut current = WorldState::new();
         current.set_bool("research_target_defined", true);
 
-        let goal = Goal::new("Store a pattern", "")
-            .with_condition(Condition::is_true("pattern_stored"));
+        let goal =
+            Goal::new("Store a pattern", "").with_condition(Condition::is_true("pattern_stored"));
 
         let plan = planner.plan(&current, &goal).expect("Should find a plan");
 
@@ -383,8 +397,8 @@ mod tests {
         let mut current = WorldState::new();
         current.set_bool("pattern_stored", true);
 
-        let goal = Goal::new("Already done", "")
-            .with_condition(Condition::is_true("pattern_stored"));
+        let goal =
+            Goal::new("Already done", "").with_condition(Condition::is_true("pattern_stored"));
 
         let plan = planner.plan(&current, &goal).expect("Should succeed");
 
@@ -396,8 +410,8 @@ mod tests {
         let planner = GOAPPlanner::new(test_actions());
         let current = WorldState::new();
 
-        let goal = Goal::new("Impossible", "")
-            .with_condition(Condition::is_true("impossible_condition"));
+        let goal =
+            Goal::new("Impossible", "").with_condition(Condition::is_true("impossible_condition"));
 
         let result = planner.plan(&current, &goal);
 

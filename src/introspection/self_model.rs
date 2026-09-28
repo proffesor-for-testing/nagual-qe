@@ -1,8 +1,8 @@
 //! Self-model types for Strange Loop introspection
 
-use std::collections::HashMap;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Self-model of nagual's current state
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,16 +19,16 @@ pub struct SelfModel {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PatternHealth {
     pub total_patterns: usize,
-    pub high_reward_count: usize,      // reward >= 0.8
-    pub medium_reward_count: usize,    // 0.4 <= reward < 0.8
-    pub low_reward_count: usize,       // reward < 0.4
+    pub high_reward_count: usize,   // reward >= 0.8
+    pub medium_reward_count: usize, // 0.4 <= reward < 0.8
+    pub low_reward_count: usize,    // reward < 0.4
     pub average_reward: f64,
     pub average_effectiveness: f64,
     pub average_age_days: f64,
-    pub stale_count: usize,            // >30 days, low usage
-    pub orphan_count: usize,           // No graph connections
-    pub with_embeddings: usize,        // Have vector embeddings
-    pub total_reuse_count: usize,      // Total reuses across all patterns
+    pub stale_count: usize,       // >30 days, low usage
+    pub orphan_count: usize,      // No graph connections
+    pub with_embeddings: usize,   // Have vector embeddings
+    pub total_reuse_count: usize, // Total reuses across all patterns
 }
 
 impl Default for PatternHealth {
@@ -54,7 +54,7 @@ impl Default for PatternHealth {
 pub struct DomainMetrics {
     pub domain: String,
     pub pattern_count: usize,
-    pub coverage_score: f64,           // 0-1, estimated completeness
+    pub coverage_score: f64, // 0-1, estimated completeness
     pub avg_reward: f64,
     pub avg_effectiveness: f64,
     pub last_activity: Option<DateTime<Utc>>,
@@ -82,8 +82,8 @@ impl DomainMetrics {
 pub struct TemporalTrends {
     pub reward_trend_7d: TrendDirection,
     pub reward_trend_30d: TrendDirection,
-    pub pattern_growth_rate: f64,      // patterns/week
-    pub decay_rate: f64,               // patterns becoming stale/week
+    pub pattern_growth_rate: f64, // patterns/week
+    pub decay_rate: f64,          // patterns becoming stale/week
     pub patterns_created_7d: usize,
     pub patterns_created_30d: usize,
     pub avg_reward_7d: f64,
@@ -133,17 +133,17 @@ pub struct Vulnerability {
     pub severity: Severity,
     pub description: String,
     pub affected_domains: Vec<String>,
-    pub estimated_impact: f64,         // 0-1
+    pub estimated_impact: f64, // 0-1
 }
 
 /// Categories of vulnerabilities
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum VulnerabilityCategory {
-    KnowledgeDecay,      // Patterns becoming stale
-    CoverageGap,         // Missing knowledge areas
-    QualityDegradation,  // Declining rewards
-    Fragmentation,       // Disconnected patterns
-    Overspecialization,  // Too narrow domain focus
+    KnowledgeDecay,       // Patterns becoming stale
+    CoverageGap,          // Missing knowledge areas
+    QualityDegradation,   // Declining rewards
+    Fragmentation,        // Disconnected patterns
+    Overspecialization,   // Too narrow domain focus
     LowEmbeddingCoverage, // Many patterns without embeddings
 }
 
@@ -185,10 +185,10 @@ impl std::fmt::Display for Severity {
 pub struct Recommendation {
     pub id: String,
     pub action: RecommendedAction,
-    pub priority: u8,                  // 1-10
+    pub priority: u8, // 1-10
     pub reason: String,
-    pub estimated_benefit: f64,        // 0-1
-    pub goap_goal: Option<String>,     // Goal for GOAP planner
+    pub estimated_benefit: f64,    // 0-1
+    pub goap_goal: Option<String>, // Goal for GOAP planner
 }
 
 /// Types of recommended actions
@@ -214,7 +214,11 @@ impl std::fmt::Display for RecommendedAction {
                 write!(f, "Fill coverage gap in '{}' for topic '{}'", domain, topic)
             }
             RecommendedAction::ConsolidatePatterns { domain, threshold } => {
-                write!(f, "Consolidate patterns in '{}' (threshold: {:.2})", domain, threshold)
+                write!(
+                    f,
+                    "Consolidate patterns in '{}' (threshold: {:.2})",
+                    domain, threshold
+                )
             }
             RecommendedAction::ArchiveLowQuality { count } => {
                 write!(f, "Archive {} low-quality patterns", count)
@@ -282,13 +286,19 @@ impl std::fmt::Display for HealthStatus {
 impl SelfModel {
     /// Calculate overall health status from vulnerabilities
     pub fn health_status(&self) -> HealthStatus {
-        let critical_count = self.vulnerabilities.iter()
+        let critical_count = self
+            .vulnerabilities
+            .iter()
             .filter(|v| matches!(v.severity, Severity::Critical))
             .count();
-        let high_count = self.vulnerabilities.iter()
+        let high_count = self
+            .vulnerabilities
+            .iter()
             .filter(|v| matches!(v.severity, Severity::High))
             .count();
-        let medium_count = self.vulnerabilities.iter()
+        let medium_count = self
+            .vulnerabilities
+            .iter()
             .filter(|v| matches!(v.severity, Severity::Medium))
             .count();
 
@@ -312,7 +322,8 @@ impl SelfModel {
 
     /// Get vulnerabilities by severity
     pub fn vulnerabilities_by_severity(&self, severity: Severity) -> Vec<&Vulnerability> {
-        self.vulnerabilities.iter()
+        self.vulnerabilities
+            .iter()
             .filter(|v| v.severity == severity)
             .collect()
     }

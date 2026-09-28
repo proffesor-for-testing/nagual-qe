@@ -52,9 +52,8 @@ impl LoraStorage {
         std::fs::create_dir_all(&self.base_dir)?;
 
         let path = self.adapter_path(&adapter.domain);
-        let json = serde_json::to_string_pretty(adapter).map_err(|e| {
-            MlError::Migration(format!("Failed to serialize adapter: {}", e))
-        })?;
+        let json = serde_json::to_string_pretty(adapter)
+            .map_err(|e| MlError::Migration(format!("Failed to serialize adapter: {}", e)))?;
 
         std::fs::write(&path, json)?;
         Ok(path)
@@ -71,9 +70,8 @@ impl LoraStorage {
         }
 
         let json = std::fs::read_to_string(&path)?;
-        let adapter: LoraAdapter = serde_json::from_str(&json).map_err(|e| {
-            MlError::Migration(format!("Failed to deserialize adapter: {}", e))
-        })?;
+        let adapter: LoraAdapter = serde_json::from_str(&json)
+            .map_err(|e| MlError::Migration(format!("Failed to deserialize adapter: {}", e)))?;
 
         Ok(adapter)
     }
@@ -94,10 +92,7 @@ impl LoraStorage {
                 continue;
             }
 
-            let filename = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("");
+            let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
 
             if !filename.starts_with("lora_") {
                 continue;

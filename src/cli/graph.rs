@@ -40,7 +40,8 @@ impl SqliteGraphProvider {
     pub fn load(db_path: &PathBuf) -> std::result::Result<Self, String> {
         use rusqlite::Connection;
 
-        let conn = Connection::open(db_path).map_err(|e| format!("Failed to open database: {}", e))?;
+        let conn =
+            Connection::open(db_path).map_err(|e| format!("Failed to open database: {}", e))?;
 
         // Check if context_graph table exists
         let table_exists: bool = conn
@@ -81,11 +82,7 @@ impl SqliteGraphProvider {
             }
         }
 
-        tracing::info!(
-            "Loaded {} edges from database at {:?}",
-            edge_count,
-            db_path
-        );
+        tracing::info!("Loaded {} edges from database at {:?}", edge_count, db_path);
 
         Ok(Self { graph })
     }
@@ -397,10 +394,7 @@ impl PressureCommand {
         } else {
             // Load from database
             if !self.db_path.exists() {
-                tracing::warn!(
-                    "Database not found at {:?}, using demo graph",
-                    self.db_path
-                );
+                tracing::warn!("Database not found at {:?}, using demo graph", self.db_path);
                 Box::new(create_demo_graph())
             } else {
                 match SqliteGraphProvider::load(&self.db_path) {
@@ -413,7 +407,10 @@ impl PressureCommand {
                         }
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to load graph from database: {}, using demo graph", e);
+                        tracing::warn!(
+                            "Failed to load graph from database: {}, using demo graph",
+                            e
+                        );
                         Box::new(create_demo_graph())
                     }
                 }
@@ -520,7 +517,13 @@ impl PressureCommand {
             "Influence",
             width = max_node_len
         );
-        println!("{:-<width$}  {:->12}  {:->10}", "", "", "", width = max_node_len);
+        println!(
+            "{:-<width$}  {:->12}  {:->10}",
+            "",
+            "",
+            "",
+            width = max_node_len
+        );
 
         let max_pressure = top_nodes.first().map(|(_, p)| **p).unwrap_or(1.0);
 
@@ -688,7 +691,8 @@ impl LinkCommand {
             };
 
             // Determine edge type from label or use default
-            let edge_type = self.label
+            let edge_type = self
+                .label
                 .as_ref()
                 .and_then(|l| EdgeType::from_str(l))
                 .unwrap_or(EdgeType::RelatedTo);
@@ -795,7 +799,10 @@ impl QueryCommand {
                     }
                     Err(e) => {
                         if self.verbose {
-                            tracing::warn!("Failed to load graph from database: {}, using demo graph", e);
+                            tracing::warn!(
+                                "Failed to load graph from database: {}, using demo graph",
+                                e
+                            );
                         }
                         create_demo_graph()
                     }
@@ -879,7 +886,11 @@ impl QueryCommand {
         }
 
         // Sort by weight descending and limit
-        neighbors.sort_by(|a, b| b.weight.partial_cmp(&a.weight).unwrap_or(std::cmp::Ordering::Equal));
+        neighbors.sort_by(|a, b| {
+            b.weight
+                .partial_cmp(&a.weight)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         neighbors.truncate(self.limit);
 
         let result = QueryResult {
@@ -899,18 +910,13 @@ impl QueryCommand {
             if result.neighbors.is_empty() {
                 println!("\nNo neighbors found.");
             } else {
-                println!(
-                    "\n{:<30}  {:>10}  {:>10}",
-                    "Node", "Direction", "Weight"
-                );
+                println!("\n{:<30}  {:>10}  {:>10}", "Node", "Direction", "Weight");
                 println!("{:-<60}", "");
 
                 for neighbor in &result.neighbors {
                     println!(
                         "{:<30}  {:>10}  {:>10.4}",
-                        &neighbor.node_id,
-                        &neighbor.direction,
-                        neighbor.weight
+                        &neighbor.node_id, &neighbor.direction, neighbor.weight
                     );
                 }
             }

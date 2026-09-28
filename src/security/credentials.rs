@@ -191,7 +191,8 @@ pub struct CredentialManager {
     /// Audit logger (optional)
     audit_logger: Option<Arc<AuditLogger>>,
     /// Rotation callbacks
-    rotation_callbacks: RwLock<HashMap<CredentialType, Box<dyn Fn(&str, &[u8]) -> Result<()> + Send + Sync>>>,
+    rotation_callbacks:
+        RwLock<HashMap<CredentialType, Box<dyn Fn(&str, &[u8]) -> Result<()> + Send + Sync>>>,
 }
 
 impl CredentialManager {
@@ -281,7 +282,10 @@ impl CredentialManager {
                     logger
                         .builder(AuditEventType::DataCreate, "system", "store_credential")
                         .resource("credential", id)
-                        .metadata("credential_type", serde_json::json!(credential_type.to_string()))
+                        .metadata(
+                            "credential_type",
+                            serde_json::json!(credential_type.to_string()),
+                        )
                         .build(),
                 )
                 .await;
@@ -340,7 +344,9 @@ impl CredentialManager {
         // Check rotation policy
         if let Some(policy) = self.policies.read().get(&meta.credential_type) {
             if let Some(last_rotated) = meta.last_rotated {
-                let since_last = (rotated_at - last_rotated).to_std().unwrap_or(Duration::ZERO);
+                let since_last = (rotated_at - last_rotated)
+                    .to_std()
+                    .unwrap_or(Duration::ZERO);
                 if since_last < policy.min_interval && !policy.allow_manual {
                     return Err(NagualError::internal(
                         "Rotation interval not met and manual rotation not allowed",
@@ -369,13 +375,12 @@ impl CredentialManager {
         self.metadata.write().insert(id.to_string(), meta.clone());
 
         // Execute rotation callback if registered
-        let callback_result = if let Some(callback) =
-            self.rotation_callbacks.read().get(&meta.credential_type)
-        {
-            callback(id, &new_value)
-        } else {
-            Ok(())
-        };
+        let callback_result =
+            if let Some(callback) = self.rotation_callbacks.read().get(&meta.credential_type) {
+                callback(id, &new_value)
+            } else {
+                Ok(())
+            };
 
         // Handle callback result
         let (success, error) = match callback_result {
@@ -389,7 +394,8 @@ impl CredentialManager {
                 meta.version += 1;
 
                 if let Some(policy) = self.policies.read().get(&meta.credential_type) {
-                    meta.expires_at = Some(rotated_at + chrono::Duration::from_std(policy.max_age).unwrap());
+                    meta.expires_at =
+                        Some(rotated_at + chrono::Duration::from_std(policy.max_age).unwrap());
                 }
 
                 self.metadata.write().insert(id.to_string(), meta.clone());
@@ -426,9 +432,7 @@ impl CredentialManager {
 
     /// Revoke a credential.
     pub async fn revoke(&self, id: &str) -> Result<()> {
-        let mut meta = self
-            .metadata
-            .write();
+        let mut meta = self.metadata.write();
 
         if let Some(m) = meta.get_mut(id) {
             m.status = CredentialStatus::Revoked;
@@ -448,7 +452,10 @@ impl CredentialManager {
 
             Ok(())
         } else {
-            Err(NagualError::internal(format!("Credential not found: {}", id)))
+            Err(NagualError::internal(format!(
+                "Credential not found: {}",
+                id
+            )))
         }
     }
 
@@ -481,7 +488,8 @@ impl CredentialManager {
                         }
                     } else {
                         // Never rotated, check creation time
-                        let since_creation = (now - meta.created_at).to_std().unwrap_or(Duration::ZERO);
+                        let since_creation =
+                            (now - meta.created_at).to_std().unwrap_or(Duration::ZERO);
                         if since_creation >= policy.max_age {
                             return true;
                         }
@@ -767,7 +775,12 @@ mod tests {
 
         // Store initial credential
         manager
-            .store(CredentialType::DatabasePassword, "test_cred", b"initial", None)
+            .store(
+                CredentialType::DatabasePassword,
+                "test_cred",
+                b"initial",
+                None,
+            )
             .await
             .unwrap();
 
@@ -801,7 +814,10 @@ mod tests {
 
     #[test]
     fn test_credential_type_display() {
-        assert_eq!(CredentialType::DatabasePassword.to_string(), "database_password");
+        assert_eq!(
+            CredentialType::DatabasePassword.to_string(),
+            "database_password"
+        );
         assert_eq!(CredentialType::EncryptionKey.to_string(), "encryption_key");
         assert_eq!(CredentialType::ApiKey.to_string(), "api_key");
     }

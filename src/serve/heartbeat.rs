@@ -301,7 +301,10 @@ pub async fn run_heartbeat_tick(
 
         report.auto_promoted = promo_result;
         if promo_result > 0 {
-            info!(promoted = promo_result, "Heartbeat: auto-promotion scan complete");
+            info!(
+                promoted = promo_result,
+                "Heartbeat: auto-promotion scan complete"
+            );
         }
     }
 

@@ -141,7 +141,6 @@ pub struct IngestArgs {
     pub json: bool,
 
     // ======================= OSpipe Options =======================
-
     /// Enable OSpipe pipeline (PII protection + deduplication + embeddings).
     #[arg(long)]
     pub ospipe: bool,

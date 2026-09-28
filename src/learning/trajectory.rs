@@ -33,8 +33,8 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::reasoning_bank::pattern::PatternId;
 use super::sona::Outcome;
+use crate::reasoning_bank::pattern::PatternId;
 
 /// Unique identifier for a trajectory.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -456,7 +456,8 @@ impl Trajectory {
 
     /// Get the duration as a Duration type.
     pub fn duration(&self) -> Option<Duration> {
-        self.total_duration_ms.map(|ms| Duration::milliseconds(ms as i64))
+        self.total_duration_ms
+            .map(|ms| Duration::milliseconds(ms as i64))
     }
 
     /// Get the first step (if any).
@@ -693,8 +694,7 @@ impl TrajectoryStats {
         // Update running averages
         let n = self.total_count as f32;
         self.average_reward = ((n - 1.0) * self.average_reward + trajectory.total_reward) / n;
-        self.average_steps =
-            ((n - 1.0) * self.average_steps + trajectory.step_count() as f32) / n;
+        self.average_steps = ((n - 1.0) * self.average_steps + trajectory.step_count() as f32) / n;
 
         if let Some(duration) = trajectory.total_duration_ms {
             self.average_duration_ms =
@@ -728,8 +728,14 @@ mod tests {
 
     #[test]
     fn test_step_type_from_str() {
-        assert_eq!(StepType::from_str("pattern_retrieval"), Some(StepType::PatternRetrieval));
-        assert_eq!(StepType::from_str("search"), Some(StepType::PatternRetrieval));
+        assert_eq!(
+            StepType::from_str("pattern_retrieval"),
+            Some(StepType::PatternRetrieval)
+        );
+        assert_eq!(
+            StepType::from_str("search"),
+            Some(StepType::PatternRetrieval)
+        );
         assert_eq!(StepType::from_str("decision"), Some(StepType::Decision));
         assert_eq!(StepType::from_str("unknown"), None);
     }
@@ -737,7 +743,10 @@ mod tests {
     #[test]
     fn test_trajectory_step_creation() {
         let step = TrajectoryStep::pattern_retrieval(
-            vec![PatternId::from_string("pat_1"), PatternId::from_string("pat_2")],
+            vec![
+                PatternId::from_string("pat_1"),
+                PatternId::from_string("pat_2"),
+            ],
             "test query",
             0.85,
         );
@@ -831,7 +840,12 @@ mod tests {
 
         let trajectory2 = Trajectory::builder()
             .add_step(TrajectoryStep::new(StepType::Decision, vec![], "step", 0.5))
-            .add_step(TrajectoryStep::new(StepType::Decision, vec![], "step2", 0.5))
+            .add_step(TrajectoryStep::new(
+                StepType::Decision,
+                vec![],
+                "step2",
+                0.5,
+            ))
             .outcome(Outcome::Failure, 0.2)
             .build();
 
@@ -1084,8 +1098,10 @@ impl TrajectoryStorage {
     ) -> Result<(), rusqlite::Error> {
         let steps_json = serde_json::to_string(&trajectory.steps).unwrap_or_else(|_| "[]".into());
         let tags_json = serde_json::to_string(&trajectory.tags).unwrap_or_else(|_| "[]".into());
-        let metadata_json = serde_json::to_string(&trajectory.metadata).unwrap_or_else(|_| "{}".into());
-        let profdag_json = serde_json::to_string(&trajectory.profdag_node_ids).unwrap_or_else(|_| "[]".into());
+        let metadata_json =
+            serde_json::to_string(&trajectory.metadata).unwrap_or_else(|_| "{}".into());
+        let profdag_json =
+            serde_json::to_string(&trajectory.profdag_node_ids).unwrap_or_else(|_| "[]".into());
         let outcome_str = trajectory.outcome.as_ref().map(|o| o.as_str());
 
         conn.execute(
@@ -1319,10 +1335,13 @@ impl TrajectoryStorage {
         conn: &rusqlite::Connection,
         session_id: &str,
     ) -> Result<Vec<Trajectory>, rusqlite::Error> {
-        self.query(conn, &TrajectoryFilter {
-            session_id: Some(session_id.to_string()),
-            ..Default::default()
-        })
+        self.query(
+            conn,
+            &TrajectoryFilter {
+                session_id: Some(session_id.to_string()),
+                ..Default::default()
+            },
+        )
     }
 
     /// Get trajectories by pattern ID.
@@ -1331,10 +1350,13 @@ impl TrajectoryStorage {
         conn: &rusqlite::Connection,
         pattern_id: &str,
     ) -> Result<Vec<Trajectory>, rusqlite::Error> {
-        self.query(conn, &TrajectoryFilter {
-            pattern_id: Some(pattern_id.to_string()),
-            ..Default::default()
-        })
+        self.query(
+            conn,
+            &TrajectoryFilter {
+                pattern_id: Some(pattern_id.to_string()),
+                ..Default::default()
+            },
+        )
     }
 
     /// Get successful trajectories.
@@ -1343,12 +1365,15 @@ impl TrajectoryStorage {
         conn: &rusqlite::Connection,
         limit: Option<usize>,
     ) -> Result<Vec<Trajectory>, rusqlite::Error> {
-        self.query(conn, &TrajectoryFilter {
-            success_only: true,
-            limit,
-            descending: true,
-            ..Default::default()
-        })
+        self.query(
+            conn,
+            &TrajectoryFilter {
+                success_only: true,
+                limit,
+                descending: true,
+                ..Default::default()
+            },
+        )
     }
 
     /// Get failed trajectories.
@@ -1357,12 +1382,15 @@ impl TrajectoryStorage {
         conn: &rusqlite::Connection,
         limit: Option<usize>,
     ) -> Result<Vec<Trajectory>, rusqlite::Error> {
-        self.query(conn, &TrajectoryFilter {
-            failure_only: true,
-            limit,
-            descending: true,
-            ..Default::default()
-        })
+        self.query(
+            conn,
+            &TrajectoryFilter {
+                failure_only: true,
+                limit,
+                descending: true,
+                ..Default::default()
+            },
+        )
     }
 
     /// Get high-reward trajectories above a threshold.
@@ -1372,13 +1400,16 @@ impl TrajectoryStorage {
         min_reward: f32,
         limit: Option<usize>,
     ) -> Result<Vec<Trajectory>, rusqlite::Error> {
-        self.query(conn, &TrajectoryFilter {
-            min_reward: Some(min_reward),
-            limit,
-            order_by: TrajectoryOrderBy::TotalReward,
-            descending: true,
-            ..Default::default()
-        })
+        self.query(
+            conn,
+            &TrajectoryFilter {
+                min_reward: Some(min_reward),
+                limit,
+                order_by: TrajectoryOrderBy::TotalReward,
+                descending: true,
+                ..Default::default()
+            },
+        )
     }
 
     /// Count trajectories matching a filter.
@@ -1502,12 +1533,15 @@ impl TrajectoryStorage {
         conn: &rusqlite::Connection,
         limit: usize,
     ) -> Result<Vec<Trajectory>, rusqlite::Error> {
-        self.query(conn, &TrajectoryFilter {
-            limit: Some(limit),
-            order_by: TrajectoryOrderBy::StartedAt,
-            descending: true,
-            ..Default::default()
-        })
+        self.query(
+            conn,
+            &TrajectoryFilter {
+                limit: Some(limit),
+                order_by: TrajectoryOrderBy::StartedAt,
+                descending: true,
+                ..Default::default()
+            },
+        )
     }
 
     /// Helper to convert a database row to a Trajectory.
@@ -1529,8 +1563,8 @@ impl TrajectoryStorage {
 
         let steps: Vec<TrajectoryStep> = serde_json::from_str(&steps_json).unwrap_or_default();
         let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
-        let metadata: serde_json::Value = serde_json::from_str(&metadata_json)
-            .unwrap_or(serde_json::Value::Null);
+        let metadata: serde_json::Value =
+            serde_json::from_str(&metadata_json).unwrap_or(serde_json::Value::Null);
         let profdag_node_ids: Vec<String> = serde_json::from_str(&profdag_json).unwrap_or_default();
 
         let outcome = outcome_str.and_then(|s| Outcome::from_str(&s));
@@ -1616,11 +1650,13 @@ mod storage_tests {
         let conn = setup_test_db();
 
         // Verify tables exist
-        let count: i32 = conn.query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='trajectories'",
-            [],
-            |row| row.get(0),
-        ).unwrap();
+        let count: i32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='trajectories'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
         assert_eq!(count, 1);
     }
 
@@ -1692,14 +1728,10 @@ mod storage_tests {
         let storage = TrajectoryStorage::new();
 
         // Create mixed trajectories
-        let success_traj = Trajectory::builder()
-            .outcome(Outcome::Success, 0.9)
-            .build();
+        let success_traj = Trajectory::builder().outcome(Outcome::Success, 0.9).build();
         storage.store(&conn, &success_traj).unwrap();
 
-        let fail_traj = Trajectory::builder()
-            .outcome(Outcome::Failure, 0.1)
-            .build();
+        let fail_traj = Trajectory::builder().outcome(Outcome::Failure, 0.1).build();
         storage.store(&conn, &fail_traj).unwrap();
 
         let successful = storage.get_successful(&conn, None).unwrap();
@@ -1718,10 +1750,12 @@ mod storage_tests {
 
         // Create test trajectories
         for reward in [0.9, 0.8, 0.3] {
-            let outcome = if reward > 0.5 { Outcome::Success } else { Outcome::Failure };
-            let trajectory = Trajectory::builder()
-                .outcome(outcome, reward)
-                .build();
+            let outcome = if reward > 0.5 {
+                Outcome::Success
+            } else {
+                Outcome::Failure
+            };
+            let trajectory = Trajectory::builder().outcome(outcome, reward).build();
             storage.store(&conn, &trajectory).unwrap();
         }
 
@@ -1737,9 +1771,7 @@ mod storage_tests {
         let conn = setup_test_db();
         let storage = TrajectoryStorage::new();
 
-        let trajectory = Trajectory::builder()
-            .outcome(Outcome::Success, 0.9)
-            .build();
+        let trajectory = Trajectory::builder().outcome(Outcome::Success, 0.9).build();
 
         storage.store(&conn, &trajectory).unwrap();
         assert!(storage.get(&conn, &trajectory.id).unwrap().is_some());
@@ -1778,11 +1810,13 @@ mod storage_tests {
         storage.store(&conn, &trajectory).unwrap();
 
         // Check pattern links were created
-        let link_count: i32 = conn.query_row(
-            "SELECT COUNT(*) FROM trajectory_pattern_links WHERE trajectory_id = ?",
-            [trajectory.id.as_str()],
-            |row| row.get(0),
-        ).unwrap();
+        let link_count: i32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM trajectory_pattern_links WHERE trajectory_id = ?",
+                [trajectory.id.as_str()],
+                |row| row.get(0),
+            )
+            .unwrap();
 
         // Should have 3 links: pat_1 (step 0), pat_2 (step 0), pat_1 (step 1) - but pat_1 is unique
         // Actually INSERT OR IGNORE means only 2 unique pattern IDs
@@ -1822,10 +1856,15 @@ mod storage_tests {
         let total = storage.count(&conn, &TrajectoryFilter::default()).unwrap();
         assert_eq!(total, 5);
 
-        let session_a_count = storage.count(&conn, &TrajectoryFilter {
-            session_id: Some("session-a".to_string()),
-            ..Default::default()
-        }).unwrap();
+        let session_a_count = storage
+            .count(
+                &conn,
+                &TrajectoryFilter {
+                    session_id: Some("session-a".to_string()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         assert_eq!(session_a_count, 3);
     }
 }
@@ -1873,7 +1912,8 @@ impl PatternChain {
 
         // Update success rate as running average
         let old_success_rate = self.success_rate;
-        self.success_rate = (old_success_rate * old_count + if success { 1.0 } else { 0.0 }) / new_count;
+        self.success_rate =
+            (old_success_rate * old_count + if success { 1.0 } else { 0.0 }) / new_count;
 
         // Update average reward
         self.total_reward += reward;
@@ -2036,7 +2076,9 @@ impl<'a> TrajectoryAnalyzer<'a> {
         chains.sort_by(|a, b| {
             let score_a = a.success_rate * (a.occurrence_count as f32).ln().max(1.0);
             let score_b = b.success_rate * (b.occurrence_count as f32).ln().max(1.0);
-            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+            score_b
+                .partial_cmp(&score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         Ok(chains)
@@ -2075,7 +2117,9 @@ impl<'a> TrajectoryAnalyzer<'a> {
         chains.sort_by(|a, b| {
             let score_a = (1.0 - a.success_rate) * (a.occurrence_count as f32).ln().max(1.0);
             let score_b = (1.0 - b.success_rate) * (b.occurrence_count as f32).ln().max(1.0);
-            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+            score_b
+                .partial_cmp(&score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         Ok(chains)
@@ -2143,7 +2187,9 @@ impl<'a> TrajectoryAnalyzer<'a> {
 
         // Sort by probability descending
         successors.sort_by(|a, b| {
-            b.probability.partial_cmp(&a.probability).unwrap_or(std::cmp::Ordering::Equal)
+            b.probability
+                .partial_cmp(&a.probability)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         Ok(successors)
@@ -2340,11 +2386,7 @@ impl<'a> TrajectoryAnalyzer<'a> {
     // ========================================================================
 
     /// Extract pattern chains from trajectories.
-    fn extract_chains(
-        &self,
-        trajectories: &[Trajectory],
-        min_length: usize,
-    ) -> Vec<PatternChain> {
+    fn extract_chains(&self, trajectories: &[Trajectory], min_length: usize) -> Vec<PatternChain> {
         let mut chain_map: std::collections::HashMap<String, PatternChain> =
             std::collections::HashMap::new();
 
@@ -2365,7 +2407,9 @@ impl<'a> TrajectoryAnalyzer<'a> {
                     let chain_patterns: Vec<String> = pattern_ids[start..start + len].to_vec();
                     let key = chain_patterns.join("->");
 
-                    let chain = chain_map.entry(key).or_insert_with(|| PatternChain::new(chain_patterns));
+                    let chain = chain_map
+                        .entry(key)
+                        .or_insert_with(|| PatternChain::new(chain_patterns));
                     chain.record_observation(trajectory.success, trajectory.total_reward);
                 }
             }
@@ -2393,9 +2437,9 @@ impl<'a> TrajectoryAnalyzer<'a> {
                 let to = pattern_ids[i + 1].as_str().to_string();
                 let key = (from.clone(), to.clone());
 
-                let transition = transitions.entry(key).or_insert_with(|| {
-                    PatternTransition::new(from, to)
-                });
+                let transition = transitions
+                    .entry(key)
+                    .or_insert_with(|| PatternTransition::new(from, to));
 
                 transition.count += 1;
                 let old_count = transition.count as f32 - 1.0;
@@ -2403,11 +2447,13 @@ impl<'a> TrajectoryAnalyzer<'a> {
 
                 // Update running average for success rate
                 let old_rate = transition.success_rate;
-                transition.success_rate = (old_rate * old_count + if trajectory.success { 1.0 } else { 0.0 }) / new_count;
+                transition.success_rate =
+                    (old_rate * old_count + if trajectory.success { 1.0 } else { 0.0 }) / new_count;
 
                 // Update running average for reward
                 let old_reward = transition.avg_reward;
-                transition.avg_reward = (old_reward * old_count + trajectory.total_reward) / new_count;
+                transition.avg_reward =
+                    (old_reward * old_count + trajectory.total_reward) / new_count;
             }
         }
 
@@ -2441,13 +2487,21 @@ mod analysis_tests {
         let mut trajectory = Trajectory::new();
         for (i, pat) in patterns.iter().enumerate() {
             trajectory.add_step(TrajectoryStep::new(
-                if i == 0 { StepType::PatternRetrieval } else { StepType::Decision },
+                if i == 0 {
+                    StepType::PatternRetrieval
+                } else {
+                    StepType::Decision
+                },
                 vec![PatternId::from_string(*pat)],
                 format!("Step {}", i),
                 0.8,
             ));
         }
-        let outcome = if success { Outcome::Success } else { Outcome::Failure };
+        let outcome = if success {
+            Outcome::Success
+        } else {
+            Outcome::Failure
+        };
         trajectory.set_outcome(outcome, reward);
         storage.store(conn, &trajectory).unwrap();
     }
@@ -2456,11 +2510,14 @@ mod analysis_tests {
     fn test_find_success_chains() {
         let conn = setup_analysis_db();
         let storage = TrajectoryStorage::new();
-        let analyzer = TrajectoryAnalyzer::with_config(&storage, TrajectoryAnalysisConfig {
-            min_occurrences: 2,
-            min_success_rate: 0.8,
-            ..Default::default()
-        });
+        let analyzer = TrajectoryAnalyzer::with_config(
+            &storage,
+            TrajectoryAnalysisConfig {
+                min_occurrences: 2,
+                min_success_rate: 0.8,
+                ..Default::default()
+            },
+        );
 
         // Create trajectories with a common success pattern
         for _ in 0..5 {
@@ -2471,7 +2528,9 @@ mod analysis_tests {
             create_test_trajectory(&storage, &conn, vec!["X", "Y", "Z"], false, 0.2);
         }
 
-        let chains = analyzer.find_success_chains(&conn, Some(2), Some(2)).unwrap();
+        let chains = analyzer
+            .find_success_chains(&conn, Some(2), Some(2))
+            .unwrap();
 
         assert!(!chains.is_empty(), "Should find success chains");
         // The chain A->B should appear multiple times with high success
@@ -2484,11 +2543,14 @@ mod analysis_tests {
     fn test_find_failure_chains() {
         let conn = setup_analysis_db();
         let storage = TrajectoryStorage::new();
-        let analyzer = TrajectoryAnalyzer::with_config(&storage, TrajectoryAnalysisConfig {
-            min_occurrences: 2,
-            max_failure_rate: 0.3,
-            ..Default::default()
-        });
+        let analyzer = TrajectoryAnalyzer::with_config(
+            &storage,
+            TrajectoryAnalysisConfig {
+                min_occurrences: 2,
+                max_failure_rate: 0.3,
+                ..Default::default()
+            },
+        );
 
         // Create failure trajectories with common pattern
         for _ in 0..5 {
@@ -2499,7 +2561,9 @@ mod analysis_tests {
             create_test_trajectory(&storage, &conn, vec!["GOOD1", "GOOD2"], true, 0.9);
         }
 
-        let chains = analyzer.find_failure_chains(&conn, Some(2), Some(2)).unwrap();
+        let chains = analyzer
+            .find_failure_chains(&conn, Some(2), Some(2))
+            .unwrap();
 
         assert!(!chains.is_empty(), "Should find failure chains");
         let bad_chain = chains.iter().find(|c| c.patterns == vec!["BAD1", "BAD2"]);
@@ -2519,11 +2583,23 @@ mod analysis_tests {
         }
         create_test_trajectory(&storage, &conn, vec!["A", "C"], true, 0.7);
 
-        let prob_ab = analyzer.get_transition_probability(&conn, "A", "B").unwrap();
-        let prob_ac = analyzer.get_transition_probability(&conn, "A", "C").unwrap();
+        let prob_ab = analyzer
+            .get_transition_probability(&conn, "A", "B")
+            .unwrap();
+        let prob_ac = analyzer
+            .get_transition_probability(&conn, "A", "C")
+            .unwrap();
 
-        assert!((prob_ab - 0.75).abs() < 0.01, "P(B|A) should be ~0.75, got {}", prob_ab);
-        assert!((prob_ac - 0.25).abs() < 0.01, "P(C|A) should be ~0.25, got {}", prob_ac);
+        assert!(
+            (prob_ab - 0.75).abs() < 0.01,
+            "P(B|A) should be ~0.75, got {}",
+            prob_ab
+        );
+        assert!(
+            (prob_ac - 0.25).abs() < 0.01,
+            "P(C|A) should be ~0.25, got {}",
+            prob_ac
+        );
     }
 
     #[test]
@@ -2544,7 +2620,10 @@ mod analysis_tests {
         let successors = analyzer.get_pattern_successors(&conn, "START").unwrap();
 
         assert_eq!(successors.len(), 3, "Should have 3 successors");
-        assert_eq!(successors[0].to_pattern, "COMMON", "COMMON should be most probable");
+        assert_eq!(
+            successors[0].to_pattern, "COMMON",
+            "COMMON should be most probable"
+        );
         assert!(successors[0].probability > successors[1].probability);
     }
 
@@ -2552,11 +2631,14 @@ mod analysis_tests {
     fn test_compounding_patterns() {
         let conn = setup_analysis_db();
         let storage = TrajectoryStorage::new();
-        let analyzer = TrajectoryAnalyzer::with_config(&storage, TrajectoryAnalysisConfig {
-            min_occurrences: 2,
-            compounding_threshold: 1.1, // 10% above baseline
-            ..Default::default()
-        });
+        let analyzer = TrajectoryAnalyzer::with_config(
+            &storage,
+            TrajectoryAnalysisConfig {
+                min_occurrences: 2,
+                compounding_threshold: 1.1, // 10% above baseline
+                ..Default::default()
+            },
+        );
 
         // Create a mix of trajectories
         // "BOOST" pattern leads to high success
@@ -2578,19 +2660,25 @@ mod analysis_tests {
         let compounding = analyzer.find_compounding_patterns(&conn).unwrap();
 
         // BOOST should be identified as compounding
-        assert!(compounding.contains(&"BOOST".to_string()),
-            "BOOST should be a compounding pattern, found: {:?}", compounding);
+        assert!(
+            compounding.contains(&"BOOST".to_string()),
+            "BOOST should be a compounding pattern, found: {:?}",
+            compounding
+        );
     }
 
     #[test]
     fn test_risky_patterns() {
         let conn = setup_analysis_db();
         let storage = TrajectoryStorage::new();
-        let analyzer = TrajectoryAnalyzer::with_config(&storage, TrajectoryAnalysisConfig {
-            min_occurrences: 2,
-            risky_threshold: 0.9, // Below 90% of baseline is risky
-            ..Default::default()
-        });
+        let analyzer = TrajectoryAnalyzer::with_config(
+            &storage,
+            TrajectoryAnalysisConfig {
+                min_occurrences: 2,
+                risky_threshold: 0.9, // Below 90% of baseline is risky
+                ..Default::default()
+            },
+        );
 
         // Create trajectories where "RISKY" leads to failures
         for _ in 0..5 {
@@ -2607,18 +2695,24 @@ mod analysis_tests {
 
         let risky = analyzer.find_risky_patterns(&conn).unwrap();
 
-        assert!(risky.contains(&"RISKY".to_string()),
-            "RISKY should be identified as risky, found: {:?}", risky);
+        assert!(
+            risky.contains(&"RISKY".to_string()),
+            "RISKY should be identified as risky, found: {:?}",
+            risky
+        );
     }
 
     #[test]
     fn test_full_analysis() {
         let conn = setup_analysis_db();
         let storage = TrajectoryStorage::new();
-        let analyzer = TrajectoryAnalyzer::with_config(&storage, TrajectoryAnalysisConfig {
-            min_occurrences: 2,
-            ..Default::default()
-        });
+        let analyzer = TrajectoryAnalyzer::with_config(
+            &storage,
+            TrajectoryAnalysisConfig {
+                min_occurrences: 2,
+                ..Default::default()
+            },
+        );
 
         // Create diverse trajectories
         for _ in 0..5 {
@@ -2634,8 +2728,10 @@ mod analysis_tests {
         let analysis = analyzer.analyze(&conn).unwrap();
 
         assert_eq!(analysis.trajectories_analyzed, 10);
-        assert!(!analysis.success_chains.is_empty() || !analysis.failure_chains.is_empty(),
-            "Should find some chains");
+        assert!(
+            !analysis.success_chains.is_empty() || !analysis.failure_chains.is_empty(),
+            "Should find some chains"
+        );
     }
 
     #[test]
@@ -2656,9 +2752,9 @@ mod analysis_tests {
 
         assert!(!cooccurrence.is_empty(), "Should find co-occurrences");
         // A-B should be most common (appears in all 8 trajectories)
-        let ab = cooccurrence.iter().find(|(p1, p2, _)|
-            (p1 == "A" && p2 == "B") || (p1 == "B" && p2 == "A")
-        );
+        let ab = cooccurrence
+            .iter()
+            .find(|(p1, p2, _)| (p1 == "A" && p2 == "B") || (p1 == "B" && p2 == "A"));
         assert!(ab.is_some(), "Should find A-B co-occurrence");
         assert_eq!(ab.unwrap().2, 8, "A-B should appear 8 times");
     }

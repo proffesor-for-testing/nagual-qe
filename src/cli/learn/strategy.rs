@@ -86,7 +86,12 @@ pub enum StrategyAction {
 /// Run the strategy subcommand.
 pub async fn run(args: &StrategyArgs) -> Result<()> {
     match &args.action {
-        StrategyAction::Store { category, description, steps, db_path } => {
+        StrategyAction::Store {
+            category,
+            description,
+            steps,
+            db_path,
+        } => {
             let storage = init_storage(db_path, None).await?;
             let id = PatternId::new().to_string();
             let now = chrono::Utc::now().to_rfc3339();
@@ -102,10 +107,11 @@ pub async fn run(args: &StrategyArgs) -> Result<()> {
                 INSERT INTO strategy_cache (id, category, description, steps, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?)
             "#;
-            storage.adapter().sqlite().execute(
-                sql,
-                &[&id, category, description, &steps_json, &now, &now],
-            ).await?;
+            storage
+                .adapter()
+                .sqlite()
+                .execute(sql, &[&id, category, description, &steps_json, &now, &now])
+                .await?;
 
             println!("\nStrategy Stored");
             println!("{:-<50}", "");
@@ -116,7 +122,11 @@ pub async fn run(args: &StrategyArgs) -> Result<()> {
                 println!("  Steps: {}", s);
             }
         }
-        StrategyAction::Search { category, max, db_path } => {
+        StrategyAction::Search {
+            category,
+            max,
+            db_path,
+        } => {
             let storage = init_storage(db_path, None).await?;
             let sql = r#"
                 SELECT id, category, description, steps, success_count, failure_count, avg_reward
@@ -136,7 +146,8 @@ pub async fn run(args: &StrategyArgs) -> Result<()> {
                         row.get(0)?,
                         row.get(1)?,
                         row.get(2)?,
-                        row.get::<_, Option<String>>(3)?.unwrap_or_else(|| "[]".to_string()),
+                        row.get::<_, Option<String>>(3)?
+                            .unwrap_or_else(|| "[]".to_string()),
                         row.get(4)?,
                         row.get(5)?,
                         row.get(6)?,
@@ -152,7 +163,12 @@ pub async fn run(args: &StrategyArgs) -> Result<()> {
                 for (i, (id, cat, desc, steps, succ, fail, reward)) in results.iter().enumerate() {
                     println!(
                         "\n{}. [{}] {} (reward: {:.2}, {}/{} success)",
-                        i + 1, cat, desc, reward, succ, succ + fail
+                        i + 1,
+                        cat,
+                        desc,
+                        reward,
+                        succ,
+                        succ + fail
                     );
                     if steps != "[]" {
                         println!("   Steps: {}", steps);

@@ -209,12 +209,12 @@ impl Recommendation {
     /// Calculate priority based on type and impact.
     fn calculate_priority(rec_type: RecommendationType, impact: f32) -> u8 {
         let base_priority = match rec_type {
-            RecommendationType::Archive => 3,      // Low priority
-            RecommendationType::Review => 4,       // Medium-low
-            RecommendationType::Consolidate => 5,  // Medium
-            RecommendationType::Improve => 6,      // Medium-high
-            RecommendationType::Split => 7,        // High
-            RecommendationType::Promote => 8,      // Highest
+            RecommendationType::Archive => 3,     // Low priority
+            RecommendationType::Review => 4,      // Medium-low
+            RecommendationType::Consolidate => 5, // Medium
+            RecommendationType::Improve => 6,     // Medium-high
+            RecommendationType::Split => 7,       // High
+            RecommendationType::Promote => 8,     // Highest
         };
 
         // Adjust by impact (add 0-2 based on impact)
@@ -582,11 +582,7 @@ impl SelfImprover {
     /// Run a self-improvement cycle on patterns in the specified domain.
     ///
     /// Analyzes patterns, identifies opportunities, and generates recommendations.
-    pub fn self_improve(
-        &self,
-        patterns: &[Pattern],
-        domain: Option<&str>,
-    ) -> ImprovementPlan {
+    pub fn self_improve(&self, patterns: &[Pattern], domain: Option<&str>) -> ImprovementPlan {
         let domain_str = domain.unwrap_or("all").to_string();
 
         // Filter patterns by domain if specified
@@ -661,8 +657,8 @@ impl SelfImprover {
             return Vec::new();
         }
 
-        let avg_reward: f32 = low_performers.iter().map(|p| p.reward()).sum::<f32>()
-            / low_performers.len() as f32;
+        let avg_reward: f32 =
+            low_performers.iter().map(|p| p.reward()).sum::<f32>() / low_performers.len() as f32;
 
         vec![ImprovementOpportunity::new(
             OpportunityType::LowPerformance,
@@ -719,8 +715,8 @@ impl SelfImprover {
             return Vec::new();
         }
 
-        let avg_length: f64 = complex.iter().map(|p| p.solution().len()).sum::<usize>() as f64
-            / complex.len() as f64;
+        let avg_length: f64 =
+            complex.iter().map(|p| p.solution().len()).sum::<usize>() as f64 / complex.len() as f64;
 
         vec![ImprovementOpportunity::new(
             OpportunityType::OverlyComplex,
@@ -752,8 +748,8 @@ impl SelfImprover {
             return Vec::new();
         }
 
-        let avg_reward: f32 = high_performers.iter().map(|p| p.reward()).sum::<f32>()
-            / high_performers.len() as f32;
+        let avg_reward: f32 =
+            high_performers.iter().map(|p| p.reward()).sum::<f32>() / high_performers.len() as f32;
 
         vec![ImprovementOpportunity::new(
             OpportunityType::HighPerformer,
@@ -880,7 +876,9 @@ impl SelfImprover {
                     opp.potential_value,
                     domain,
                 )
-                .with_details("Merging similar patterns reduces redundancy and improves retrieval."),
+                .with_details(
+                    "Merging similar patterns reduces redundancy and improves retrieval.",
+                ),
 
                 OpportunityType::InconsistentMetrics => Recommendation::new(
                     RecommendationType::Improve,
@@ -978,7 +976,10 @@ impl SelfImprover {
     }
 
     /// Check if consolidation should be triggered.
-    pub fn check_consolidation_trigger(&self, pattern_count: usize) -> Option<ConsolidationTrigger> {
+    pub fn check_consolidation_trigger(
+        &self,
+        pattern_count: usize,
+    ) -> Option<ConsolidationTrigger> {
         self.consolidation_config.check_trigger(pattern_count)
     }
 
@@ -1050,28 +1051,24 @@ mod tests {
 
     #[test]
     fn test_recommendation_priority() {
-        let high_impact_promote = Recommendation::new(
-            RecommendationType::Promote,
-            vec![],
-            "test",
-            0.9,
-            "test",
-        );
-        let low_impact_archive = Recommendation::new(
-            RecommendationType::Archive,
-            vec![],
-            "test",
-            0.2,
-            "test",
-        );
+        let high_impact_promote =
+            Recommendation::new(RecommendationType::Promote, vec![], "test", 0.9, "test");
+        let low_impact_archive =
+            Recommendation::new(RecommendationType::Archive, vec![], "test", 0.2, "test");
 
         assert!(high_impact_promote.priority > low_impact_archive.priority);
     }
 
     #[test]
     fn test_consolidation_trigger_display() {
-        assert_eq!(ConsolidationTrigger::time_based().to_string(), "time_based(24h)");
-        assert_eq!(ConsolidationTrigger::count_based().to_string(), "count_based(100)");
+        assert_eq!(
+            ConsolidationTrigger::time_based().to_string(),
+            "time_based(24h)"
+        );
+        assert_eq!(
+            ConsolidationTrigger::count_based().to_string(),
+            "count_based(100)"
+        );
         assert_eq!(ConsolidationTrigger::manual().to_string(), "manual");
     }
 
@@ -1112,7 +1109,10 @@ mod tests {
         let opportunities = improver.find_low_performers(&pattern_refs);
 
         assert_eq!(opportunities.len(), 1);
-        assert_eq!(opportunities[0].opportunity_type, OpportunityType::LowPerformance);
+        assert_eq!(
+            opportunities[0].opportunity_type,
+            OpportunityType::LowPerformance
+        );
         assert_eq!(opportunities[0].pattern_ids.len(), 2);
     }
 
@@ -1131,7 +1131,10 @@ mod tests {
         let opportunities = improver.find_high_performers(&pattern_refs);
 
         assert_eq!(opportunities.len(), 1);
-        assert_eq!(opportunities[0].opportunity_type, OpportunityType::HighPerformer);
+        assert_eq!(
+            opportunities[0].opportunity_type,
+            OpportunityType::HighPerformer
+        );
         assert_eq!(opportunities[0].pattern_ids.len(), 2);
     }
 
@@ -1156,7 +1159,10 @@ mod tests {
         let opportunities = improver.find_complex_patterns(&pattern_refs);
 
         assert_eq!(opportunities.len(), 1);
-        assert_eq!(opportunities[0].opportunity_type, OpportunityType::OverlyComplex);
+        assert_eq!(
+            opportunities[0].opportunity_type,
+            OpportunityType::OverlyComplex
+        );
         assert_eq!(opportunities[0].pattern_ids.len(), 1);
     }
 

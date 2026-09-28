@@ -223,9 +223,15 @@ mod tests {
 
         let req: FlushRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.context_items.len(), 2);
-        assert_eq!(req.context_items[0].item_type, ContextItemType::ErrorResolution);
+        assert_eq!(
+            req.context_items[0].item_type,
+            ContextItemType::ErrorResolution
+        );
         assert_eq!(req.context_items[1].item_type, ContextItemType::Insight);
-        assert_eq!(req.context_items[0].content, "Fixed timeout by adding retry logic");
+        assert_eq!(
+            req.context_items[0].content,
+            "Fixed timeout by adding retry logic"
+        );
     }
 
     #[tokio::test]
@@ -264,8 +270,14 @@ mod tests {
         };
 
         let items = vec![
-            make_item("Fixed timeout by adding retry logic", ContextItemType::ErrorResolution),
-            make_item("Pattern matching is faster with match guards", ContextItemType::Insight),
+            make_item(
+                "Fixed timeout by adding retry logic",
+                ContextItemType::ErrorResolution,
+            ),
+            make_item(
+                "Pattern matching is faster with match guards",
+                ContextItemType::Insight,
+            ),
             make_item("Changed src/main.rs", ContextItemType::CodeChange),
             make_item("Task completed successfully", ContextItemType::TaskResult),
             make_item("Unknown thing", ContextItemType::Unknown),

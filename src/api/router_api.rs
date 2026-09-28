@@ -20,9 +20,7 @@ use tracing::{debug, instrument};
 
 use super::NagualState;
 use crate::error::{NagualError, Result};
-use crate::router::{
-    ComplexityScore, RouterConfig, RoutingDecision, VendorRouter,
-};
+use crate::router::{ComplexityScore, RouterConfig, RoutingDecision, VendorRouter};
 
 /// API for FastGRNN-based vendor routing.
 ///

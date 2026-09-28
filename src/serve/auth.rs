@@ -30,10 +30,7 @@ pub enum AuthIdentity {
         scopes: Vec<String>,
     },
     /// Browser session via signed cookie.
-    Session {
-        username: String,
-        role: String,
-    },
+    Session { username: String, role: String },
     /// No authentication configured (local-only mode).
     LocalOnly,
 }
@@ -43,9 +40,7 @@ impl AuthIdentity {
     pub fn has_scope(&self, scope: &str) -> bool {
         match self {
             AuthIdentity::Master | AuthIdentity::LocalOnly => true,
-            AuthIdentity::Key { scopes, .. } => {
-                scopes.iter().any(|s| s == scope || s == "admin")
-            }
+            AuthIdentity::Key { scopes, .. } => scopes.iter().any(|s| s == scope || s == "admin"),
             AuthIdentity::Session { role, .. } => {
                 // admin sessions have all scopes; viewer sessions have read only
                 role == "admin" || scope == "read"
@@ -93,9 +88,7 @@ impl IntoResponse for AuthError {
                 "Missing Authorization header. Use: Authorization: Bearer <token>",
             )
                 .into_response(),
-            AuthError::Invalid => {
-                (StatusCode::FORBIDDEN, "Invalid bearer token").into_response()
-            }
+            AuthError::Invalid => (StatusCode::FORBIDDEN, "Invalid bearer token").into_response(),
             AuthError::Forbidden => (
                 StatusCode::FORBIDDEN,
                 "Insufficient scope for this operation",
@@ -119,20 +112,23 @@ impl FromRequestParts<AppState> for RequireAuth {
         parts: &mut Parts,
         state: &AppState,
     ) -> std::result::Result<Self, Self::Rejection> {
-        let has_master = state.auth_token.is_some();
-        let has_key_store = state.key_store.is_some();
-
-        // Local-only mode: no master token and no key store
-        if !has_master && !has_key_store {
-            return Ok(RequireAuth(AuthIdentity::LocalOnly));
+        // Local-only mode: no master token, no dashboard users, and no active API keys.
+        // `nagual serve` always opens a key store (even when it holds zero keys), so checking
+        // only `key_store.is_none()` made a fresh local install answer 401 to its own dashboard.
+        // Evaluated per request, so creating the first key closes the API without a restart.
+        // If the key store cannot be read, fail closed.
+        if state.auth_token.is_none() && !state.login_required {
+            let no_active_keys = match state.key_store {
+                None => true,
+                Some(ref ks) => matches!(ks.has_active_keys().await, Ok(false)),
+            };
+            if no_active_keys {
+                return Ok(RequireAuth(AuthIdentity::LocalOnly));
+            }
         }
 
         // 1. Check session cookie first (browser auth — no Authorization header needed)
-        if let Some(cookie_header) = parts
-            .headers
-            .get("cookie")
-            .and_then(|v| v.to_str().ok())
-        {
+        if let Some(cookie_header) = parts.headers.get("cookie").and_then(|v| v.to_str().ok()) {
             if let Some(cookie_val) = session::extract_from_cookie_header(cookie_header) {
                 if let Some((username, role)) =
                     session::verify_cookie(cookie_val, &state.session_secret)
@@ -163,11 +159,7 @@ impl FromRequestParts<AppState> for RequireAuth {
 
         // 3. Check master token (constant-time comparison via ring)
         if let Some(ref expected) = state.auth_token {
-            if constant_time::verify_slices_are_equal(
-                token.as_bytes(),
-                expected.as_bytes(),
-            )
-            .is_ok()
+            if constant_time::verify_slices_are_equal(token.as_bytes(), expected.as_bytes()).is_ok()
             {
                 return Ok(RequireAuth(AuthIdentity::Master));
             }
@@ -192,9 +184,7 @@ impl FromRequestParts<AppState> for RequireAuth {
         }
 
         // 5. Check if Bearer token is a session token (from POST /api/auth/login)
-        if let Some((username, role)) =
-            session::verify_cookie(&token, &state.session_secret)
-        {
+        if let Some((username, role)) = session::verify_cookie(&token, &state.session_secret) {
             return Ok(RequireAuth(AuthIdentity::Session { username, role }));
         }
 
@@ -227,11 +217,11 @@ impl FromRequestParts<AppState> for RequireWrite {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::EventBus;
     use crate::security::ApiKeyStore;
     use axum::http::Request;
     use std::path::PathBuf;
     use std::sync::Arc;
-    use crate::events::EventBus;
 
     fn test_state(token: Option<String>) -> AppState {
         AppState {
@@ -256,6 +246,54 @@ mod tests {
         assert!(result.is_ok());
         let RequireAuth(identity) = result.unwrap();
         assert!(matches!(identity, AuthIdentity::LocalOnly));
+    }
+
+    async fn empty_key_store() -> (tempfile::TempDir, Arc<ApiKeyStore>) {
+        let dir = tempfile::TempDir::new().unwrap();
+        let db = Arc::new(crate::db::SqliteDb::open(&dir.path().join("keys.db")).unwrap());
+        (dir, Arc::new(ApiKeyStore::new(db).await.unwrap()))
+    }
+
+    // Regression: `nagual serve` always opens a key store. With zero keys, no master token and no
+    // dashboard users it must still be local-only, not 401 its own dashboard.
+    #[tokio::test]
+    async fn test_empty_key_store_is_local_only() {
+        let (_dir, store) = empty_key_store().await;
+        let mut state = test_state(None);
+        state.key_store = Some(store);
+        let (mut parts, _) = Request::builder().body(()).unwrap().into_parts();
+
+        let RequireAuth(identity) = RequireAuth::from_request_parts(&mut parts, &state)
+            .await
+            .unwrap();
+        assert!(matches!(identity, AuthIdentity::LocalOnly));
+    }
+
+    #[tokio::test]
+    async fn test_first_key_closes_local_only_mode() {
+        let (_dir, store) = empty_key_store().await;
+        store
+            .create_key("agent", &["read".into()], None)
+            .await
+            .unwrap();
+        let mut state = test_state(None);
+        state.key_store = Some(store);
+        let (mut parts, _) = Request::builder().body(()).unwrap().into_parts();
+
+        let result = RequireAuth::from_request_parts(&mut parts, &state).await;
+        assert!(matches!(result, Err(AuthError::Missing)));
+    }
+
+    #[tokio::test]
+    async fn test_dashboard_users_disable_local_only_mode() {
+        let (_dir, store) = empty_key_store().await;
+        let mut state = test_state(None);
+        state.key_store = Some(store);
+        state.login_required = true;
+        let (mut parts, _) = Request::builder().body(()).unwrap().into_parts();
+
+        let result = RequireAuth::from_request_parts(&mut parts, &state).await;
+        assert!(matches!(result, Err(AuthError::Missing)));
     }
 
     #[tokio::test]

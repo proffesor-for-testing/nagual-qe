@@ -68,27 +68,43 @@ pub(super) fn parse_duration(s: &str) -> Duration {
 /// Categorize an application name into a domain.
 pub(super) fn categorize_app(app_name: &str) -> &'static str {
     let s = app_name.to_lowercase();
-    if s.contains("code") || s.contains("vim") || s.contains("neovim")
-        || s.contains("intellij") || s.contains("xcode") || s.contains("cursor")
+    if s.contains("code")
+        || s.contains("vim")
+        || s.contains("neovim")
+        || s.contains("intellij")
+        || s.contains("xcode")
+        || s.contains("cursor")
     {
         "coding"
-    } else if s.contains("chrome") || s.contains("firefox") || s.contains("safari")
-        || s.contains("arc") || s.contains("brave") || s.contains("edge")
+    } else if s.contains("chrome")
+        || s.contains("firefox")
+        || s.contains("safari")
+        || s.contains("arc")
+        || s.contains("brave")
+        || s.contains("edge")
     {
         "browsing"
-    } else if s.contains("slack") || s.contains("discord") || s.contains("teams")
-        || s.contains("messages") || s.contains("telegram")
+    } else if s.contains("slack")
+        || s.contains("discord")
+        || s.contains("teams")
+        || s.contains("messages")
+        || s.contains("telegram")
     {
         "communication"
     } else if s.contains("zoom") || s.contains("meet") || s.contains("facetime") {
         "meetings"
-    } else if s.contains("terminal") || s.contains("iterm") || s.contains("warp")
-        || s.contains("alacritty") || s.contains("kitty")
+    } else if s.contains("terminal")
+        || s.contains("iterm")
+        || s.contains("warp")
+        || s.contains("alacritty")
+        || s.contains("kitty")
     {
         "terminal"
     } else if s.contains("finder") || s.contains("preview") || s.contains("photos") {
         "files"
-    } else if s.contains("notion") || s.contains("obsidian") || s.contains("bear")
+    } else if s.contains("notion")
+        || s.contains("obsidian")
+        || s.contains("bear")
         || s.contains("notes")
     {
         "notes"

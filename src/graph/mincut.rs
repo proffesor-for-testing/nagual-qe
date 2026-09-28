@@ -165,8 +165,7 @@ impl MinCutGraph {
             }
 
             // Stoer-Wagner phase: maximum adjacency ordering
-            let (s, t, cut_of_phase) =
-                self.minimum_cut_phase(&w, &active_nodes);
+            let (s, t, cut_of_phase) = self.minimum_cut_phase(&w, &active_nodes);
 
             // Check if this phase found a better cut
             if cut_of_phase < best_cut {
@@ -206,11 +205,7 @@ impl MinCutGraph {
     /// Returns (s, t, cut_of_phase) where s and t are the last two nodes
     /// added to the maximum adjacency ordering, and cut_of_phase is the
     /// weight of edges connecting t to all other nodes in the ordering.
-    fn minimum_cut_phase(
-        &self,
-        w: &[Vec<f64>],
-        active_nodes: &[usize],
-    ) -> (usize, usize, f64) {
+    fn minimum_cut_phase(&self, w: &[Vec<f64>], active_nodes: &[usize]) -> (usize, usize, f64) {
         let n = active_nodes.len();
         debug_assert!(n >= 2);
 
@@ -318,14 +313,8 @@ impl MinCutGraph {
             Some((cut_weight, part_a, part_b)) if cut_weight < threshold => {
                 // The cut is weak enough -- split and recurse
                 // Map subgraph indices back to original indices
-                let original_a: Vec<usize> = part_a
-                    .iter()
-                    .map(|&si| node_indices[si])
-                    .collect();
-                let original_b: Vec<usize> = part_b
-                    .iter()
-                    .map(|&si| node_indices[si])
-                    .collect();
+                let original_a: Vec<usize> = part_a.iter().map(|&si| node_indices[si]).collect();
+                let original_b: Vec<usize> = part_b.iter().map(|&si| node_indices[si]).collect();
 
                 self.recursive_cluster(&original_a, threshold, clusters, next_id);
                 self.recursive_cluster(&original_b, threshold, clusters, next_id);
@@ -617,7 +606,11 @@ mod tests {
 
         // Threshold higher than any cut -- should split maximally
         let clusters = graph.discover_clusters(100.0);
-        assert_eq!(clusters.len(), 3, "High threshold should split into 3 individual nodes");
+        assert_eq!(
+            clusters.len(),
+            3,
+            "High threshold should split into 3 individual nodes"
+        );
     }
 
     #[test]

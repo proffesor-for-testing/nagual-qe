@@ -9,8 +9,8 @@
 //! - Actionable recommendations for self-improvement
 //! - GOAP integration for automated improvement cycles
 
-mod self_model;
 mod engine;
+mod self_model;
 
-pub use self_model::*;
 pub use engine::*;
+pub use self_model::*;

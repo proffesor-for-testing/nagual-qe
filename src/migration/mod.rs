@@ -121,9 +121,7 @@ impl LockInfo {
             locked_by: format!("nagual-{}", std::process::id()),
             locked_at: Utc::now(),
             pid: std::process::id() as i64,
-            host: hostname::get()
-                .ok()
-                .and_then(|h| h.into_string().ok()),
+            host: hostname::get().ok().and_then(|h| h.into_string().ok()),
         }
     }
 }

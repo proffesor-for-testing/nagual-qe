@@ -2,8 +2,8 @@
 //!
 //! Provides efficient neighbor lookups with filtering and direction support.
 
-use serde::{Deserialize, Serialize};
 use super::{EdgeType, GraphEdge};
+use serde::{Deserialize, Serialize};
 
 /// Direction for neighbor queries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

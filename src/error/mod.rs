@@ -13,10 +13,18 @@ mod dlq;
 mod dlq_worker;
 mod retry;
 
-pub use circuit_breaker::{CircuitBreaker, CircuitBreakerConfig, CircuitBreakerMetrics, CircuitBreakerRegistry, CircuitState};
+pub use circuit_breaker::{
+    CircuitBreaker, CircuitBreakerConfig, CircuitBreakerMetrics, CircuitBreakerRegistry,
+    CircuitState,
+};
 pub use dlq::{BatchProcessResult, DeadLetterQueue, DlqEntry, DlqStats};
-pub use dlq_worker::{DlqStorage, DlqWorker, DlqWorkerConfig, DlqWorkerHandle, HandlerFn, OperationRouter};
-pub use retry::{with_retry, with_retry_nagual, with_retry_policy, AlwaysRetry, CustomRetryCondition, DefaultRetryCondition, NeverRetry, RetryCondition, RetryPolicy};
+pub use dlq_worker::{
+    DlqStorage, DlqWorker, DlqWorkerConfig, DlqWorkerHandle, HandlerFn, OperationRouter,
+};
+pub use retry::{
+    with_retry, with_retry_nagual, with_retry_policy, AlwaysRetry, CustomRetryCondition,
+    DefaultRetryCondition, NeverRetry, RetryCondition, RetryPolicy,
+};
 
 use thiserror::Error;
 
@@ -190,7 +198,10 @@ pub enum CoordinationError {
 pub enum CircuitBreakerError {
     /// Circuit is open, requests are being rejected
     #[error("Circuit breaker open for service '{service}', will retry after {retry_after_ms}ms")]
-    Open { service: String, retry_after_ms: u64 },
+    Open {
+        service: String,
+        retry_after_ms: u64,
+    },
 
     /// Circuit is half-open, limited requests allowed
     #[error("Circuit breaker half-open for service '{service}'")]
@@ -230,10 +241,7 @@ pub enum DlqError {
 
     /// Operation was abandoned after too many attempts
     #[error("Operation '{operation_id}' abandoned after {attempts} attempts")]
-    Abandoned {
-        operation_id: String,
-        attempts: u32,
-    },
+    Abandoned { operation_id: String, attempts: u32 },
 
     /// DLQ database error
     #[error("DLQ database error: {0}")]
@@ -305,8 +313,7 @@ impl DatabaseError {
     pub fn is_retryable(&self) -> bool {
         matches!(
             self,
-            DatabaseError::PoolExhausted
-                | DatabaseError::Timeout { .. }
+            DatabaseError::PoolExhausted | DatabaseError::Timeout { .. }
         )
     }
 
@@ -314,8 +321,7 @@ impl DatabaseError {
     pub fn is_transient(&self) -> bool {
         matches!(
             self,
-            DatabaseError::PoolExhausted
-                | DatabaseError::Timeout { .. }
+            DatabaseError::PoolExhausted | DatabaseError::Timeout { .. }
         )
     }
 }

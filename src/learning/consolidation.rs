@@ -230,9 +230,15 @@ impl LowRewardRecommendation {
     /// Get a description of the recommendation.
     pub fn description(&self) -> &'static str {
         match self {
-            Self::Review => "Manual review recommended to understand why pattern is underperforming",
-            Self::Retry => "Pattern may work in different contexts; consider retry with modifications",
-            Self::Archive => "Pattern should be archived - kept for reference but not actively used",
+            Self::Review => {
+                "Manual review recommended to understand why pattern is underperforming"
+            }
+            Self::Retry => {
+                "Pattern may work in different contexts; consider retry with modifications"
+            }
+            Self::Archive => {
+                "Pattern should be archived - kept for reference but not actively used"
+            }
             Self::Delete => "Pattern provides no value and should be deleted",
             Self::NeedsMoreData => "Insufficient usage data; continue monitoring before deciding",
         }
@@ -301,20 +307,12 @@ pub async fn find_low_reward_patterns(
         let success_rate = if success { 1.0 } else { 0.0 };
 
         // Determine recommendation based on pattern characteristics
-        let recommendation = determine_low_reward_recommendation(
-            reward,
-            effectiveness,
-            reuse_count,
-            success_rate,
-        );
+        let recommendation =
+            determine_low_reward_recommendation(reward, effectiveness, reuse_count, success_rate);
 
         // Analyze possible reasons
-        let possible_reasons = analyze_low_reward_reasons(
-            reward,
-            effectiveness,
-            reuse_count,
-            success_rate,
-        );
+        let possible_reasons =
+            analyze_low_reward_reasons(reward, effectiveness, reuse_count, success_rate);
 
         reports.push(LowRewardPatternReport {
             pattern_id: PatternId::from_string(id),
@@ -383,15 +381,21 @@ fn analyze_low_reward_reasons(
     }
 
     if effectiveness < 0.3 {
-        reasons.push("Low effectiveness suggests pattern may be outdated or context-specific".to_string());
+        reasons.push(
+            "Low effectiveness suggests pattern may be outdated or context-specific".to_string(),
+        );
     }
 
     if usage_count > 10 && reward < 0.3 {
-        reasons.push("Consistently low reward across many uses indicates fundamental issues".to_string());
+        reasons.push(
+            "Consistently low reward across many uses indicates fundamental issues".to_string(),
+        );
     }
 
     if effectiveness > 0.6 && reward < 0.4 {
-        reasons.push("High effectiveness but low reward may indicate user preference issues".to_string());
+        reasons.push(
+            "High effectiveness but low reward may indicate user preference issues".to_string(),
+        );
     }
 
     if reasons.is_empty() {
@@ -501,7 +505,14 @@ pub async fn find_stale_patterns(
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now());
 
-            Ok((id, reuse_count as u32, reward as f32, created_at, updated_at, problem))
+            Ok((
+                id,
+                reuse_count as u32,
+                reward as f32,
+                created_at,
+                updated_at,
+                problem,
+            ))
         })
         .await?;
 
@@ -615,11 +626,7 @@ pub async fn archive_pattern(
     }
 
     // Add archive note to critique
-    let archive_note = format!(
-        "[ARCHIVED: {}] {}",
-        Utc::now().format("%Y-%m-%d"),
-        reason
-    );
+    let archive_note = format!("[ARCHIVED: {}] {}", Utc::now().format("%Y-%m-%d"), reason);
 
     let current_critique = updated.critique();
     let new_critique = if current_critique.is_empty() {
@@ -735,7 +742,8 @@ pub async fn consolidate_patterns(
 
                 // Apply changes if not dry run
                 if !config.dry_run {
-                    if let Err(e) = apply_consolidation(storage, &consolidated_group, config).await {
+                    if let Err(e) = apply_consolidation(storage, &consolidated_group, config).await
+                    {
                         result.errors.push(format!(
                             "Failed to apply consolidation for group with primary {}: {}",
                             consolidated_group.primary_id, e
@@ -905,12 +913,8 @@ fn merge_pattern_group(
         RewardMergeStrategy::Average => {
             patterns.iter().map(|p| p.reward()).sum::<f32>() / patterns.len() as f32
         }
-        RewardMergeStrategy::Maximum => {
-            patterns.iter().map(|p| p.reward()).fold(0.0_f32, f32::max)
-        }
-        RewardMergeStrategy::Minimum => {
-            patterns.iter().map(|p| p.reward()).fold(1.0_f32, f32::min)
-        }
+        RewardMergeStrategy::Maximum => patterns.iter().map(|p| p.reward()).fold(0.0_f32, f32::max),
+        RewardMergeStrategy::Minimum => patterns.iter().map(|p| p.reward()).fold(1.0_f32, f32::min),
         RewardMergeStrategy::WeightedByUsage => {
             let total_usage: f32 = patterns.iter().map(|p| p.reuse_count() as f32).sum();
             if total_usage == 0.0 {
@@ -1162,9 +1166,15 @@ mod tests {
 
     #[test]
     fn test_low_reward_recommendation_description() {
-        assert!(LowRewardRecommendation::Review.description().contains("review"));
-        assert!(LowRewardRecommendation::Archive.description().contains("archived"));
-        assert!(LowRewardRecommendation::Delete.description().contains("deleted"));
+        assert!(LowRewardRecommendation::Review
+            .description()
+            .contains("review"));
+        assert!(LowRewardRecommendation::Archive
+            .description()
+            .contains("archived"));
+        assert!(LowRewardRecommendation::Delete
+            .description()
+            .contains("deleted"));
     }
 
     #[test]

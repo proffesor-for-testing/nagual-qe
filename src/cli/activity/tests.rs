@@ -37,12 +37,18 @@ fn test_parse_ingest() {
 #[test]
 fn test_parse_ingest_with_filters() {
     let args = vec![
-        "test", "activity", "ingest",
-        "--since", "1d",
-        "--content-type", "ocr",
-        "--app-name", "VS Code",
+        "test",
+        "activity",
+        "ingest",
+        "--since",
+        "1d",
+        "--content-type",
+        "ocr",
+        "--app-name",
+        "VS Code",
         "--focused-only",
-        "--min-length", "100",
+        "--min-length",
+        "100",
     ];
     assert!(TestCli::try_parse_from(args).is_ok());
 }
@@ -50,20 +56,20 @@ fn test_parse_ingest_with_filters() {
 #[test]
 fn test_parse_ingest_input_content_type() {
     let args = vec![
-        "test", "activity", "ingest",
-        "--since", "1h",
-        "--content-type", "input",
+        "test",
+        "activity",
+        "ingest",
+        "--since",
+        "1h",
+        "--content-type",
+        "input",
     ];
     assert!(TestCli::try_parse_from(args).is_ok());
 }
 
 #[test]
 fn test_parse_ingest_with_embed() {
-    let args = vec![
-        "test", "activity", "ingest",
-        "--since", "1h",
-        "--embed",
-    ];
+    let args = vec!["test", "activity", "ingest", "--since", "1h", "--embed"];
     assert!(TestCli::try_parse_from(args).is_ok());
 }
 
@@ -76,9 +82,7 @@ fn test_parse_summary() {
 #[test]
 fn test_parse_summary_with_domain() {
     let args = vec![
-        "test", "activity", "summary",
-        "--period", "7d",
-        "--domain", "coding",
+        "test", "activity", "summary", "--period", "7d", "--domain", "coding",
     ];
     assert!(TestCli::try_parse_from(args).is_ok());
 }
@@ -86,9 +90,13 @@ fn test_parse_summary_with_domain() {
 #[test]
 fn test_parse_search() {
     let args = vec![
-        "test", "activity", "search",
-        "--query", "rust async",
-        "--limit", "5",
+        "test",
+        "activity",
+        "search",
+        "--query",
+        "rust async",
+        "--limit",
+        "5",
     ];
     assert!(TestCli::try_parse_from(args).is_ok());
 }
@@ -96,13 +104,20 @@ fn test_parse_search() {
 #[test]
 fn test_parse_search_with_filters() {
     let args = vec![
-        "test", "activity", "search",
-        "--query", "debugging",
-        "--since", "1d",
-        "--app-name", "Code",
-        "--window-name", "nagual",
+        "test",
+        "activity",
+        "search",
+        "--query",
+        "debugging",
+        "--since",
+        "1d",
+        "--app-name",
+        "Code",
+        "--window-name",
+        "nagual",
         "--focused-only",
-        "--min-length", "20",
+        "--min-length",
+        "20",
     ];
     assert!(TestCli::try_parse_from(args).is_ok());
 }
@@ -110,10 +125,14 @@ fn test_parse_search_with_filters() {
 #[test]
 fn test_parse_search_semantic() {
     let args = vec![
-        "test", "activity", "search",
-        "--query", "debugging memory leak",
+        "test",
+        "activity",
+        "search",
+        "--query",
+        "debugging memory leak",
         "--semantic",
-        "--threshold", "0.3",
+        "--threshold",
+        "0.3",
     ];
     assert!(TestCli::try_parse_from(args).is_ok());
 }
@@ -121,8 +140,11 @@ fn test_parse_search_semantic() {
 #[test]
 fn test_parse_search_keyword() {
     let args = vec![
-        "test", "activity", "search",
-        "--query", "fn main",
+        "test",
+        "activity",
+        "search",
+        "--query",
+        "fn main",
         "--keyword",
     ];
     assert!(TestCli::try_parse_from(args).is_ok());
@@ -245,8 +267,14 @@ fn test_resolve_screenpipe_url_explicit() {
 #[test]
 fn test_parse_tags_add() {
     let args = vec![
-        "test", "activity", "tags", "add",
-        "vision", "123", "important", "review",
+        "test",
+        "activity",
+        "tags",
+        "add",
+        "vision",
+        "123",
+        "important",
+        "review",
     ];
     assert!(TestCli::try_parse_from(args).is_ok());
 }
@@ -254,8 +282,7 @@ fn test_parse_tags_add() {
 #[test]
 fn test_parse_tags_remove() {
     let args = vec![
-        "test", "activity", "tags", "remove",
-        "audio", "456", "draft",
+        "test", "activity", "tags", "remove", "audio", "456", "draft",
     ];
     assert!(TestCli::try_parse_from(args).is_ok());
 }
@@ -274,10 +301,7 @@ fn test_parse_speakers_list_unnamed() {
 
 #[test]
 fn test_parse_speakers_list_by_name() {
-    let args = vec![
-        "test", "activity", "speakers", "list",
-        "--name", "Alice",
-    ];
+    let args = vec!["test", "activity", "speakers", "list", "--name", "Alice"];
     assert!(TestCli::try_parse_from(args).is_ok());
 }
 
@@ -301,16 +325,23 @@ fn test_parse_speakers_merge() {
 
 #[test]
 fn test_parse_speakers_similar() {
-    let args = vec!["test", "activity", "speakers", "similar", "2", "--limit", "5"];
+    let args = vec![
+        "test", "activity", "speakers", "similar", "2", "--limit", "5",
+    ];
     assert!(TestCli::try_parse_from(args).is_ok());
 }
 
 #[test]
 fn test_parse_events_search() {
     let args = vec![
-        "test", "activity", "events", "search",
-        "--event-type", "click",
-        "--since", "1h",
+        "test",
+        "activity",
+        "events",
+        "search",
+        "--event-type",
+        "click",
+        "--since",
+        "1h",
     ];
     assert!(TestCli::try_parse_from(args).is_ok());
 }
@@ -318,10 +349,16 @@ fn test_parse_events_search() {
 #[test]
 fn test_parse_events_search_by_app() {
     let args = vec![
-        "test", "activity", "events", "search",
-        "--app-name", "Code",
-        "--since", "1d",
-        "--limit", "20",
+        "test",
+        "activity",
+        "events",
+        "search",
+        "--app-name",
+        "Code",
+        "--since",
+        "1d",
+        "--limit",
+        "20",
     ];
     assert!(TestCli::try_parse_from(args).is_ok());
 }

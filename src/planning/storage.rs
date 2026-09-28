@@ -92,17 +92,15 @@ impl PlanStorage {
                 Ok(())
             }
             StorageBackend::Sqlite(db) => {
-                let goal_json = serde_json::to_string(&plan.goal).map_err(|e| {
-                    NagualError::Internal {
+                let goal_json =
+                    serde_json::to_string(&plan.goal).map_err(|e| NagualError::Internal {
                         message: format!("Failed to serialize goal: {}", e),
-                    }
-                })?;
+                    })?;
 
-                let actions_json = serde_json::to_string(&plan.actions).map_err(|e| {
-                    NagualError::Internal {
+                let actions_json =
+                    serde_json::to_string(&plan.actions).map_err(|e| NagualError::Internal {
                         message: format!("Failed to serialize actions: {}", e),
-                    }
-                })?;
+                    })?;
 
                 let status_str = format!("{}", plan.status);
                 let created_at_str = plan.created_at.to_rfc3339();
@@ -193,11 +191,9 @@ impl PlanStorage {
                             }
                         })?;
 
-                        let actions: Vec<PlannedAction> =
-                            serde_json::from_str(&actions_json).map_err(|e| {
-                                NagualError::Internal {
-                                    message: format!("Failed to deserialize actions: {}", e),
-                                }
+                        let actions: Vec<PlannedAction> = serde_json::from_str(&actions_json)
+                            .map_err(|e| NagualError::Internal {
+                                message: format!("Failed to deserialize actions: {}", e),
                             })?;
 
                         let status = Self::parse_status(&status_str);
@@ -210,7 +206,8 @@ impl PlanStorage {
                             goal,
                             actions,
                             total_cost,
-                            estimated_duration_seconds: estimated_duration_seconds.map(|d| d as u64),
+                            estimated_duration_seconds: estimated_duration_seconds
+                                .map(|d| d as u64),
                             status,
                             current_step: current_step as usize,
                             created_at,
@@ -282,7 +279,8 @@ impl PlanStorage {
                             goal,
                             actions,
                             total_cost,
-                            estimated_duration_seconds: estimated_duration_seconds.map(|d| d as u64),
+                            estimated_duration_seconds: estimated_duration_seconds
+                                .map(|d| d as u64),
                             status,
                             current_step: current_step as usize,
                             created_at,
@@ -361,7 +359,8 @@ impl PlanStorage {
                             goal,
                             actions,
                             total_cost,
-                            estimated_duration_seconds: estimated_duration_seconds.map(|d| d as u64),
+                            estimated_duration_seconds: estimated_duration_seconds
+                                .map(|d| d as u64),
                             status,
                             current_step: current_step as usize,
                             created_at,
@@ -469,11 +468,9 @@ impl PlanStorage {
                             }
                         })?;
 
-                        let actions: Vec<PlannedAction> =
-                            serde_json::from_str(&actions_json).map_err(|e| {
-                                NagualError::Internal {
-                                    message: format!("Failed to deserialize actions: {}", e),
-                                }
+                        let actions: Vec<PlannedAction> = serde_json::from_str(&actions_json)
+                            .map_err(|e| NagualError::Internal {
+                                message: format!("Failed to deserialize actions: {}", e),
                             })?;
 
                         let status = Self::parse_status(&status_str);
@@ -486,7 +483,8 @@ impl PlanStorage {
                             goal,
                             actions,
                             total_cost,
-                            estimated_duration_seconds: estimated_duration_seconds.map(|d| d as u64),
+                            estimated_duration_seconds: estimated_duration_seconds
+                                .map(|d| d as u64),
                             status,
                             current_step: current_step as usize,
                             created_at,

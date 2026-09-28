@@ -224,14 +224,22 @@ pub struct AuditEntryBuilder {
 
 impl AuditEntryBuilder {
     /// Create a new audit entry builder.
-    pub fn new(event_type: AuditEventType, user_id: impl Into<String>, action: impl Into<String>) -> Self {
+    pub fn new(
+        event_type: AuditEventType,
+        user_id: impl Into<String>,
+        action: impl Into<String>,
+    ) -> Self {
         Self {
             entry: AuditEntry::new(event_type, user_id, action),
         }
     }
 
     /// Set the resource being accessed.
-    pub fn resource(mut self, resource_type: impl Into<String>, resource_id: impl Into<String>) -> Self {
+    pub fn resource(
+        mut self,
+        resource_type: impl Into<String>,
+        resource_id: impl Into<String>,
+    ) -> Self {
         self.entry.resource_type = Some(resource_type.into());
         self.entry.resource_id = Some(resource_id.into());
         self
@@ -269,7 +277,9 @@ impl AuditEntryBuilder {
 
     /// Add metadata.
     pub fn metadata(mut self, key: impl Into<String>, value: serde_json::Value) -> Self {
-        self.entry.metadata.insert(key.into(), sanitize_for_audit(value));
+        self.entry
+            .metadata
+            .insert(key.into(), sanitize_for_audit(value));
         self
     }
 
@@ -642,8 +652,8 @@ impl AuditLogger {
             AuditEventType::AuthFailure
         };
 
-        let mut builder = AuditEntryBuilder::new(event_type, user_id, "authenticate")
-            .outcome(if success {
+        let mut builder =
+            AuditEntryBuilder::new(event_type, user_id, "authenticate").outcome(if success {
                 AuditOutcome::Success
             } else {
                 AuditOutcome::Failure
@@ -719,7 +729,9 @@ impl AuditLogger {
         self.sender
             .send(AuditMessage::Shutdown)
             .await
-            .map_err(|e| NagualError::internal(format!("Failed to send shutdown message: {}", e)))?;
+            .map_err(|e| {
+                NagualError::internal(format!("Failed to send shutdown message: {}", e))
+            })?;
         Ok(())
     }
 

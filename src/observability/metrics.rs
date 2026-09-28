@@ -10,9 +10,9 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn, instrument};
+use tracing::{debug, info, instrument, warn};
 
 use crate::error::{DatabaseError, Result};
 
@@ -225,10 +225,7 @@ impl MetricsCollector {
         *value += amount;
 
         // Also record as a metric
-        self.record(
-            SystemMetric::new(name, *value)
-                .with_tag("type", "counter"),
-        );
+        self.record(SystemMetric::new(name, *value).with_tag("type", "counter"));
     }
 
     /// Set a gauge value.
@@ -238,10 +235,7 @@ impl MetricsCollector {
             gauges.insert(name.to_string(), value);
         }
 
-        self.record(
-            SystemMetric::new(name, value)
-                .with_tag("type", "gauge"),
-        );
+        self.record(SystemMetric::new(name, value).with_tag("type", "gauge"));
     }
 
     /// Record a timer measurement (in milliseconds).
@@ -354,22 +348,19 @@ impl MetricsCollector {
                 .map_err(DatabaseError::from)?;
 
             let metrics = stmt
-                .query_map(
-                    params![name, from.to_rfc3339(), to.to_rfc3339()],
-                    |row| {
-                        let tags_json: String = row.get(3)?;
-                        let timestamp_str: String = row.get(4)?;
-                        Ok(SystemMetric {
-                            id: Some(row.get(0)?),
-                            name: row.get(1)?,
-                            value: row.get(2)?,
-                            tags: SystemMetric::parse_tags_json(&tags_json),
-                            timestamp: DateTime::parse_from_rfc3339(&timestamp_str)
-                                .map(|dt| dt.with_timezone(&Utc))
-                                .unwrap_or_else(|_| Utc::now()),
-                        })
-                    },
-                )
+                .query_map(params![name, from.to_rfc3339(), to.to_rfc3339()], |row| {
+                    let tags_json: String = row.get(3)?;
+                    let timestamp_str: String = row.get(4)?;
+                    Ok(SystemMetric {
+                        id: Some(row.get(0)?),
+                        name: row.get(1)?,
+                        value: row.get(2)?,
+                        tags: SystemMetric::parse_tags_json(&tags_json),
+                        timestamp: DateTime::parse_from_rfc3339(&timestamp_str)
+                            .map(|dt| dt.with_timezone(&Utc))
+                            .unwrap_or_else(|_| Utc::now()),
+                    })
+                })
                 .map_err(DatabaseError::from)?;
 
             let mut results = Vec::new();
@@ -569,8 +560,7 @@ mod tests {
 
     #[test]
     fn test_metric_tags_json() {
-        let metric = SystemMetric::new("test", 1.0)
-            .with_tag("key", "value");
+        let metric = SystemMetric::new("test", 1.0).with_tag("key", "value");
 
         let json = metric.tags_json();
         assert!(json.contains("key"));

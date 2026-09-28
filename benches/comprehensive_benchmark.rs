@@ -14,9 +14,7 @@
 //! cargo bench --bench comprehensive_benchmark
 //! ```
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use instant_distance::{Builder as HnswBuilder, HnswMap, Search};
 use rand::prelude::*;
 use std::collections::HashMap;
@@ -216,9 +214,17 @@ fn simulate_injection(patterns: &[Vec<f32>], _token_budget: usize) -> String {
     output.push_str("<e_nagual confidence=\"0.85\">\n");
 
     for (i, pattern) in patterns.iter().enumerate() {
-        output.push_str(&format!("  <pattern id=\"{}\" dim=\"{}\">\n", i, pattern.len()));
+        output.push_str(&format!(
+            "  <pattern id=\"{}\" dim=\"{}\">\n",
+            i,
+            pattern.len()
+        ));
         // Simulate formatting a subset of the embedding
-        let preview: Vec<String> = pattern.iter().take(8).map(|v| format!("{:.4}", v)).collect();
+        let preview: Vec<String> = pattern
+            .iter()
+            .take(8)
+            .map(|v| format!("{:.4}", v))
+            .collect();
         output.push_str(&format!("    [{}]\n", preview.join(", ")));
         output.push_str("  </pattern>\n");
     }
@@ -476,18 +482,14 @@ fn bench_profdag_light_cone(c: &mut Criterion) {
 
     for &depth in &[1, 2, 3, 5, 8] {
         group.throughput(Throughput::Elements(1));
-        group.bench_with_input(
-            BenchmarkId::new("depth", depth),
-            &depth,
-            |b, &depth| {
-                let mut ci = 0;
-                b.iter(|| {
-                    let center = center_nodes[ci % center_nodes.len()];
-                    ci += 1;
-                    black_box(simulate_light_cone(&adjacency, center, depth))
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("depth", depth), &depth, |b, &depth| {
+            let mut ci = 0;
+            b.iter(|| {
+                let center = center_nodes[ci % center_nodes.len()];
+                ci += 1;
+                black_box(simulate_light_cone(&adjacency, center, depth))
+            })
+        });
     }
 
     group.finish();

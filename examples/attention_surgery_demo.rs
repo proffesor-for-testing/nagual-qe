@@ -76,9 +76,12 @@ fn main() {
     let surgery = AttentionSurgery::new(config);
     let model_config = ModelConfig::llama_7b();
 
-    println!("\n  Model: {} ({} layers, {} heads, head_dim {})",
-        model_config.model_type, model_config.num_layers,
-        model_config.num_heads, model_config.head_dim
+    println!(
+        "\n  Model: {} ({} layers, {} heads, head_dim {})",
+        model_config.model_type,
+        model_config.num_layers,
+        model_config.num_heads,
+        model_config.head_dim
     );
 
     // ---------------------------------------------------------------
@@ -109,7 +112,10 @@ fn main() {
     println!("  Total bias norm:        {:.4}", impact.total_bias_norm);
     println!("  Affected layers:        {}", impact.affected_layers);
     println!("  Affected heads:         {}", impact.affected_heads);
-    println!("  Est. KL divergence:     {:.6}", impact.estimated_kl_divergence);
+    println!(
+        "  Est. KL divergence:     {:.6}",
+        impact.estimated_kl_divergence
+    );
     println!("  Risk level:             {}", impact.risk_level);
 
     if impact.risk_level <= RiskLevel::Medium {
@@ -124,9 +130,11 @@ fn main() {
     println!("\n--- Step 5: Simulating inference with hooks ---\n");
 
     let e_nagual_hook = ENagualHook::new(
-        AttentionSurgery::new(AttentionSurgeryConfig::builder()
-            .with_warmup_tokens(0) // no warmup for demo
-            .build()),
+        AttentionSurgery::new(
+            AttentionSurgeryConfig::builder()
+                .with_warmup_tokens(0) // no warmup for demo
+                .build(),
+        ),
         biases,
     );
 
@@ -176,7 +184,8 @@ fn main() {
     ];
     let query_embedding = vec![0.9, 0.1, 0.0, 0.0];
 
-    let attention_weights = surgery.compute_pattern_attention(&pattern_embeddings, &query_embedding);
+    let attention_weights =
+        surgery.compute_pattern_attention(&pattern_embeddings, &query_embedding);
 
     for (i, w) in attention_weights.iter().enumerate() {
         println!("  Pattern {}: attention weight = {:.4}", i, w);

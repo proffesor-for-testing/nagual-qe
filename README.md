@@ -101,7 +101,28 @@ asciinema rec demo.cast -c 'bash scripts/demo.sh'
 
 ## Quick start
 
-### macOS
+### Fastest path — no ONNX Runtime, no model files
+
+Needs only Rust and a C toolchain. Uses the built-in hash embedder (deterministic SHAKE-256,
+128-dim) instead of the ONNX sentence model, and includes the dashboard. This is the build the
+[HUSTEF 2026 masterclass](https://github.com/proffesor-for-testing/hustef-2026-memory-masterclass)
+devcontainer uses.
+
+```bash
+git clone https://github.com/proffesor-for-testing/nagual-qe
+cd nagual-qe
+cargo build --release --no-default-features --features "kos serve"
+cp target/release/nagual ~/.local/bin/
+
+nagual status --db-path ./nagual.db
+nagual knowledge import --seed seeds/qe-seed-v1.jsonl --db-path ./nagual.db   # optional QE seed
+```
+
+Semantic search quality is lower than with ONNX embeddings (hash vectors are not semantic);
+full-text search, the learning loop, scoring and the dashboard behave the same. Don't mix
+hash and ONNX embeddings in one database.
+
+### macOS (with ONNX embeddings)
 
 ```bash
 # Prereqs: Rust, ONNX Runtime
@@ -120,7 +141,7 @@ nagual knowledge store "Flaky test caused by async race" \
 nagual knowledge search "flaky async"
 ```
 
-### Linux (Debian/Ubuntu)
+### Linux (Debian/Ubuntu, with ONNX embeddings)
 
 ```bash
 # Prereqs
@@ -144,7 +165,7 @@ cargo build --release --no-default-features --features kos
 ### Run the dashboard
 
 ```bash
-cargo build --release --features serve
+cargo build --release --features serve          # or: --no-default-features --features "kos serve"
 nagual serve --port 3333
 # open http://localhost:3333
 ```
@@ -172,7 +193,10 @@ nagual serve --port 3333
 No data ever leaves your machine unless you explicitly enable cloud sync.
 When you do, the PII redactor strips 12 classes of sensitive strings
 (paths, IPs, emails, API keys, SSH keys, JWTs, phone numbers, etc.) before
-any write to PostgreSQL or any outbound HTTP call.
+any write to PostgreSQL or any outbound HTTP call. The same redactor runs on the
+`nagual serve` read path (`/api` search, get and list responses), so a secret stored
+locally is not handed to an agent through an ordinary search. The local SQLite file
+itself is never rewritten.
 
 ---
 

@@ -93,8 +93,7 @@ pub fn write_export(export: &PatternExport, path: &Path) -> std::io::Result<()> 
 /// Read a pattern export from a file.
 pub fn read_export(path: &Path) -> std::io::Result<PatternExport> {
     let json = std::fs::read_to_string(path)?;
-    serde_json::from_str(&json)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+    serde_json::from_str(&json).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
 }
 
 #[cfg(test)]

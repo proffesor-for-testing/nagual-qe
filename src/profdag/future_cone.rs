@@ -100,12 +100,7 @@ impl FutureConeConfig {
     }
 
     /// Set weight factors.
-    pub fn with_weights(
-        mut self,
-        recency: f32,
-        success_rate: f32,
-        confidence: f32,
-    ) -> Self {
+    pub fn with_weights(mut self, recency: f32, success_rate: f32, confidence: f32) -> Self {
         // Normalize weights
         let total = recency + success_rate + confidence;
         if total > 0.0 {
@@ -368,8 +363,7 @@ impl FutureCone {
                     if existing.probability < prediction.probability {
                         let lowest_id = lowest.clone();
                         self.predictions.remove(&lowest_id);
-                        self.sorted_predictions
-                            .retain(|id| id != &lowest_id);
+                        self.sorted_predictions.retain(|id| id != &lowest_id);
                     } else {
                         return; // New prediction is lower than all existing
                     }
@@ -389,7 +383,11 @@ impl FutureCone {
                     .get(id)
                     .map(|p| p.probability)
                     .unwrap_or(0.0)
-                    < self.predictions.get(&node_id).map(|p| p.probability).unwrap_or(0.0)
+                    < self
+                        .predictions
+                        .get(&node_id)
+                        .map(|p| p.probability)
+                        .unwrap_or(0.0)
             })
             .unwrap_or(self.sorted_predictions.len());
 
@@ -425,7 +423,10 @@ impl FutureCone {
             return 0.0;
         }
 
-        self.predictions.values().map(|p| p.probability).sum::<f32>()
+        self.predictions
+            .values()
+            .map(|p| p.probability)
+            .sum::<f32>()
             / self.predictions.len() as f32
     }
 
@@ -438,9 +439,7 @@ impl FutureCone {
         let mut results: Vec<PredictedOutcome> = self
             .predictions
             .values()
-            .filter(|p| {
-                p.source_patterns.contains(&node_id.to_string()) || node_id == self.center
-            })
+            .filter(|p| p.source_patterns.contains(&node_id.to_string()) || node_id == self.center)
             .cloned()
             .collect();
 
@@ -475,7 +474,10 @@ impl FutureCone {
 
     /// Get likely predictions (probability > 0.5).
     pub fn likely_predictions(&self) -> Vec<&PredictedOutcome> {
-        self.predictions.values().filter(|p| p.is_likely()).collect()
+        self.predictions
+            .values()
+            .filter(|p| p.is_likely())
+            .collect()
     }
 
     /// Add a prediction cluster.
@@ -489,11 +491,7 @@ impl FutureCone {
     }
 
     /// Get predictions within a timeline range.
-    pub fn predictions_in_timeline(
-        &self,
-        min_days: u32,
-        max_days: u32,
-    ) -> Vec<&PredictedOutcome> {
+    pub fn predictions_in_timeline(&self, min_days: u32, max_days: u32) -> Vec<&PredictedOutcome> {
         self.predictions
             .values()
             .filter(|p| p.timeline_min_days <= max_days && p.timeline_max_days >= min_days)

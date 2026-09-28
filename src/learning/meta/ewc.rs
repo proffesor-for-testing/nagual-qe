@@ -138,7 +138,8 @@ impl EwcEngine {
         total_count: u32,
         outcomes: &[bool],
     ) -> PatternImportance {
-        let importance = self.calculate_importance(pattern_id, success_count, total_count, outcomes);
+        let importance =
+            self.calculate_importance(pattern_id, success_count, total_count, outcomes);
         let fisher = self.calculate_fisher_info(outcomes);
 
         let mut cache = self.importance_cache.write();
@@ -184,9 +185,7 @@ impl EwcEngine {
         if let Some(importance) = cache.get(pattern_id) {
             if importance.importance >= self.config.importance_threshold {
                 // EWC penalty formula: λ * F * (Δθ)²
-                let penalty = self.config.lambda
-                    * importance.fisher_info
-                    * proposed_change.powi(2);
+                let penalty = self.config.lambda * importance.fisher_info * proposed_change.powi(2);
 
                 // Convert to dampening factor
                 let dampening = 1.0 / (1.0 + penalty);
@@ -348,13 +347,19 @@ mod tests {
             "test-1",
             90,
             100,
-            &vec![true; 90].into_iter().chain(vec![false; 10]).collect::<Vec<_>>(),
+            &vec![true; 90]
+                .into_iter()
+                .chain(vec![false; 10])
+                .collect::<Vec<_>>(),
         );
         assert!(importance_high > 0.5, "High success should be important");
 
         // Low usage = lower importance
         let importance_low = engine.calculate_importance("test-2", 1, 1, &[true]);
-        assert!(importance_low < importance_high, "Low usage = less important");
+        assert!(
+            importance_low < importance_high,
+            "Low usage = less important"
+        );
     }
 
     #[test]
@@ -370,7 +375,10 @@ mod tests {
             "important-pattern",
             80,
             100,
-            &vec![true; 80].into_iter().chain(vec![false; 20]).collect::<Vec<_>>(),
+            &vec![true; 80]
+                .into_iter()
+                .chain(vec![false; 20])
+                .collect::<Vec<_>>(),
         );
 
         // Large change to important pattern should be dampened
@@ -396,7 +404,10 @@ mod tests {
             "protected",
             90,
             100,
-            &vec![true; 90].into_iter().chain(vec![false; 10]).collect::<Vec<_>>(),
+            &vec![true; 90]
+                .into_iter()
+                .chain(vec![false; 10])
+                .collect::<Vec<_>>(),
         );
 
         // Try to make a large change

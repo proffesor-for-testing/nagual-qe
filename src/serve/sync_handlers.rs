@@ -30,9 +30,10 @@ pub async fn api_sync_push(
     _auth: RequireWrite,
     Json(req): Json<PushRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let storage_mutex = state.storage.as_ref().ok_or_else(|| {
-        NagualError::internal("Storage not initialized")
-    })?;
+    let storage_mutex = state
+        .storage
+        .as_ref()
+        .ok_or_else(|| NagualError::internal("Storage not initialized"))?;
     let storage = storage_mutex.lock().await;
 
     let received = req.patterns.len();
@@ -192,45 +193,42 @@ fn query_patterns_since_blocking(
             rusqlite::params![since_str],
             |row| row.get::<_, i64>(0),
         )
-        .map_err(|e| NagualError::internal(format!("Count query failed: {}", e)))?
-            as usize
+        .map_err(|e| NagualError::internal(format!("Count query failed: {}", e)))? as usize
     } else {
-        conn.query_row(
-            "SELECT COUNT(*) FROM reasoning_patterns",
-            [],
-            |row| row.get::<_, i64>(0),
-        )
-        .map_err(|e| NagualError::internal(format!("Count query failed: {}", e)))?
-            as usize
+        conn.query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .map_err(|e| NagualError::internal(format!("Count query failed: {}", e)))? as usize
     };
 
     // Query patterns
-    let (sql, params): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(ref since) = since {
-        let since_str = since.to_rfc3339();
-        (
-            format!(
-                "SELECT id, problem, solution, context, category, tags, reward, confidence, \
+    let (sql, params): (String, Vec<Box<dyn rusqlite::types::ToSql>>) =
+        if let Some(ref since) = since {
+            let since_str = since.to_rfc3339();
+            (
+                format!(
+                    "SELECT id, problem, solution, context, category, tags, reward, confidence, \
                  success, reuse_count, effectiveness, timestamp, updated_at, agent_id, \
                  session_id, content_hash, critique \
                  FROM reasoning_patterns WHERE updated_at > ? \
                  ORDER BY updated_at ASC LIMIT {} OFFSET {}",
-                limit, offset
-            ),
-            vec![Box::new(since_str) as Box<dyn rusqlite::types::ToSql>],
-        )
-    } else {
-        (
-            format!(
-                "SELECT id, problem, solution, context, category, tags, reward, confidence, \
+                    limit, offset
+                ),
+                vec![Box::new(since_str) as Box<dyn rusqlite::types::ToSql>],
+            )
+        } else {
+            (
+                format!(
+                    "SELECT id, problem, solution, context, category, tags, reward, confidence, \
                  success, reuse_count, effectiveness, timestamp, updated_at, agent_id, \
                  session_id, content_hash, critique \
                  FROM reasoning_patterns \
                  ORDER BY updated_at ASC LIMIT {} OFFSET {}",
-                limit, offset
-            ),
-            vec![],
-        )
-    };
+                    limit, offset
+                ),
+                vec![],
+            )
+        };
 
     let mut stmt = conn
         .prepare(&sql)
@@ -245,7 +243,9 @@ fn query_patterns_since_blocking(
             let solution: String = row.get(2)?;
             let context: String = row.get::<_, Option<String>>(3)?.unwrap_or_default();
             let domain: String = row.get(4)?;
-            let tags_json: String = row.get::<_, Option<String>>(5)?.unwrap_or_else(|| "[]".to_string());
+            let tags_json: String = row
+                .get::<_, Option<String>>(5)?
+                .unwrap_or_else(|| "[]".to_string());
             let reward: f64 = row.get(6)?;
             let confidence: f64 = row.get(7)?;
             let success: bool = row.get::<_, i32>(8)? != 0;
@@ -284,9 +284,7 @@ fn query_patterns_since_blocking(
 
     let mut patterns = Vec::new();
     for row in rows {
-        patterns.push(
-            row.map_err(|e| NagualError::internal(format!("Row parse failed: {}", e)))?,
-        );
+        patterns.push(row.map_err(|e| NagualError::internal(format!("Row parse failed: {}", e)))?);
     }
 
     Ok((patterns, total))

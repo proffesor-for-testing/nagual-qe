@@ -401,8 +401,7 @@ mod tests {
 
     #[test]
     fn test_estimate_timeline_constraints() {
-        let config = TimelineConfig::default()
-            .with_constraints(7, 60); // Floor of 7, ceiling of 60
+        let config = TimelineConfig::default().with_constraints(7, 60); // Floor of 7, ceiling of 60
 
         let times = vec![1, 2, 3, 100, 150, 200];
 
@@ -440,9 +439,8 @@ mod tests {
 
     #[test]
     fn test_timeline_estimator() {
-        let estimator = TimelineEstimator::with_config(
-            TimelineConfig::default().with_percentiles(5.0, 95.0),
-        );
+        let estimator =
+            TimelineEstimator::with_config(TimelineConfig::default().with_percentiles(5.0, 95.0));
 
         let times = vec![7, 14, 21, 28, 35];
         let result = estimator.estimate(&times).unwrap();
@@ -487,10 +485,10 @@ mod tests {
 
         // Various distributions
         let test_cases = vec![
-            vec![1, 1, 1, 1, 1],       // All same
-            vec![1, 10, 100],          // Wide spread
-            vec![30, 31, 32, 33, 34],  // Tight cluster
-            vec![5],                    // Single value
+            vec![1, 1, 1, 1, 1],      // All same
+            vec![1, 10, 100],         // Wide spread
+            vec![30, 31, 32, 33, 34], // Tight cluster
+            vec![5],                  // Single value
         ];
 
         for times in test_cases {

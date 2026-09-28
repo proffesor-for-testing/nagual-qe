@@ -23,9 +23,7 @@ use proptest::prelude::*;
 use serde::{Deserialize, Serialize};
 
 mod common;
-use common::{
-    cosine_similarity, measure_time, normalized_embedding, similar_embeddings,
-};
+use common::{cosine_similarity, measure_time, normalized_embedding, similar_embeddings};
 
 // ============================================================================
 // Integrated Types (Combining Router, E_nagual, ReasoningBank)
@@ -370,8 +368,11 @@ impl InferenceEngine {
 
         // Step 2: Retrieve patterns
         let patterns = if let Some(ref embedding) = request.embedding {
-            self.reasoning_bank
-                .search(embedding, self.config.max_patterns, self.config.min_pattern_similarity)
+            self.reasoning_bank.search(
+                embedding,
+                self.config.max_patterns,
+                self.config.min_pattern_similarity,
+            )
         } else {
             Vec::new()
         };
@@ -390,7 +391,8 @@ impl InferenceEngine {
 
         // Update statistics
         self.request_count.fetch_add(1, Ordering::SeqCst);
-        self.total_latency_ms.fetch_add(total_latency_ms, Ordering::SeqCst);
+        self.total_latency_ms
+            .fetch_add(total_latency_ms, Ordering::SeqCst);
 
         let context_tokens: usize = messages.iter().map(|m| m.estimate_tokens()).sum();
         let confidence = if patterns.is_empty() {
@@ -522,11 +524,7 @@ impl InferenceEngine {
 
         EngineStats {
             request_count: count,
-            average_latency_ms: if count > 0 {
-                total_latency / count
-            } else {
-                0
-            },
+            average_latency_ms: if count > 0 { total_latency / count } else { 0 },
         }
     }
 }
@@ -570,7 +568,8 @@ mod e2e_flow_tests {
 
         // Request with similar embedding
         let query_embedding = similar_embeddings(&base_embedding, 1, 0.05)[0].clone();
-        let request = InferenceRequest::new("Another math question").with_embedding(query_embedding);
+        let request =
+            InferenceRequest::new("Another math question").with_embedding(query_embedding);
 
         let response = engine.infer(&request);
 
@@ -621,8 +620,7 @@ mod e2e_flow_tests {
     fn test_inference_session_context() {
         let engine = InferenceEngine::new(InferenceConfig::default());
 
-        let request = InferenceRequest::new("Query")
-            .with_session("session-123".to_string());
+        let request = InferenceRequest::new("Query").with_session("session-123".to_string());
 
         let response = engine.infer(&request);
 
@@ -652,7 +650,8 @@ mod e2e_flow_tests {
 
         // Step 2: Run inference with related embedding
         let query_embedding = similar_embeddings(&base_embedding, 1, 0.02)[0].clone();
-        let request = InferenceRequest::new("Related problem query").with_embedding(query_embedding);
+        let request =
+            InferenceRequest::new("Related problem query").with_embedding(query_embedding);
 
         let response = engine.infer(&request);
 
@@ -764,8 +763,8 @@ mod data_flow_tests {
         let base_embedding = normalized_embedding(128);
         for i in 0..10 {
             let emb = similar_embeddings(&base_embedding, 1, 0.05)[0].clone();
-            let pattern = Pattern::new(&format!("P{}", i), &format!("S{}", i), "d")
-                .with_embedding(emb);
+            let pattern =
+                Pattern::new(&format!("P{}", i), &format!("S{}", i), "d").with_embedding(emb);
             engine.reasoning_bank().add_pattern(pattern);
         }
 
@@ -789,8 +788,8 @@ mod performance_tests {
         let engine = InferenceEngine::new(InferenceConfig::default());
 
         for _ in 0..10 {
-            let request = InferenceRequest::new("Test query")
-                .with_embedding(normalized_embedding(128));
+            let request =
+                InferenceRequest::new("Test query").with_embedding(normalized_embedding(128));
 
             let response = engine.infer(&request);
 
@@ -818,8 +817,8 @@ mod performance_tests {
         let base_embedding = normalized_embedding(128);
         for i in 0..20 {
             let emb = similar_embeddings(&base_embedding, 1, 0.1)[0].clone();
-            let pattern = Pattern::new(&format!("P{}", i), &format!("S{}", i), "d")
-                .with_embedding(emb);
+            let pattern =
+                Pattern::new(&format!("P{}", i), &format!("S{}", i), "d").with_embedding(emb);
             engine.reasoning_bank().add_pattern(pattern);
         }
 
@@ -858,8 +857,8 @@ mod performance_tests {
         let base_embedding = normalized_embedding(128);
         for i in 0..10 {
             let emb = similar_embeddings(&base_embedding, 1, 0.1)[0].clone();
-            let pattern = Pattern::new(&format!("P{}", i), &format!("S{}", i), "d")
-                .with_embedding(emb);
+            let pattern =
+                Pattern::new(&format!("P{}", i), &format!("S{}", i), "d").with_embedding(emb);
             engine.reasoning_bank().add_pattern(pattern);
         }
 
@@ -897,8 +896,7 @@ mod performance_tests {
 
         // Search should still be fast
         let (_, duration) = measure_time(|| {
-            let request =
-                InferenceRequest::new("Query").with_embedding(normalized_embedding(128));
+            let request = InferenceRequest::new("Query").with_embedding(normalized_embedding(128));
             engine.infer(&request);
         });
 
@@ -925,8 +923,8 @@ mod concurrent_tests {
         let base_embedding = normalized_embedding(128);
         for i in 0..10 {
             let emb = similar_embeddings(&base_embedding, 1, 0.1)[0].clone();
-            let pattern = Pattern::new(&format!("P{}", i), &format!("S{}", i), "d")
-                .with_embedding(emb);
+            let pattern =
+                Pattern::new(&format!("P{}", i), &format!("S{}", i), "d").with_embedding(emb);
             engine.reasoning_bank().add_pattern(pattern);
         }
 
@@ -939,8 +937,9 @@ mod concurrent_tests {
             let handle = thread::spawn(move || {
                 for i in 0..25 {
                     let embedding = similar_embeddings(&base_emb, 1, 0.05)[0].clone();
-                    let request = InferenceRequest::new(format!("Thread {} Query {}", thread_id, i))
-                        .with_embedding(embedding);
+                    let request =
+                        InferenceRequest::new(format!("Thread {} Query {}", thread_id, i))
+                            .with_embedding(embedding);
 
                     let response = engine_clone.infer(&request);
                     assert!(!response.response.is_empty());
@@ -1068,7 +1067,8 @@ mod error_handling_tests {
         engine.reasoning_bank().add_pattern(pattern);
 
         // Query with different embedding
-        let different_embedding: Vec<f32> = (0..128).map(|i| if i < 64 { 1.0 } else { -1.0 }).collect();
+        let different_embedding: Vec<f32> =
+            (0..128).map(|i| if i < 64 { 1.0 } else { -1.0 }).collect();
         let request = InferenceRequest::new("Q").with_embedding(different_embedding);
 
         let response = engine.infer(&request);

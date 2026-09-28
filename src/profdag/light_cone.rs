@@ -242,13 +242,11 @@ impl LightCone {
     /// Build the history cone by traversing causal ancestors.
     async fn build_history_cone(&mut self) -> ProfDAGResult<()> {
         // Get the center node
-        let center_node = self
-            .storage
-            .get_node(&self.center)
-            .await?
-            .ok_or_else(|| ProfDAGError::NodeNotFound {
+        let center_node = self.storage.get_node(&self.center).await?.ok_or_else(|| {
+            ProfDAGError::NodeNotFound {
                 id: self.center.clone(),
-            })?;
+            }
+        })?;
 
         // Add center node to history
         let center_temporal = TemporalNode::from_profdag_node(&center_node, 0);
@@ -369,11 +367,10 @@ impl LightCone {
         for node in prediction_nodes {
             // Check if this prediction is related to our center
             if self.is_prediction_relevant(&node).await? {
-                let prediction =
-                    PredictedOutcome::new(node.id.clone(), node.content.clone())
-                        .with_probability(node.confidence)
-                        .with_confidence(node.confidence)
-                        .with_source_pattern(self.center.clone());
+                let prediction = PredictedOutcome::new(node.id.clone(), node.content.clone())
+                    .with_probability(node.confidence)
+                    .with_confidence(node.confidence)
+                    .with_source_pattern(self.center.clone());
 
                 if node.confidence >= self.config.future.probability_threshold {
                     self.future_cone.add_prediction(prediction);
@@ -476,7 +473,11 @@ impl LightCone {
     ///
     /// Returns temporal nodes representing causally connected past events.
     #[instrument(skip(self), fields(node_id = %node_id, depth = depth))]
-    pub async fn what_led_to(&self, node_id: &str, depth: usize) -> ProfDAGResult<Vec<TemporalNode>> {
+    pub async fn what_led_to(
+        &self,
+        node_id: &str,
+        depth: usize,
+    ) -> ProfDAGResult<Vec<TemporalNode>> {
         self.history_cone.trace_back(node_id, depth)
     }
 
@@ -484,10 +485,7 @@ impl LightCone {
     ///
     /// Returns predicted outcomes with probabilities.
     #[instrument(skip(self), fields(node_id = %node_id))]
-    pub async fn what_might_follow(
-        &self,
-        node_id: &str,
-    ) -> ProfDAGResult<Vec<PredictedOutcome>> {
+    pub async fn what_might_follow(&self, node_id: &str) -> ProfDAGResult<Vec<PredictedOutcome>> {
         self.future_cone.predict_outcomes(node_id)
     }
 

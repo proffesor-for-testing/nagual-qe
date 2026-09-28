@@ -30,14 +30,17 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 /// Check ONNX runtime environment before any ort code is touched.
 /// This prevents hangs when ORT_DYLIB_PATH is missing.
+/// Only compiled with `onnx-embed`: hash-embedder builds never load ONNX Runtime, so warning
+/// that "embeddings will not work" there is wrong (and noisy on every command).
+#[cfg(feature = "onnx-embed")]
 fn check_onnx_environment() {
     if std::env::var("ORT_DYLIB_PATH").is_err() {
         // Check common locations
         let common_paths = [
-            "/opt/homebrew/lib/libonnxruntime.dylib",  // macOS ARM
-            "/usr/local/lib/libonnxruntime.dylib",     // macOS Intel
-            "/usr/lib/libonnxruntime.so",              // Linux
-            "/usr/local/lib/libonnxruntime.so",        // Linux alt
+            "/opt/homebrew/lib/libonnxruntime.dylib", // macOS ARM
+            "/usr/local/lib/libonnxruntime.dylib",    // macOS Intel
+            "/usr/lib/libonnxruntime.so",             // Linux
+            "/usr/local/lib/libonnxruntime.so",       // Linux alt
         ];
 
         for path in common_paths {
@@ -61,6 +64,7 @@ fn check_onnx_environment() {
 /// initializing tokio or tracing infrastructure.
 fn main() {
     // Check ONNX environment early to prevent hangs
+    #[cfg(feature = "onnx-embed")]
     check_onnx_environment();
 
     // Parse CLI first - this handles --version and --help early,
@@ -81,9 +85,12 @@ fn main() {
 
 async fn async_main(cli: Cli) -> Result<()> {
     // Initialize tracing
+    // Logs go to stderr so `nagual knowledge search ... | grep` and the dashboard scripts see
+    // only the command's output on stdout. RUST_LOG, when set, fully controls the filter
+    // (previously the hard-coded `nagual=info` directive won over RUST_LOG=error).
     tracing_subscriber::registry()
-        .with(fmt::layer().json())
-        .with(EnvFilter::from_default_env().add_directive("nagual=info".parse().unwrap()))
+        .with(fmt::layer().json().with_writer(std::io::stderr))
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("nagual=info")))
         .init();
 
     match cli.command {

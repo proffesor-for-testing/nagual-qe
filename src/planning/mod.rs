@@ -26,17 +26,17 @@
 //! }
 //! ```
 
-mod types;
-mod planner;
 mod actions;
 mod executor;
-mod storage;
 mod parser;
+mod planner;
+mod storage;
+mod types;
 pub mod workflow;
 
-pub use types::*;
-pub use planner::{GOAPPlanner, PlanningError};
 pub use actions::default_actions;
-pub use executor::{PlanExecutor, ExecutionContext, ExecutionError, ReplanConfig, ReplanResult};
-pub use storage::PlanStorage;
+pub use executor::{ExecutionContext, ExecutionError, PlanExecutor, ReplanConfig, ReplanResult};
 pub use parser::GoalParser;
+pub use planner::{GOAPPlanner, PlanningError};
+pub use storage::PlanStorage;
+pub use types::*;

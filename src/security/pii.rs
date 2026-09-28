@@ -431,13 +431,10 @@ impl PiiDetector {
 
         for current in matches {
             // Check if this match overlaps with any existing result
-            let overlaps_with = result
-                .iter()
-                .position(|existing| {
-                    // Check for overlap
-                    current.range.start < existing.range.end
-                        && current.range.end > existing.range.start
-                });
+            let overlaps_with = result.iter().position(|existing| {
+                // Check for overlap
+                current.range.start < existing.range.end && current.range.end > existing.range.start
+            });
 
             match overlaps_with {
                 Some(idx) => {
@@ -761,10 +758,7 @@ mod tests {
         let detector = PiiDetector::new();
 
         // No PII
-        assert_eq!(
-            detector.classify("Hello, world!"),
-            PiiClassification::None
-        );
+        assert_eq!(detector.classify("Hello, world!"), PiiClassification::None);
 
         // Low (IP)
         assert_eq!(
@@ -882,7 +876,9 @@ mod tests {
         let detector = PiiDetector::new();
         let result = detector.redact("Hello John, your email is test@example.com. Best regards!");
 
-        assert!(result.redacted_text.starts_with("Hello John, your email is "));
+        assert!(result
+            .redacted_text
+            .starts_with("Hello John, your email is "));
         assert!(result.redacted_text.ends_with(". Best regards!"));
         assert!(result.redacted_text.contains("[EMAIL]"));
     }

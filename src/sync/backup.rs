@@ -227,10 +227,7 @@ impl BackupManager {
         }
 
         let timestamp = Utc::now();
-        let backup_filename = format!(
-            "full-{}.db.gz",
-            timestamp.format("%Y%m%d-%H%M%S")
-        );
+        let backup_filename = format!("full-{}.db.gz", timestamp.format("%Y%m%d-%H%M%S"));
         let backup_path = self.config.local_backup_dir.join(&backup_filename);
 
         let mut metadata = BackupMetadata::new(
@@ -253,7 +250,8 @@ impl BackupManager {
 
         // Write to file
         let mut file = File::create(&backup_path).map_err(NagualError::from)?;
-        file.write_all(&compressed_data).map_err(NagualError::from)?;
+        file.write_all(&compressed_data)
+            .map_err(NagualError::from)?;
         file.sync_all().map_err(NagualError::from)?;
 
         // Count records (estimate from file size)
@@ -301,10 +299,7 @@ impl BackupManager {
         }
 
         let timestamp = Utc::now();
-        let backup_filename = format!(
-            "incr-{}.db.gz",
-            timestamp.format("%Y%m%d-%H%M%S")
-        );
+        let backup_filename = format!("incr-{}.db.gz", timestamp.format("%Y%m%d-%H%M%S"));
         let backup_path = self.config.local_backup_dir.join(&backup_filename);
 
         let mut metadata = BackupMetadata::new(
@@ -329,7 +324,8 @@ impl BackupManager {
 
         // Write to file
         let mut file = File::create(&backup_path).map_err(NagualError::from)?;
-        file.write_all(&compressed_data).map_err(NagualError::from)?;
+        file.write_all(&compressed_data)
+            .map_err(NagualError::from)?;
         file.sync_all().map_err(NagualError::from)?;
 
         // Count records
@@ -453,9 +449,9 @@ impl BackupManager {
 
     /// Delete a backup by ID.
     pub async fn delete_backup(&self, backup_id: &str) -> Result<()> {
-        let metadata = self.get_backup(backup_id)?.ok_or_else(|| {
-            NagualError::config(format!("Backup not found: {}", backup_id))
-        })?;
+        let metadata = self
+            .get_backup(backup_id)?
+            .ok_or_else(|| NagualError::config(format!("Backup not found: {}", backup_id)))?;
 
         // Delete local file
         let local_path = PathBuf::from(&metadata.path);
@@ -480,10 +476,8 @@ impl BackupManager {
     // Private helper methods
 
     fn compress_data(&self, data: &[u8]) -> Result<Vec<u8>> {
-        let mut encoder = GzEncoder::new(
-            Vec::new(),
-            Compression::new(self.config.compression_level),
-        );
+        let mut encoder =
+            GzEncoder::new(Vec::new(), Compression::new(self.config.compression_level));
         encoder.write_all(data).map_err(NagualError::from)?;
         encoder.finish().map_err(NagualError::from)
     }
@@ -551,7 +545,9 @@ impl FullBackup {
         if self.config.upload_to_gcloud {
             let local_path = PathBuf::from(&metadata.path);
             let object_name = format!("full/{}", local_path.file_name().unwrap().to_string_lossy());
-            self.adapter.upload_file(&local_path, &object_name).await
+            self.adapter
+                .upload_file(&local_path, &object_name)
+                .await
                 .map_err(|e| NagualError::internal(format!("Upload failed: {}", e)))?;
         }
 
@@ -683,11 +679,7 @@ mod tests {
 
     #[test]
     fn test_backup_metadata_new() {
-        let metadata = BackupMetadata::new(
-            BackupType::Full,
-            "/path/to/db",
-            "/path/to/backup.gz",
-        );
+        let metadata = BackupMetadata::new(BackupType::Full, "/path/to/db", "/path/to/backup.gz");
         assert_eq!(metadata.backup_type, BackupType::Full);
         assert!(!metadata.id.is_empty());
     }
@@ -707,8 +699,7 @@ mod tests {
         let db_path = create_test_db(&temp_dir);
         let backup_dir = temp_dir.path().join("backups");
 
-        let config = BackupConfig::new(&db_path, &backup_dir)
-            .with_compression_level(1);
+        let config = BackupConfig::new(&db_path, &backup_dir).with_compression_level(1);
 
         let mut manager = BackupManager::new(config).unwrap();
         let metadata = manager.create_full_backup().await.unwrap();

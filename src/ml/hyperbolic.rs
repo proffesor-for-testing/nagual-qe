@@ -416,12 +416,7 @@ pub fn euclidean_to_poincare(
 /// x (+)_c y = ((1 + 2c<x,y> + c||y||^2) * x + (1 - c||x||^2) * y)
 ///             / (1 + 2c<x,y> + c^2 * ||x||^2 * ||y||^2)
 /// ```
-fn mobius_add_internal(
-    x: &ArrayView1<f64>,
-    y: &ArrayView1<f64>,
-    c: f64,
-    eps: f64,
-) -> Array1<f64> {
+fn mobius_add_internal(x: &ArrayView1<f64>, y: &ArrayView1<f64>, c: f64, eps: f64) -> Array1<f64> {
     let x_sq = x.dot(x);
     let y_sq = y.dot(y);
     let xy = x.dot(y);
@@ -510,9 +505,7 @@ impl HyperbolicEmbedder {
         depth: f64,
     ) -> MlResult<HyperbolicPoint> {
         if embedding.is_empty() {
-            return Err(MlError::Hyperbolic(
-                "Cannot embed empty vector".to_string(),
-            ));
+            return Err(MlError::Hyperbolic("Cannot embed empty vector".to_string()));
         }
 
         let depth = depth.clamp(0.0, 1.0);
@@ -1103,8 +1096,7 @@ mod hyperbolic_index {
                 .values()
                 .filter(|n| n.point.depth >= min_depth && n.point.depth <= max_depth)
                 .map(|n| {
-                    let dist =
-                        poincare_distance(&query.coords().view(), &n.point.coords().view());
+                    let dist = poincare_distance(&query.coords().view(), &n.point.coords().view());
                     SearchResult {
                         id: n.id.clone(),
                         hyperbolic_distance: dist,
@@ -1148,12 +1140,7 @@ mod hyperbolic_index {
                     .values()
                     .max_by_key(|n| n.layer)
                     .map(|n| n.id.clone());
-                self.max_layer = self
-                    .nodes
-                    .values()
-                    .map(|n| n.layer)
-                    .max()
-                    .unwrap_or(0);
+                self.max_layer = self.nodes.values().map(|n| n.layer).max().unwrap_or(0);
             }
 
             true
@@ -1236,9 +1223,7 @@ mod hyperbolic_index {
         /// Compute Poincare distance to a node by ID.
         fn hyp_dist(&self, query: &HyperbolicPoint, id: &str) -> f64 {
             match self.nodes.get(id) {
-                Some(n) => {
-                    poincare_distance(&query.coords().view(), &n.point.coords().view())
-                }
+                Some(n) => poincare_distance(&query.coords().view(), &n.point.coords().view()),
                 None => f64::MAX,
             }
         }
@@ -1289,8 +1274,7 @@ mod hyperbolic_index {
             ef: usize,
         ) -> Vec<(String, f64)> {
             let mut visited: HashSet<String> = HashSet::new();
-            let mut candidates: BinaryHeap<std::cmp::Reverse<(OrdF64, String)>> =
-                BinaryHeap::new();
+            let mut candidates: BinaryHeap<std::cmp::Reverse<(OrdF64, String)>> = BinaryHeap::new();
             let mut results: BinaryHeap<(OrdF64, String)> = BinaryHeap::new();
 
             let start_dist = self.hyp_dist(query, start);
@@ -1327,10 +1311,8 @@ mod hyperbolic_index {
                             };
 
                             if !dominated {
-                                candidates.push(std::cmp::Reverse((
-                                    OrdF64(d),
-                                    neighbor_id.clone(),
-                                )));
+                                candidates
+                                    .push(std::cmp::Reverse((OrdF64(d), neighbor_id.clone())));
                                 results.push((OrdF64(d), neighbor_id.clone()));
                                 if results.len() > ef {
                                     results.pop(); // Remove worst
@@ -1361,8 +1343,7 @@ mod hyperbolic_index {
                 .values()
                 .filter(|n| n.layer >= layer)
                 .map(|n| {
-                    let d =
-                        poincare_distance(&query.coords().view(), &n.point.coords().view());
+                    let d = poincare_distance(&query.coords().view(), &n.point.coords().view());
                     (n.id.clone(), d)
                 })
                 .collect();
@@ -1377,8 +1358,7 @@ mod hyperbolic_index {
             self.nodes
                 .values()
                 .map(|n| {
-                    let d =
-                        poincare_distance(&query.coords().view(), &n.point.coords().view());
+                    let d = poincare_distance(&query.coords().view(), &n.point.coords().view());
                     (n.id.clone(), d)
                 })
                 .collect()
@@ -1425,8 +1405,8 @@ mod hyperbolic_index {
 }
 
 pub use hyperbolic_index::{
-    HyperbolicIndex, HyperbolicIndexConfig, IndexNode, IndexStats, SearchResult,
-    random_layer_pub as random_layer,
+    random_layer_pub as random_layer, HyperbolicIndex, HyperbolicIndexConfig, IndexNode,
+    IndexStats, SearchResult,
 };
 
 // ============================================================================
@@ -1447,7 +1427,11 @@ mod tests {
         // Distance from a point to itself should be 0
         let p = Array1::from_vec(vec![0.3, 0.4, 0.0]);
         let dist = poincare_distance(&p.view(), &p.view());
-        assert!(dist.abs() < 1e-10, "Distance to self should be 0, got {}", dist);
+        assert!(
+            dist.abs() < 1e-10,
+            "Distance to self should be 0, got {}",
+            dist
+        );
     }
 
     #[test]
@@ -1619,7 +1603,10 @@ mod tests {
         let emb = Array1::from_vec(vec![1.0_f32, 0.0, 0.0, 0.0]);
 
         let result = euclidean_to_poincare(&emb.view(), &config).unwrap();
-        assert!(result.norm() > 0.0, "Non-zero vector should not map to origin");
+        assert!(
+            result.norm() > 0.0,
+            "Non-zero vector should not map to origin"
+        );
         assert!(
             result.norm() < config.max_norm,
             "Result should be inside ball, norm={}",
@@ -1631,14 +1618,8 @@ mod tests {
     fn test_hyperbolic_point_depth_ordering() {
         // Points near origin should have lower depth than points near boundary
         let config = make_config();
-        let near_origin = HyperbolicPoint::new(
-            Array1::from_vec(vec![0.1, 0.0]),
-            &config,
-        );
-        let far_from_origin = HyperbolicPoint::new(
-            Array1::from_vec(vec![0.8, 0.0]),
-            &config,
-        );
+        let near_origin = HyperbolicPoint::new(Array1::from_vec(vec![0.1, 0.0]), &config);
+        let far_from_origin = HyperbolicPoint::new(Array1::from_vec(vec![0.8, 0.0]), &config);
 
         assert!(
             near_origin.depth < far_from_origin.depth,
@@ -1657,8 +1638,14 @@ mod tests {
         let mid = embedder.embed_hierarchical(&emb.view(), 0.5).unwrap();
         let leaf = embedder.embed_hierarchical(&emb.view(), 1.0).unwrap();
 
-        assert!(root.norm() < mid.norm(), "Root should be closer to origin than mid");
-        assert!(mid.norm() < leaf.norm(), "Mid should be closer to origin than leaf");
+        assert!(
+            root.norm() < mid.norm(),
+            "Root should be closer to origin than mid"
+        );
+        assert!(
+            mid.norm() < leaf.norm(),
+            "Mid should be closer to origin than leaf"
+        );
     }
 
     #[test]
@@ -1786,9 +1773,7 @@ mod tests {
         let deep = embedder
             .embed_from_euclidean(&emb.view(), "rust.async.tokio.runtime")
             .unwrap();
-        let shallow = embedder
-            .embed_from_euclidean(&emb.view(), "rust")
-            .unwrap();
+        let shallow = embedder.embed_from_euclidean(&emb.view(), "rust").unwrap();
 
         assert!(
             deep.norm() > shallow.norm(),
@@ -1924,12 +1909,7 @@ mod tests {
             let cfg = hcfg();
             let mut idx = HyperbolicIndex::new(cfg.clone(), HyperbolicIndexConfig::default());
             let p = make_point(vec![0.3, 0.0, 0.0, 0.0], &cfg);
-            idx.insert(
-                "a".to_string(),
-                p,
-                None,
-                Some("rust.async".to_string()),
-            );
+            idx.insert("a".to_string(), p, None, Some("rust.async".to_string()));
             let node = idx.get("a").unwrap();
             assert_eq!(node.domain.as_deref(), Some("rust.async"));
         }
@@ -2136,9 +2116,7 @@ mod tests {
             assert_eq!(results.len(), 1);
             assert!(results[0].euclidean_distance.is_none());
             // Combined score should equal hyperbolic distance.
-            assert!(
-                (results[0].combined_score - results[0].hyperbolic_distance).abs() < 1e-10
-            );
+            assert!((results[0].combined_score - results[0].hyperbolic_distance).abs() < 1e-10);
         }
 
         // -- search_by_depth tests (4) --
@@ -2390,18 +2368,17 @@ mod tests {
         fn test_build_from_patterns_correct_count() {
             let cfg = hcfg();
             let n = 12;
-            let patterns: Vec<(String, HyperbolicPoint, Option<Vec<f32>>, Option<String>)> =
-                (0..n)
-                    .map(|i| {
-                        let v = (i as f64) * 0.06;
-                        (
-                            format!("p{}", i),
-                            make_point(vec![v, 0.0, 0.0, 0.0], &cfg),
-                            None,
-                            None,
-                        )
-                    })
-                    .collect();
+            let patterns: Vec<(String, HyperbolicPoint, Option<Vec<f32>>, Option<String>)> = (0..n)
+                .map(|i| {
+                    let v = (i as f64) * 0.06;
+                    (
+                        format!("p{}", i),
+                        make_point(vec![v, 0.0, 0.0, 0.0], &cfg),
+                        None,
+                        None,
+                    )
+                })
+                .collect();
 
             let idx = HyperbolicIndex::build_from_patterns(
                 &patterns,

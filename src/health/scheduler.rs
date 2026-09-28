@@ -197,13 +197,8 @@ impl HealthScheduler {
                         return;
                     }
 
-                    run_health_check(
-                        &registry,
-                        &event_tx,
-                        &last_statuses,
-                        emit_only_on_change,
-                    )
-                    .await;
+                    run_health_check(&registry, &event_tx, &last_statuses, emit_only_on_change)
+                        .await;
                 })
             })
         } else {
@@ -222,13 +217,8 @@ impl HealthScheduler {
                             return;
                         }
 
-                        run_health_check(
-                            &registry,
-                            &event_tx,
-                            &last_statuses,
-                            emit_only_on_change,
-                        )
-                        .await;
+                        run_health_check(&registry, &event_tx, &last_statuses, emit_only_on_change)
+                            .await;
                     })
                 },
             )
@@ -237,9 +227,12 @@ impl HealthScheduler {
             message: format!("Failed to create health check job: {}", e),
         })?;
 
-        scheduler.add(job).await.map_err(|e| NagualError::Internal {
-            message: format!("Failed to add health check job: {}", e),
-        })?;
+        scheduler
+            .add(job)
+            .await
+            .map_err(|e| NagualError::Internal {
+                message: format!("Failed to add health check job: {}", e),
+            })?;
 
         // Start the scheduler
         scheduler.start().await.map_err(|e| NagualError::Internal {
@@ -357,9 +350,7 @@ impl HealthScheduler {
     /// Check if a specific component is healthy
     pub async fn is_component_healthy(&self, component: &str) -> Option<bool> {
         let statuses = self.last_statuses.read().await;
-        statuses
-            .get(component)
-            .map(|s| *s == HealthStatus::Healthy)
+        statuses.get(component).map(|s| *s == HealthStatus::Healthy)
     }
 
     /// Get the overall system status

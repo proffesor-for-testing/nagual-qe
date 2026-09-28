@@ -11,8 +11,10 @@ use sqlx::postgres::PgPool;
 
 use crate::db::SqliteDb;
 use crate::error::{CoordinationError, Result};
-use crate::migration::runner::{MigrationRunner, MigrationStatus, PostgresMigrationRunner, SchemaVersion};
 use crate::migration::migrations_dir;
+use crate::migration::runner::{
+    MigrationRunner, MigrationStatus, PostgresMigrationRunner, SchemaVersion,
+};
 
 /// Result of a coordinated migration operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,24 +38,23 @@ pub enum MigrationOutcome {
         final_version: Option<i64>,
     },
     /// No changes were needed.
-    NoChanges {
-        current_version: Option<i64>,
-    },
+    NoChanges { current_version: Option<i64> },
     /// Migration failed.
     Failed {
         error: String,
         current_version: Option<i64>,
     },
     /// Migration was skipped (e.g., database not configured).
-    Skipped {
-        reason: String,
-    },
+    Skipped { reason: String },
 }
 
 impl MigrationOutcome {
     /// Check if the outcome represents success.
     pub fn is_success(&self) -> bool {
-        matches!(self, MigrationOutcome::Success { .. } | MigrationOutcome::NoChanges { .. })
+        matches!(
+            self,
+            MigrationOutcome::Success { .. } | MigrationOutcome::NoChanges { .. }
+        )
     }
 
     /// Get the final version after this outcome.
@@ -61,7 +62,9 @@ impl MigrationOutcome {
         match self {
             MigrationOutcome::Success { final_version, .. } => *final_version,
             MigrationOutcome::NoChanges { current_version } => *current_version,
-            MigrationOutcome::Failed { current_version, .. } => *current_version,
+            MigrationOutcome::Failed {
+                current_version, ..
+            } => *current_version,
             MigrationOutcome::Skipped { .. } => None,
         }
     }
@@ -152,10 +155,8 @@ impl DualMigrationCoordinator {
     pub async fn status(&self) -> Result<(MigrationStatus, Option<MigrationStatus>)> {
         // Get SQLite status
         let sqlite_db = SqliteDb::open(self.sqlite.path())?;
-        let sqlite_runner = MigrationRunner::with_migrations_path(
-            sqlite_db,
-            &self.config.migrations_path,
-        );
+        let sqlite_runner =
+            MigrationRunner::with_migrations_path(sqlite_db, &self.config.migrations_path);
         let sqlite_status = sqlite_runner.status().await?;
 
         // Get PostgreSQL status if available
@@ -177,9 +178,7 @@ impl DualMigrationCoordinator {
         let (sqlite_status, postgres_status) = self.status().await?;
 
         match postgres_status {
-            Some(pg_status) => {
-                Ok(sqlite_status.current_version == pg_status.current_version)
-            }
+            Some(pg_status) => Ok(sqlite_status.current_version == pg_status.current_version),
             None => Ok(true), // SQLite-only mode is always "consistent"
         }
     }
@@ -504,16 +503,15 @@ impl DualMigrationCoordinator {
                     current_version: Some(sqlite_v),
                 },
                 postgres: Some(postgres_outcome),
-                consistent: self
-                    .check_consistency(
-                        &MigrationOutcome::NoChanges {
-                            current_version: Some(sqlite_v),
-                        },
-                        &Some(MigrationOutcome::Success {
-                            applied: vec![],
-                            final_version: Some(sqlite_v),
-                        }),
-                    ),
+                consistent: self.check_consistency(
+                    &MigrationOutcome::NoChanges {
+                        current_version: Some(sqlite_v),
+                    },
+                    &Some(MigrationOutcome::Success {
+                        applied: vec![],
+                        final_version: Some(sqlite_v),
+                    }),
+                ),
                 warnings,
             })
         } else {
@@ -546,8 +544,7 @@ impl DualMigrationCoordinator {
             }
         };
 
-        let mut runner =
-            MigrationRunner::with_migrations_path(db, &self.config.migrations_path);
+        let mut runner = MigrationRunner::with_migrations_path(db, &self.config.migrations_path);
 
         match runner.run_up().await {
             Ok(applied) => {
@@ -586,8 +583,7 @@ impl DualMigrationCoordinator {
             }
         };
 
-        let mut runner =
-            MigrationRunner::with_migrations_path(db, &self.config.migrations_path);
+        let mut runner = MigrationRunner::with_migrations_path(db, &self.config.migrations_path);
 
         match runner.run_down().await {
             Ok(rolled_back) => MigrationOutcome::Success {
@@ -611,8 +607,10 @@ impl DualMigrationCoordinator {
             };
         };
 
-        let runner =
-            PostgresMigrationRunner::with_migrations_path(pool.clone(), &self.config.migrations_path);
+        let runner = PostgresMigrationRunner::with_migrations_path(
+            pool.clone(),
+            &self.config.migrations_path,
+        );
 
         match runner.run_up().await {
             Ok(applied) => {
@@ -646,8 +644,10 @@ impl DualMigrationCoordinator {
             };
         };
 
-        let runner =
-            PostgresMigrationRunner::with_migrations_path(pool.clone(), &self.config.migrations_path);
+        let runner = PostgresMigrationRunner::with_migrations_path(
+            pool.clone(),
+            &self.config.migrations_path,
+        );
 
         match runner.run_down().await {
             Ok(rolled_back) => MigrationOutcome::Success {
@@ -666,8 +666,7 @@ impl DualMigrationCoordinator {
 
     async fn rollback_sqlite_to(&self, target_version: Option<i64>) -> Result<()> {
         let db = SqliteDb::open(self.sqlite.path())?;
-        let mut runner =
-            MigrationRunner::with_migrations_path(db, &self.config.migrations_path);
+        let mut runner = MigrationRunner::with_migrations_path(db, &self.config.migrations_path);
 
         let target = target_version.unwrap_or(0);
 

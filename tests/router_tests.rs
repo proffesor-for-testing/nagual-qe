@@ -1,1244 +1,772 @@
-//! Router Tests - Phase 2 Inference Layer
+//! Router tests — exercised against the production router in `nagual::router`.
 //!
-//! Comprehensive test suite for the FastGRNN-based router component.
-//! Tests cover:
-//! - FastGRNN inference accuracy
-//! - Complexity estimation
-//! - Vendor selection logic
-//! - Fallback chain behavior
-//! - Latency requirements (<5ms)
+//! This file used to define its own ~530-line mock `Router` and test that mock, so none of its
+//! 54 tests could fail because of a change in `src/router`. It now covers the same areas —
+//! FastGRNN inference, complexity estimation, vendor selection, fallback chains, latency,
+//! statistics, properties and edge cases — against the real `VendorRouter`, `VendorSelector`,
+//! `ComplexityEstimator` and `FastGRNN`.
 //!
-//! # Test Categories
-//!
-//! 1. **FastGRNN Inference Tests**: Validate model predictions
-//! 2. **Complexity Estimation Tests**: Ensure accurate task complexity scoring
-//! 3. **Vendor Selection Tests**: Verify optimal vendor routing
-//! 4. **Fallback Chain Tests**: Test graceful degradation
-//! 5. **Performance Tests**: Enforce latency SLAs
+//! Estimator quality is asserted against `models/router_queries.jsonl` (labelled queries, rubric in
+//! models/README.md): the FastGRNN weights are trained on its `train` split only, and
+//! `quality_tests` checks the held-out `test` split against a bar fixed before training.
 
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::collections::HashSet;
 
-use chrono::{DateTime, Utc};
+use nagual::router::{
+    ComplexityEstimator, ComplexityLevel, EstimatorConfig, FallbackChain, FastGRNN, FastGRNNConfig,
+    RouterConfig, Vendor, VendorConfig, VendorRouter, VendorSelector,
+};
 use proptest::prelude::*;
-use serde::{Deserialize, Serialize};
 
 mod common;
-use common::{
-    cosine_similarity, measure_time, normalized_embedding, similar_embeddings,
-};
+use common::normalized_embedding;
 
-// ============================================================================
-// Router Types (Mirroring production types for testing)
-// ============================================================================
+const DIM: usize = 128;
 
-/// Vendor/provider types for LLM routing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Vendor {
-    Anthropic,
-    OpenAI,
-    Local,
-    Mock,
+fn router() -> VendorRouter {
+    VendorRouter::new(RouterConfig::default()).expect("default router config is valid")
 }
 
-impl Vendor {
-    /// Get the latency SLA for this vendor in milliseconds.
-    pub fn latency_sla_ms(&self) -> u64 {
-        match self {
-            Vendor::Anthropic => 2000,
-            Vendor::OpenAI => 2000,
-            Vendor::Local => 500,
-            Vendor::Mock => 10,
-        }
-    }
-
-    /// Get the cost factor for this vendor.
-    pub fn cost_factor(&self) -> f32 {
-        match self {
-            Vendor::Anthropic => 1.0,
-            Vendor::OpenAI => 0.9,
-            Vendor::Local => 0.1,
-            Vendor::Mock => 0.0,
-        }
-    }
-
-    /// Get capability score for a complexity level.
-    pub fn capability_score(&self, complexity: ComplexityLevel) -> f32 {
-        match (self, complexity) {
-            (Vendor::Anthropic, ComplexityLevel::High) => 0.95,
-            (Vendor::Anthropic, ComplexityLevel::Medium) => 0.90,
-            (Vendor::Anthropic, ComplexityLevel::Low) => 0.85,
-            (Vendor::OpenAI, ComplexityLevel::High) => 0.90,
-            (Vendor::OpenAI, ComplexityLevel::Medium) => 0.88,
-            (Vendor::OpenAI, ComplexityLevel::Low) => 0.85,
-            (Vendor::Local, ComplexityLevel::High) => 0.60,
-            (Vendor::Local, ComplexityLevel::Medium) => 0.75,
-            (Vendor::Local, ComplexityLevel::Low) => 0.85,
-            (Vendor::Mock, _) => 0.1,
-        }
-    }
+fn selector() -> VendorSelector {
+    VendorSelector::new(VendorConfig::default())
 }
 
-/// Complexity levels for routing decisions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum ComplexityLevel {
-    Low,
-    Medium,
-    High,
+/// Deterministic unit-norm embedding (proptest-independent).
+fn fixed_embedding() -> Vec<f32> {
+    let v: Vec<f32> = (0..DIM)
+        .map(|i| ((i * 37 % 101) as f32 / 101.0) - 0.5)
+        .collect();
+    let n = v.iter().map(|x| x * x).sum::<f32>().sqrt();
+    v.into_iter().map(|x| x / n).collect()
 }
 
-impl ComplexityLevel {
-    /// Create from a numeric score (0.0-1.0).
-    pub fn from_score(score: f32) -> Self {
-        if score >= 0.7 {
-            ComplexityLevel::High
-        } else if score >= 0.4 {
-            ComplexityLevel::Medium
-        } else {
-            ComplexityLevel::Low
-        }
-    }
-
-    /// Convert to a numeric score.
-    pub fn to_score(&self) -> f32 {
-        match self {
-            ComplexityLevel::Low => 0.2,
-            ComplexityLevel::Medium => 0.5,
-            ComplexityLevel::High => 0.85,
-        }
-    }
+fn all_vendors() -> [Vendor; 4] {
+    [
+        Vendor::LocalSmall,
+        Vendor::LocalLarge,
+        Vendor::Claude,
+        Vendor::GPT,
+    ]
 }
 
-/// Configuration for the router.
-#[derive(Debug, Clone)]
-pub struct RouterConfig {
-    /// Available vendors in priority order.
-    pub vendors: Vec<Vendor>,
-    /// Maximum latency for routing decision (in ms).
-    pub max_routing_latency_ms: u64,
-    /// Weight for cost in routing decisions.
-    pub cost_weight: f32,
-    /// Weight for capability in routing decisions.
-    pub capability_weight: f32,
-    /// Weight for latency in routing decisions.
-    pub latency_weight: f32,
-    /// Enable fallback chain.
-    pub enable_fallback: bool,
-    /// FastGRNN model dimension.
-    pub grnn_dimension: usize,
-}
-
-impl Default for RouterConfig {
-    fn default() -> Self {
-        Self {
-            vendors: vec![Vendor::Anthropic, Vendor::OpenAI, Vendor::Local],
-            max_routing_latency_ms: 5,
-            cost_weight: 0.2,
-            capability_weight: 0.6,
-            latency_weight: 0.2,
-            enable_fallback: true,
-            grnn_dimension: 64,
-        }
-    }
-}
-
-/// A routing request.
-#[derive(Debug, Clone)]
-pub struct RoutingRequest {
-    /// The task description or query.
-    pub task: String,
-    /// Pre-computed embedding for the task.
-    pub embedding: Option<Vec<f32>>,
-    /// Preferred vendors (optional).
-    pub preferred_vendors: Option<Vec<Vendor>>,
-    /// Maximum cost budget (0.0-1.0).
-    pub max_cost: Option<f32>,
-    /// Required minimum capability score.
-    pub min_capability: Option<f32>,
-}
-
-impl RoutingRequest {
-    pub fn new(task: impl Into<String>) -> Self {
-        Self {
-            task: task.into(),
-            embedding: None,
-            preferred_vendors: None,
-            max_cost: None,
-            min_capability: None,
-        }
-    }
-
-    pub fn with_embedding(mut self, embedding: Vec<f32>) -> Self {
-        self.embedding = Some(embedding);
-        self
-    }
-
-    pub fn with_preferred_vendors(mut self, vendors: Vec<Vendor>) -> Self {
-        self.preferred_vendors = Some(vendors);
-        self
-    }
-
-    pub fn with_max_cost(mut self, cost: f32) -> Self {
-        self.max_cost = Some(cost.clamp(0.0, 1.0));
-        self
-    }
-
-    pub fn with_min_capability(mut self, capability: f32) -> Self {
-        self.min_capability = Some(capability.clamp(0.0, 1.0));
-        self
-    }
-}
-
-/// Result of a routing decision.
-#[derive(Debug, Clone)]
-pub struct RoutingResult {
-    /// Selected vendor.
-    pub vendor: Vendor,
-    /// Estimated complexity.
-    pub complexity: ComplexityLevel,
-    /// Confidence in the routing decision.
-    pub confidence: f32,
-    /// Fallback chain if primary fails.
-    pub fallback_chain: Vec<Vendor>,
-    /// Time taken for routing decision (in ms).
-    pub routing_time_ms: u64,
-    /// Breakdown of scoring factors.
-    pub score_breakdown: ScoreBreakdown,
-}
-
-/// Breakdown of how the routing score was computed.
-#[derive(Debug, Clone, Default)]
-pub struct ScoreBreakdown {
-    pub complexity_score: f32,
-    pub cost_score: f32,
-    pub capability_score: f32,
-    pub latency_score: f32,
-    pub final_score: f32,
-}
-
-/// Mock FastGRNN model for testing.
-#[derive(Debug)]
-pub struct MockFastGRNN {
-    /// Weight matrix for complexity prediction.
-    weights: Vec<f32>,
-    /// Bias term.
-    bias: f32,
-    /// Hidden state dimension.
-    hidden_dim: usize,
-    /// Simulated inference latency.
-    simulated_latency_us: u64,
-}
-
-impl MockFastGRNN {
-    pub fn new(hidden_dim: usize) -> Self {
-        // Initialize with deterministic weights for reproducibility
-        let weights: Vec<f32> = (0..hidden_dim)
-            .map(|i| ((i as f32 / hidden_dim as f32) - 0.5) * 2.0)
-            .collect();
-
-        Self {
-            weights,
-            bias: 0.1,
-            hidden_dim,
-            simulated_latency_us: 100,
-        }
-    }
-
-    /// Predict complexity score from embedding.
-    pub fn predict_complexity(&self, embedding: &[f32]) -> f32 {
-        // Simulate some processing time
-        std::thread::sleep(Duration::from_micros(self.simulated_latency_us));
-
-        // Simple dot product + bias + sigmoid
-        let dot: f32 = embedding
-            .iter()
-            .zip(self.weights.iter().cycle())
-            .map(|(e, w)| e * w)
-            .sum();
-
-        let raw_score = dot / embedding.len() as f32 + self.bias;
-
-        // Sigmoid activation
-        1.0 / (1.0 + (-raw_score).exp())
-    }
-
-    /// Get the hidden dimension.
-    pub fn hidden_dim(&self) -> usize {
-        self.hidden_dim
-    }
-}
-
-/// Main router implementation.
-#[derive(Debug)]
-pub struct Router {
-    config: RouterConfig,
-    grnn: MockFastGRNN,
-    vendor_stats: HashMap<Vendor, VendorStats>,
-}
-
-/// Statistics for a vendor.
-#[derive(Debug, Clone, Default)]
-pub struct VendorStats {
-    pub total_requests: u64,
-    pub successful_requests: u64,
-    pub total_latency_ms: u64,
-    pub avg_latency_ms: u64,
-    pub is_healthy: bool,
-}
-
-impl VendorStats {
-    pub fn success_rate(&self) -> f32 {
-        if self.total_requests == 0 {
-            1.0
-        } else {
-            self.successful_requests as f32 / self.total_requests as f32
-        }
-    }
-}
-
-impl Router {
-    pub fn new(config: RouterConfig) -> Self {
-        let grnn = MockFastGRNN::new(config.grnn_dimension);
-        let mut vendor_stats = HashMap::new();
-
-        for vendor in &config.vendors {
-            vendor_stats.insert(
-                *vendor,
-                VendorStats {
-                    is_healthy: true,
-                    ..Default::default()
-                },
-            );
-        }
-
-        Self {
-            config,
-            grnn,
-            vendor_stats,
-        }
-    }
-
-    /// Route a request to the optimal vendor.
-    pub fn route(&self, request: &RoutingRequest) -> RoutingResult {
-        let start = Instant::now();
-
-        // Step 1: Estimate complexity using FastGRNN
-        let complexity_score = if let Some(ref embedding) = request.embedding {
-            self.grnn.predict_complexity(embedding)
-        } else {
-            // Fallback: estimate from task length
-            self.estimate_complexity_from_text(&request.task)
-        };
-
-        let complexity = ComplexityLevel::from_score(complexity_score);
-
-        // Step 2: Score each vendor
-        let vendor_scores = self.score_vendors(request, complexity);
-
-        // Step 3: Select best vendor
-        let (best_vendor, score_breakdown) = self.select_best_vendor(&vendor_scores, request);
-
-        // Step 4: Build fallback chain
-        let fallback_chain = if self.config.enable_fallback {
-            self.build_fallback_chain(best_vendor, &vendor_scores)
-        } else {
-            Vec::new()
-        };
-
-        // Step 5: Calculate confidence
-        let confidence = self.calculate_confidence(&vendor_scores, best_vendor);
-
-        let routing_time_ms = start.elapsed().as_millis() as u64;
-
-        RoutingResult {
-            vendor: best_vendor,
-            complexity,
-            confidence,
-            fallback_chain,
-            routing_time_ms,
-            score_breakdown,
-        }
-    }
-
-    /// Estimate complexity from task text.
-    fn estimate_complexity_from_text(&self, task: &str) -> f32 {
-        let length_factor = (task.len() as f32 / 1000.0).min(1.0);
-        let question_count = task.matches('?').count() as f32;
-        let code_markers = task.matches("```").count() as f32;
-
-        let base_score = 0.3 + length_factor * 0.3 + question_count * 0.1 + code_markers * 0.15;
-        base_score.clamp(0.0, 1.0)
-    }
-
-    /// Score all vendors for the request.
-    fn score_vendors(
-        &self,
-        request: &RoutingRequest,
-        complexity: ComplexityLevel,
-    ) -> HashMap<Vendor, ScoreBreakdown> {
-        let mut scores = HashMap::new();
-
-        for vendor in &self.config.vendors {
-            // Skip unhealthy vendors
-            if let Some(stats) = self.vendor_stats.get(vendor) {
-                if !stats.is_healthy {
-                    continue;
-                }
-            }
-
-            // Skip if not in preferred list (if specified)
-            if let Some(ref preferred) = request.preferred_vendors {
-                if !preferred.contains(vendor) {
-                    continue;
-                }
-            }
-
-            let cost_score = 1.0 - vendor.cost_factor();
-            let capability_score = vendor.capability_score(complexity);
-            let latency_score = 1.0 - (vendor.latency_sla_ms() as f32 / 3000.0).min(1.0);
-
-            // Check constraints
-            if let Some(max_cost) = request.max_cost {
-                if vendor.cost_factor() > max_cost {
-                    continue;
-                }
-            }
-
-            if let Some(min_capability) = request.min_capability {
-                if capability_score < min_capability {
-                    continue;
-                }
-            }
-
-            let final_score = self.config.cost_weight * cost_score
-                + self.config.capability_weight * capability_score
-                + self.config.latency_weight * latency_score;
-
-            scores.insert(
-                *vendor,
-                ScoreBreakdown {
-                    complexity_score: complexity.to_score(),
-                    cost_score,
-                    capability_score,
-                    latency_score,
-                    final_score,
-                },
-            );
-        }
-
-        scores
-    }
-
-    /// Select the best vendor from scores.
-    fn select_best_vendor(
-        &self,
-        scores: &HashMap<Vendor, ScoreBreakdown>,
-        _request: &RoutingRequest,
-    ) -> (Vendor, ScoreBreakdown) {
-        scores
-            .iter()
-            .max_by(|a, b| {
-                a.1.final_score
-                    .partial_cmp(&b.1.final_score)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .map(|(v, s)| (*v, s.clone()))
-            .unwrap_or((Vendor::Local, ScoreBreakdown::default()))
-    }
-
-    /// Build fallback chain excluding the primary vendor.
-    fn build_fallback_chain(
-        &self,
-        primary: Vendor,
-        scores: &HashMap<Vendor, ScoreBreakdown>,
-    ) -> Vec<Vendor> {
-        let mut fallbacks: Vec<(Vendor, f32)> = scores
-            .iter()
-            .filter(|(v, _)| **v != primary)
-            .map(|(v, s)| (*v, s.final_score))
-            .collect();
-
-        fallbacks.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-
-        fallbacks.into_iter().map(|(v, _)| v).collect()
-    }
-
-    /// Calculate confidence in the routing decision.
-    fn calculate_confidence(
-        &self,
-        scores: &HashMap<Vendor, ScoreBreakdown>,
-        selected: Vendor,
-    ) -> f32 {
-        if scores.len() <= 1 {
-            return 0.5; // Low confidence with no alternatives
-        }
-
-        let selected_score = scores
-            .get(&selected)
-            .map(|s| s.final_score)
-            .unwrap_or(0.0);
-
-        let second_best = scores
-            .iter()
-            .filter(|(v, _)| **v != selected)
-            .map(|(_, s)| s.final_score)
-            .fold(f32::NEG_INFINITY, f32::max);
-
-        if second_best <= 0.0 {
-            return 0.9;
-        }
-
-        // Confidence based on margin between first and second best
-        let margin = selected_score - second_best;
-        (0.5 + margin).clamp(0.0, 1.0)
-    }
-
-    /// Mark a vendor as unhealthy.
-    pub fn mark_unhealthy(&mut self, vendor: Vendor) {
-        if let Some(stats) = self.vendor_stats.get_mut(&vendor) {
-            stats.is_healthy = false;
-        }
-    }
-
-    /// Mark a vendor as healthy.
-    pub fn mark_healthy(&mut self, vendor: Vendor) {
-        if let Some(stats) = self.vendor_stats.get_mut(&vendor) {
-            stats.is_healthy = true;
-        }
-    }
-
-    /// Record a request outcome.
-    pub fn record_outcome(&mut self, vendor: Vendor, success: bool, latency_ms: u64) {
-        if let Some(stats) = self.vendor_stats.get_mut(&vendor) {
-            stats.total_requests += 1;
-            if success {
-                stats.successful_requests += 1;
-            }
-            stats.total_latency_ms += latency_ms;
-            stats.avg_latency_ms = stats.total_latency_ms / stats.total_requests;
-        }
-    }
-
-    /// Get vendor statistics.
-    pub fn get_vendor_stats(&self, vendor: Vendor) -> Option<&VendorStats> {
-        self.vendor_stats.get(&vendor)
-    }
-
-    /// Get the router config.
-    pub fn config(&self) -> &RouterConfig {
-        &self.config
-    }
-}
-
-// ============================================================================
-// FastGRNN Inference Tests
-// ============================================================================
+// ─── FastGRNN inference ─────────────────────────────────────────────────────────────────
 
 mod fastgrnn_tests {
     use super::*;
 
     #[test]
-    fn test_grnn_predict_complexity_deterministic() {
-        let grnn = MockFastGRNN::new(64);
-        let embedding = normalized_embedding(128);
-
-        let score1 = grnn.predict_complexity(&embedding);
-        let score2 = grnn.predict_complexity(&embedding);
-
-        assert!(
-            (score1 - score2).abs() < 1e-6,
-            "FastGRNN should produce deterministic outputs"
-        );
-    }
-
-    #[test]
-    fn test_grnn_output_bounded() {
-        let grnn = MockFastGRNN::new(64);
-
-        for _ in 0..100 {
-            let embedding = normalized_embedding(128);
-            let score = grnn.predict_complexity(&embedding);
-
-            assert!(
-                score >= 0.0 && score <= 1.0,
-                "Complexity score {} should be in [0.0, 1.0]",
-                score
-            );
+    fn test_output_is_a_probability() {
+        let model = FastGRNN::new(FastGRNNConfig::default()).unwrap();
+        for features in [
+            vec![0.0; 5],
+            vec![1.0; 5],
+            vec![0.5; 5],
+            vec![0.006, 0.67, 0.2, 0.92, 0.5],
+        ] {
+            let y = model.forward(&features).unwrap();
+            assert!((0.0..=1.0).contains(&y), "forward({features:?}) = {y}");
         }
     }
 
     #[test]
-    fn test_grnn_similar_inputs_similar_outputs() {
-        let grnn = MockFastGRNN::new(64);
-        let base_embedding = normalized_embedding(128);
-        let similar = similar_embeddings(&base_embedding, 1, 0.05)[0].clone();
+    fn test_inference_is_deterministic() {
+        let model = FastGRNN::new(FastGRNNConfig::default()).unwrap();
+        let f = vec![0.1, 0.6, 0.4, 0.8, 0.5];
+        assert_eq!(model.forward(&f).unwrap(), model.forward(&f).unwrap());
 
-        let base_score = grnn.predict_complexity(&base_embedding);
-        let similar_score = grnn.predict_complexity(&similar);
-
-        let score_diff = (base_score - similar_score).abs();
-        assert!(
-            score_diff < 0.2,
-            "Similar embeddings should produce similar scores, got diff = {}",
-            score_diff
+        let other = FastGRNN::new(FastGRNNConfig::default()).unwrap();
+        assert_eq!(
+            model.forward(&f).unwrap(),
+            other.forward(&f).unwrap(),
+            "pretrained weights must be fixed"
         );
     }
 
     #[test]
-    fn test_grnn_different_inputs_may_differ() {
-        let grnn = MockFastGRNN::new(64);
-
-        // Create two very different embeddings
-        let emb1: Vec<f32> = (0..128).map(|i| if i < 64 { 1.0 } else { 0.0 }).collect();
-        let emb2: Vec<f32> = (0..128).map(|i| if i >= 64 { 1.0 } else { 0.0 }).collect();
-
-        let score1 = grnn.predict_complexity(&emb1);
-        let score2 = grnn.predict_complexity(&emb2);
-
-        // They should not be identical
-        assert!(
-            (score1 - score2).abs() > 1e-6 || true,
-            "Different embeddings can produce different scores"
-        );
+    fn test_batch_matches_single_inference() {
+        let model = FastGRNN::new(FastGRNNConfig::default()).unwrap();
+        let batch = vec![vec![0.0; 5], vec![0.3, 0.6, 0.2, 0.9, 0.5], vec![1.0; 5]];
+        let batched = model.forward_batch(&batch).unwrap();
+        for (features, got) in batch.iter().zip(batched) {
+            assert_eq!(got, model.forward(features).unwrap());
+        }
     }
 
     #[test]
-    fn test_grnn_inference_latency() {
-        let grnn = MockFastGRNN::new(64);
-        let embedding = normalized_embedding(128);
-
-        let (_, duration) = measure_time(|| grnn.predict_complexity(&embedding));
-
-        assert!(
-            duration.as_micros() < 5000,
-            "FastGRNN inference took {:?}, expected < 5ms",
-            duration
-        );
+    fn test_rejects_wrong_input_dimension() {
+        let model = FastGRNN::new(FastGRNNConfig::default()).unwrap();
+        assert!(model.forward(&[0.5; 3]).is_err());
+        assert!(model.forward(&[0.5; 6]).is_err());
     }
 
     #[test]
-    fn test_grnn_hidden_dim() {
-        let grnn = MockFastGRNN::new(128);
-        assert_eq!(grnn.hidden_dim(), 128);
+    fn test_counts_inferences() {
+        let model = FastGRNN::new(FastGRNNConfig::default()).unwrap();
+        for _ in 0..7 {
+            model.forward(&[0.5; 5]).unwrap();
+        }
+        assert_eq!(model.inference_count(), 7);
+        model.reset_stats();
+        assert_eq!(model.inference_count(), 0);
+    }
+
+    #[test]
+    fn test_model_is_edge_sized() {
+        let model = FastGRNN::new(FastGRNNConfig::default()).unwrap();
+        assert!(
+            model.model_size_bytes() < 16 * 1024,
+            "{} bytes",
+            model.model_size_bytes()
+        );
     }
 }
 
-// ============================================================================
-// Complexity Estimation Tests
-// ============================================================================
+// ─── Complexity estimation ──────────────────────────────────────────────────────────────
 
 mod complexity_tests {
     use super::*;
 
     #[test]
-    fn test_complexity_from_score_boundaries() {
+    fn test_level_boundaries() {
         assert_eq!(ComplexityLevel::from_score(0.0), ComplexityLevel::Low);
-        assert_eq!(ComplexityLevel::from_score(0.39), ComplexityLevel::Low);
-        assert_eq!(ComplexityLevel::from_score(0.4), ComplexityLevel::Medium);
-        assert_eq!(ComplexityLevel::from_score(0.69), ComplexityLevel::Medium);
-        assert_eq!(ComplexityLevel::from_score(0.7), ComplexityLevel::High);
-        assert_eq!(ComplexityLevel::from_score(1.0), ComplexityLevel::High);
+        assert_eq!(ComplexityLevel::from_score(0.299), ComplexityLevel::Low);
+        assert_eq!(ComplexityLevel::from_score(0.3), ComplexityLevel::Medium);
+        assert_eq!(ComplexityLevel::from_score(0.499), ComplexityLevel::Medium);
+        assert_eq!(ComplexityLevel::from_score(0.5), ComplexityLevel::High);
+        assert_eq!(ComplexityLevel::from_score(0.699), ComplexityLevel::High);
+        assert_eq!(ComplexityLevel::from_score(0.7), ComplexityLevel::VeryHigh);
+        assert_eq!(ComplexityLevel::from_score(1.0), ComplexityLevel::VeryHigh);
     }
 
     #[test]
-    fn test_complexity_to_score() {
-        assert!((ComplexityLevel::Low.to_score() - 0.2).abs() < 0.01);
-        assert!((ComplexityLevel::Medium.to_score() - 0.5).abs() < 0.01);
-        assert!((ComplexityLevel::High.to_score() - 0.85).abs() < 0.01);
+    fn test_features_are_normalised() {
+        let est = ComplexityEstimator::new(EstimatorConfig::default());
+        let f = est
+            .extract_features(
+                "Explain this code: ```rust fn main() {} ``` and fix it",
+                &fixed_embedding(),
+            )
+            .unwrap();
+        for (name, v) in ["length", "norm", "domain", "coverage", "accuracy"]
+            .iter()
+            .zip(f.to_vector())
+        {
+            assert!((0.0..=1.0).contains(&v), "{name} = {v}");
+        }
     }
 
     #[test]
-    fn test_text_complexity_estimation() {
-        let router = Router::new(RouterConfig::default());
-
-        // Short simple query
-        let short_request = RoutingRequest::new("What is 2+2?");
-        let result = router.route(&short_request);
+    fn test_longer_query_has_larger_length_feature() {
+        let est = ComplexityEstimator::new(EstimatorConfig::default());
+        let e = fixed_embedding();
+        let short = est.extract_features("What is 2+2?", &e).unwrap();
+        let long = est.extract_features(&"why ".repeat(300), &e).unwrap();
+        assert!(long.query_length > short.query_length);
+        let huge = est.extract_features(&"x".repeat(10_000), &e).unwrap();
         assert_eq!(
-            result.complexity,
-            ComplexityLevel::Low,
-            "Short query should be low complexity"
-        );
-
-        // Long complex query
-        let long_task = "a".repeat(1000) + "? What is the solution to this complex problem?";
-        let long_request = RoutingRequest::new(long_task);
-        let result = router.route(&long_request);
-        assert!(
-            result.complexity != ComplexityLevel::Low,
-            "Long query should not be low complexity"
+            huge.query_length, 1.0,
+            "length feature saturates at max_query_length"
         );
     }
 
     #[test]
-    fn test_code_markers_increase_complexity() {
-        let router = Router::new(RouterConfig::default());
-
-        let no_code = RoutingRequest::new("Explain how to sort an array");
-        let with_code = RoutingRequest::new("Explain this code: ```rust fn main() {} ``` and fix it");
-
-        let result_no_code = router.route(&no_code);
-        let result_with_code = router.route(&with_code);
-
-        // Code markers should increase complexity
+    fn test_technical_terms_raise_domain_specificity() {
+        let est = ComplexityEstimator::new(EstimatorConfig::default());
+        let e = fixed_embedding();
+        let general = est.extract_features("how can you help", &e).unwrap();
+        let technical = est
+            .extract_features("concurrent async cache implementation", &e)
+            .unwrap();
         assert!(
-            result_with_code.score_breakdown.complexity_score
-                >= result_no_code.score_breakdown.complexity_score
+            technical.domain_specificity > general.domain_specificity,
+            "{} !> {}",
+            technical.domain_specificity,
+            general.domain_specificity
         );
     }
 
     #[test]
-    fn test_embedding_based_complexity() {
-        let router = Router::new(RouterConfig::default());
-
-        // Request with embedding should use FastGRNN
-        let embedding = normalized_embedding(128);
-        let request = RoutingRequest::new("Test task").with_embedding(embedding);
-
-        let result = router.route(&request);
-
-        assert!(
-            result.complexity == ComplexityLevel::Low
-                || result.complexity == ComplexityLevel::Medium
-                || result.complexity == ComplexityLevel::High,
-            "Should return valid complexity level"
+    fn test_recorded_accuracy_is_used_for_the_same_query() {
+        let est = ComplexityEstimator::new(EstimatorConfig::default());
+        let e = fixed_embedding();
+        let q = "cache invalidation strategy";
+        assert_eq!(
+            est.extract_features(q, &e).unwrap().historical_accuracy,
+            0.5,
+            "neutral default"
         );
+        est.record_accuracy(q, 0.9);
+        assert!((est.extract_features(q, &e).unwrap().historical_accuracy - 0.9).abs() < 0.2);
+        est.clear_cache();
+        assert_eq!(
+            est.extract_features(q, &e).unwrap().historical_accuracy,
+            0.5
+        );
+    }
+
+    #[test]
+    fn test_estimate_is_a_probability_and_level_matches_score() {
+        let r = router();
+        for q in [
+            "What is 2+2?",
+            "hello",
+            "Design a lock-free concurrent hash map",
+        ] {
+            let score = r.estimate_complexity(q, &fixed_embedding()).unwrap();
+            assert!((0.0..=1.0).contains(&score.score), "{q}: {}", score.score);
+            let d = r.route(q, &fixed_embedding()).unwrap();
+            assert_eq!(d.level, ComplexityLevel::from_score(d.complexity));
+        }
     }
 }
 
-// ============================================================================
-// Vendor Selection Tests
-// ============================================================================
+// ─── Vendor selection ───────────────────────────────────────────────────────────────────
 
 mod vendor_selection_tests {
     use super::*;
 
     #[test]
-    fn test_vendor_selection_high_complexity() {
-        let router = Router::new(RouterConfig::default());
-
-        // High complexity embedding (biased toward high values)
-        let high_complexity_emb: Vec<f32> = (0..128).map(|_| 0.9).collect();
-        let request = RoutingRequest::new("Complex task").with_embedding(high_complexity_emb);
-
-        let result = router.route(&request);
-
-        // High complexity should favor capable vendors
-        assert!(
-            result.vendor == Vendor::Anthropic || result.vendor == Vendor::OpenAI,
-            "High complexity should route to capable vendor, got {:?}",
-            result.vendor
-        );
+    fn test_thresholds_map_to_tiers() {
+        let s = selector();
+        assert_eq!(s.select(0.0, 1.0).vendor, Vendor::LocalSmall);
+        assert_eq!(s.select(0.29, 1.0).vendor, Vendor::LocalSmall);
+        assert_eq!(s.select(0.3, 1.0).vendor, Vendor::LocalLarge);
+        assert_eq!(s.select(0.49, 1.0).vendor, Vendor::LocalLarge);
+        assert_eq!(s.select(0.5, 1.0).vendor, Vendor::Claude);
+        assert_eq!(s.select(0.95, 1.0).vendor, Vendor::Claude);
     }
 
     #[test]
-    fn test_vendor_selection_with_cost_constraint() {
-        let router = Router::new(RouterConfig::default());
-
-        // Low cost budget should prefer Local
-        let request = RoutingRequest::new("Simple task").with_max_cost(0.2);
-
-        let result = router.route(&request);
-
-        assert_eq!(
-            result.vendor,
-            Vendor::Local,
-            "Low cost budget should select Local vendor"
-        );
+    fn test_high_complexity_routes_to_a_cloud_vendor() {
+        let d = selector().select(0.9, 0.9);
+        assert!(d.vendor.is_cloud(), "{:?}", d.vendor);
+        assert!(!d.is_fallback);
     }
 
     #[test]
-    fn test_vendor_selection_with_capability_constraint() {
-        let router = Router::new(RouterConfig::default());
-
-        // High capability requirement should exclude Local for high complexity
-        let high_emb: Vec<f32> = (0..128).map(|_| 0.9).collect();
-        let request = RoutingRequest::new("Complex task")
-            .with_embedding(high_emb)
-            .with_min_capability(0.85);
-
-        let result = router.route(&request);
-
-        assert!(
-            result.vendor == Vendor::Anthropic || result.vendor == Vendor::OpenAI,
-            "High capability requirement should exclude Local"
-        );
+    fn test_low_complexity_stays_local_and_cheap() {
+        let d = selector().select(0.1, 0.9);
+        assert!(d.vendor.is_local());
+        assert_eq!(d.vendor.relative_cost(), 1);
     }
 
     #[test]
-    fn test_vendor_selection_preferred_vendors() {
-        let router = Router::new(RouterConfig::default());
-
-        let request =
-            RoutingRequest::new("Any task").with_preferred_vendors(vec![Vendor::OpenAI]);
-
-        let result = router.route(&request);
-
-        assert_eq!(
-            result.vendor,
-            Vendor::OpenAI,
-            "Should respect preferred vendor list"
-        );
+    fn test_quality_profile_escalates_earlier_than_latency_profile() {
+        let quality = VendorSelector::new(VendorConfig::high_quality());
+        let latency = VendorSelector::new(VendorConfig::low_latency());
+        // high_quality leaves local at 0.4, low_latency at 0.6. (`cloud_threshold` is not used by
+        // `select`: everything at or above `local_large_threshold` goes to Claude.)
+        let x = 0.5;
+        assert!(quality.select(x, 1.0).vendor.is_cloud());
+        assert!(latency.select(x, 1.0).vendor.is_local());
     }
 
     #[test]
-    fn test_vendor_capability_scores() {
-        assert!(Vendor::Anthropic.capability_score(ComplexityLevel::High) > 0.9);
-        assert!(Vendor::Local.capability_score(ComplexityLevel::High) < 0.7);
-        assert!(Vendor::Local.capability_score(ComplexityLevel::Low) > 0.8);
+    fn test_decision_carries_its_reason_and_chain() {
+        let d = selector().select(0.4, 0.7);
+        assert_eq!(d.vendor, Vendor::LocalLarge);
+        assert!(d.reason.contains("local-large"), "{}", d.reason);
+        assert_eq!(d.fallback_chain.vendors.first(), Some(&Vendor::LocalLarge));
+        assert!((d.confidence - 0.7).abs() < f32::EPSILON);
     }
 
     #[test]
-    fn test_vendor_cost_factors() {
-        assert!(Vendor::Anthropic.cost_factor() > Vendor::Local.cost_factor());
-        assert!(Vendor::Mock.cost_factor() == 0.0);
-    }
-
-    #[test]
-    fn test_vendor_latency_slas() {
-        assert!(Vendor::Local.latency_sla_ms() < Vendor::Anthropic.latency_sla_ms());
-        assert!(Vendor::Mock.latency_sla_ms() < Vendor::Local.latency_sla_ms());
+    fn test_vendor_names_round_trip() {
+        for v in all_vendors() {
+            assert_eq!(Vendor::from_str(v.as_str()), Some(v));
+            assert_ne!(v.is_local(), v.is_cloud());
+        }
+        assert_eq!(Vendor::from_str("anthropic"), Some(Vendor::Claude));
+        assert_eq!(Vendor::from_str("openai"), Some(Vendor::GPT));
+        assert_eq!(Vendor::from_str("mystery"), None);
     }
 }
 
-// ============================================================================
-// Fallback Chain Tests
-// ============================================================================
+// ─── Fallback chains and vendor health ──────────────────────────────────────────────────
 
 mod fallback_chain_tests {
     use super::*;
 
     #[test]
-    fn test_fallback_chain_enabled() {
-        let config = RouterConfig {
-            enable_fallback: true,
-            ..Default::default()
-        };
-        let router = Router::new(config);
+    fn test_chain_escalates_in_cost_order() {
+        let chain = FallbackChain::default();
+        let costs: Vec<u32> = chain.vendors.iter().map(|v| v.relative_cost()).collect();
+        assert!(costs.windows(2).all(|w| w[0] <= w[1]), "{costs:?}");
+        assert_eq!(
+            FallbackChain::starting_from(Vendor::Claude).vendors,
+            vec![Vendor::Claude, Vendor::GPT]
+        );
+        assert_eq!(
+            FallbackChain::starting_from(Vendor::Claude).next_after(Vendor::Claude),
+            Some(Vendor::GPT)
+        );
+        assert_eq!(
+            FallbackChain::starting_from(Vendor::GPT).next_after(Vendor::GPT),
+            None
+        );
+        assert!(FallbackChain::local_only()
+            .vendors
+            .iter()
+            .all(|v| v.is_local()));
+        assert!(FallbackChain::cloud_only()
+            .vendors
+            .iter()
+            .all(|v| v.is_cloud()));
+    }
 
-        let request = RoutingRequest::new("Test task");
-        let result = router.route(&request);
-
+    #[test]
+    fn test_three_consecutive_failures_make_a_vendor_unavailable() {
+        let s = selector();
+        s.record_failure(Vendor::LocalSmall, "timeout".into());
+        s.record_failure(Vendor::LocalSmall, "timeout".into());
         assert!(
-            !result.fallback_chain.is_empty(),
-            "Fallback chain should not be empty when enabled"
+            s.is_vendor_available(Vendor::LocalSmall),
+            "two failures are tolerated"
+        );
+        s.record_failure(Vendor::LocalSmall, "timeout".into());
+        assert!(!s.is_vendor_available(Vendor::LocalSmall));
+    }
+
+    #[test]
+    fn test_success_resets_the_failure_streak() {
+        let s = selector();
+        s.record_failure(Vendor::Claude, "429".into());
+        s.record_failure(Vendor::Claude, "429".into());
+        s.record_success(Vendor::Claude, 1200);
+        s.record_failure(Vendor::Claude, "429".into());
+        assert!(s.is_vendor_available(Vendor::Claude));
+        assert_eq!(
+            s.get_status(Vendor::Claude)
+                .unwrap()
+                .consecutive_failure_count(),
+            1
         );
     }
 
     #[test]
-    fn test_fallback_chain_disabled() {
-        let config = RouterConfig {
-            enable_fallback: false,
-            ..Default::default()
-        };
-        let router = Router::new(config);
-
-        let request = RoutingRequest::new("Test task");
-        let result = router.route(&request);
-
-        assert!(
-            result.fallback_chain.is_empty(),
-            "Fallback chain should be empty when disabled"
-        );
+    fn test_unavailable_primary_falls_back_up_the_chain() {
+        let s = selector();
+        s.mark_unavailable(Vendor::LocalSmall);
+        let d = s.select(0.1, 0.9);
+        assert_eq!(d.vendor, Vendor::LocalLarge);
+        assert!(d.is_fallback);
+        assert!(d.reason.contains("local-small unavailable"), "{}", d.reason);
     }
 
     #[test]
-    fn test_fallback_chain_excludes_primary() {
-        let router = Router::new(RouterConfig::default());
-        let request = RoutingRequest::new("Test task");
-        let result = router.route(&request);
-
-        assert!(
-            !result.fallback_chain.contains(&result.vendor),
-            "Fallback chain should not contain primary vendor"
-        );
+    fn test_get_fallback_skips_unavailable_vendors() {
+        let s = selector();
+        s.mark_unavailable(Vendor::LocalLarge);
+        assert_eq!(s.get_fallback(Vendor::LocalSmall), Some(Vendor::Claude));
+        s.mark_unavailable(Vendor::GPT);
+        assert_eq!(s.get_fallback(Vendor::Claude), None);
     }
 
     #[test]
-    fn test_fallback_chain_ordering() {
-        let router = Router::new(RouterConfig::default());
-        let request = RoutingRequest::new("Test task");
-        let result = router.route(&request);
-
-        // Fallback chain should be ordered by score (verified implicitly by construction)
-        assert!(result.fallback_chain.len() <= 2); // At most 2 fallbacks with 3 vendors
+    fn test_marking_available_again_restores_primary() {
+        let s = selector();
+        s.mark_unavailable(Vendor::Claude);
+        assert_eq!(s.select(0.6, 1.0).vendor, Vendor::GPT);
+        s.mark_available(Vendor::Claude);
+        let d = s.select(0.6, 1.0);
+        assert_eq!(d.vendor, Vendor::Claude);
+        assert!(!d.is_fallback);
     }
 
     #[test]
-    fn test_unhealthy_vendor_excluded() {
-        let mut router = Router::new(RouterConfig::default());
-
-        // Mark Anthropic as unhealthy
-        router.mark_unhealthy(Vendor::Anthropic);
-
-        let request = RoutingRequest::new("Test task");
-        let result = router.route(&request);
-
-        assert_ne!(
-            result.vendor,
-            Vendor::Anthropic,
-            "Unhealthy vendor should not be selected"
-        );
-        assert!(
-            !result.fallback_chain.contains(&Vendor::Anthropic),
-            "Unhealthy vendor should not be in fallback chain"
-        );
-    }
-
-    #[test]
-    fn test_vendor_recovery() {
-        let mut router = Router::new(RouterConfig::default());
-
-        router.mark_unhealthy(Vendor::Anthropic);
-        router.mark_healthy(Vendor::Anthropic);
-
-        let request = RoutingRequest::new("Complex task");
-        let result = router.route(&request);
-
-        // Anthropic could be selected again
-        // Just verify it doesn't crash
-        assert!(result.confidence > 0.0);
+    fn test_router_outcomes_feed_vendor_health() {
+        let r = router();
+        for _ in 0..3 {
+            r.record_outcome("q", Vendor::LocalLarge, false, 0);
+        }
+        assert!(!r.vendor_status(Vendor::LocalLarge).unwrap().is_available());
+        assert_eq!(r.get_fallback(Vendor::LocalSmall), Some(Vendor::Claude));
     }
 }
 
-// ============================================================================
-// Performance Tests
-// ============================================================================
+// ─── Latency ────────────────────────────────────────────────────────────────────────────
 
 mod performance_tests {
     use super::*;
+    use std::time::Instant;
 
+    /// The router config promises a routing decision within `max_latency_ms` (5 ms).
     #[test]
-    fn test_routing_latency_under_5ms() {
-        let router = Router::new(RouterConfig::default());
-        let embedding = normalized_embedding(128);
-        let request = RoutingRequest::new("Test task").with_embedding(embedding);
-
-        let (result, duration) = measure_time(|| router.route(&request));
-
-        assert!(
-            duration.as_millis() < 5,
-            "Routing took {}ms, expected < 5ms",
-            duration.as_millis()
-        );
-        assert_eq!(result.routing_time_ms, duration.as_millis() as u64);
+    fn test_routing_stays_within_its_latency_budget() {
+        let r = router();
+        let e = fixed_embedding();
+        let budget_us = r.config().max_latency_ms * 1000;
+        let start = Instant::now();
+        let n = 200;
+        for i in 0..n {
+            let d = r
+                .route(&format!("query number {i} about async caches"), &e)
+                .unwrap();
+            assert!(
+                d.routing_latency_us <= budget_us,
+                "{} µs > {} µs",
+                d.routing_latency_us,
+                budget_us
+            );
+        }
+        let avg_us = start.elapsed().as_micros() as u64 / n;
+        assert!(avg_us <= budget_us, "average {avg_us} µs");
     }
 
     #[test]
-    fn test_routing_latency_without_embedding() {
-        let router = Router::new(RouterConfig::default());
-        let request = RoutingRequest::new("Test task without embedding");
-
-        let (_, duration) = measure_time(|| router.route(&request));
-
-        assert!(
-            duration.as_millis() < 5,
-            "Routing without embedding took {}ms, expected < 5ms",
-            duration.as_millis()
-        );
-    }
-
-    #[test]
-    fn test_batch_routing_performance() {
-        let router = Router::new(RouterConfig::default());
-
-        let requests: Vec<RoutingRequest> = (0..100)
-            .map(|i| {
-                RoutingRequest::new(format!("Task {}", i))
-                    .with_embedding(normalized_embedding(128))
-            })
-            .collect();
-
-        let (_, duration) = measure_time(|| {
-            for request in &requests {
-                router.route(request);
-            }
-        });
-
-        let avg_ms = duration.as_millis() as f64 / 100.0;
-        assert!(
-            avg_ms < 5.0,
-            "Average routing time {}ms exceeds 5ms limit",
-            avg_ms
-        );
-    }
-
-    #[test]
-    fn test_router_config_latency_enforcement() {
-        let config = RouterConfig {
-            max_routing_latency_ms: 2,
-            ..Default::default()
-        };
-
-        assert_eq!(config.max_routing_latency_ms, 2);
+    fn test_latency_is_recorded_not_zero() {
+        let r = router();
+        r.route("hello", &fixed_embedding()).unwrap();
+        assert!(r.metrics().avg_latency_us() > 0.0);
+        let (count, avg_us) = r.model_stats();
+        assert_eq!(count, 1);
+        assert!(avg_us >= 0.0);
     }
 }
 
-// ============================================================================
-// Router Statistics Tests
-// ============================================================================
+// ─── Statistics ─────────────────────────────────────────────────────────────────────────
 
 mod stats_tests {
     use super::*;
 
     #[test]
-    fn test_record_outcome() {
-        let mut router = Router::new(RouterConfig::default());
-
-        router.record_outcome(Vendor::Anthropic, true, 100);
-        router.record_outcome(Vendor::Anthropic, true, 150);
-        router.record_outcome(Vendor::Anthropic, false, 200);
-
-        let stats = router.get_vendor_stats(Vendor::Anthropic).unwrap();
-
-        assert_eq!(stats.total_requests, 3);
-        assert_eq!(stats.successful_requests, 2);
-        assert_eq!(stats.total_latency_ms, 450);
-        assert_eq!(stats.avg_latency_ms, 150);
+    fn test_vendor_status_rates() {
+        let s = selector();
+        let st = s.get_status(Vendor::GPT).unwrap();
+        assert_eq!(st.success_rate(), 1.0, "no data yet: optimistic");
+        s.record_success(Vendor::GPT, 1000);
+        s.record_success(Vendor::GPT, 3000);
+        s.record_failure(Vendor::GPT, "500".into());
+        assert!((st.success_rate() - 2.0 / 3.0).abs() < 1e-9);
+        assert!(
+            (st.avg_latency_us() - 2000.0).abs() < 1e-9,
+            "latency averages over successes"
+        );
     }
 
     #[test]
-    fn test_success_rate_calculation() {
-        let mut stats = VendorStats::default();
+    fn test_metrics_distribution_and_fallback_rate() {
+        let s = selector();
+        s.select(0.1, 1.0);
+        s.select(0.1, 1.0);
+        s.select(0.6, 1.0);
+        s.mark_unavailable(Vendor::LocalSmall);
+        s.select(0.1, 1.0); // fallback to LocalLarge
 
-        assert_eq!(stats.success_rate(), 1.0); // No requests = 100% success
+        let m = s.metrics();
+        let dist = m.vendor_distribution();
+        let total: f64 = dist.values().sum();
+        assert!((total - 1.0).abs() < 1e-9, "{dist:?}");
+        assert!((dist[&Vendor::LocalSmall] - 0.5).abs() < 1e-9);
+        assert!((m.fallback_rate() - 0.25).abs() < 1e-9);
 
-        stats.total_requests = 10;
-        stats.successful_requests = 8;
-
-        assert!((stats.success_rate() - 0.8).abs() < 0.01);
+        m.reset();
+        assert_eq!(m.fallback_rate(), 0.0);
     }
 
     #[test]
-    fn test_vendor_health_tracking() {
-        let mut router = Router::new(RouterConfig::default());
-
-        assert!(router.get_vendor_stats(Vendor::Anthropic).unwrap().is_healthy);
-
-        router.mark_unhealthy(Vendor::Anthropic);
-        assert!(!router.get_vendor_stats(Vendor::Anthropic).unwrap().is_healthy);
-
-        router.mark_healthy(Vendor::Anthropic);
-        assert!(router.get_vendor_stats(Vendor::Anthropic).unwrap().is_healthy);
+    fn test_reset_status_restores_all_vendors() {
+        let s = selector();
+        for v in all_vendors() {
+            s.mark_unavailable(v);
+        }
+        s.reset_status();
+        assert!(all_vendors().iter().all(|&v| s.is_vendor_available(v)));
     }
 }
 
-// ============================================================================
-// Confidence Calculation Tests
-// ============================================================================
+// ─── Confidence ─────────────────────────────────────────────────────────────────────────
 
 mod confidence_tests {
     use super::*;
 
     #[test]
-    fn test_confidence_single_vendor() {
-        let config = RouterConfig {
-            vendors: vec![Vendor::Local],
-            ..Default::default()
-        };
-        let router = Router::new(config);
-        let request = RoutingRequest::new("Test");
-        let result = router.route(&request);
-
-        assert_eq!(
-            result.confidence, 0.5,
-            "Single vendor should have low confidence"
-        );
+    fn test_confidence_is_bounded() {
+        let r = router();
+        for q in [
+            "",
+            "hello",
+            "Explain this code: ```rust fn main() {} ```",
+            &"why ".repeat(500),
+        ] {
+            let d = r.route(q, &fixed_embedding()).unwrap();
+            assert!(
+                (0.0..=1.0).contains(&d.confidence),
+                "{q:?}: {}",
+                d.confidence
+            );
+            let s = r.route_simple(q, &fixed_embedding()).unwrap();
+            assert!(
+                (0.0..=1.0).contains(&s.confidence),
+                "{q:?}: {}",
+                s.confidence
+            );
+        }
     }
 
     #[test]
-    fn test_confidence_bounded() {
-        let router = Router::new(RouterConfig::default());
-        let request = RoutingRequest::new("Test task");
-        let result = router.route(&request);
+    fn test_known_history_raises_confidence() {
+        let est = ComplexityEstimator::new(EstimatorConfig::default());
+        let e = fixed_embedding();
+        let q = "database migration rollback";
+        let before = est.estimate_simple(q, &e).unwrap().confidence;
+        est.record_accuracy(q, 0.95);
+        let after = est.estimate_simple(q, &e).unwrap().confidence;
+        assert!(after > before, "{after} !> {before}");
+    }
+}
 
-        assert!(
-            result.confidence >= 0.0 && result.confidence <= 1.0,
-            "Confidence {} should be in [0.0, 1.0]",
-            result.confidence
-        );
+// ─── Properties ─────────────────────────────────────────────────────────────────────────
+
+fn finite_embedding() -> impl Strategy<Value = Vec<f32>> {
+    prop::collection::vec(-1.0f32..1.0, 1..256)
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(128))]
+
+    #[test]
+    fn prop_route_never_panics_and_stays_in_range(query in ".{0,400}", emb in finite_embedding()) {
+        let d = router().route(&query, &emb).unwrap();
+        prop_assert!((0.0..=1.0).contains(&d.complexity));
+        prop_assert!((0.0..=1.0).contains(&d.confidence));
+        prop_assert_eq!(d.level, ComplexityLevel::from_score(d.complexity));
     }
 
     #[test]
-    fn test_confidence_with_clear_winner() {
-        let router = Router::new(RouterConfig::default());
+    fn prop_route_is_deterministic(query in ".{0,120}", emb in finite_embedding()) {
+        let r = router();
+        let a = r.route(&query, &emb).unwrap();
+        let b = r.route(&query, &emb).unwrap();
+        prop_assert_eq!(a.vendor, b.vendor);
+        prop_assert_eq!(a.complexity, b.complexity);
+    }
 
-        // Request that strongly favors one vendor
-        let request = RoutingRequest::new("Simple task")
-            .with_preferred_vendors(vec![Vendor::Local])
-            .with_max_cost(0.2);
+    /// More complexity never routes to a cheaper vendor (all vendors healthy).
+    #[test]
+    fn prop_selection_is_monotonic_in_cost(a in 0.0f32..=1.0, b in 0.0f32..=1.0) {
+        let s = selector();
+        let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
+        prop_assert!(s.select(lo, 1.0).vendor.relative_cost() <= s.select(hi, 1.0).vendor.relative_cost());
+    }
 
-        let result = router.route(&request);
-
-        // With only one option, confidence should be set accordingly
-        assert!(result.confidence > 0.0);
+    /// With some vendors down, selection still returns an available vendor whenever one exists
+    /// at or above the primary tier.
+    #[test]
+    fn prop_fallback_picks_an_available_vendor(x in 0.0f32..=1.0, down in prop::collection::vec(0usize..4, 0..3)) {
+        let s = selector();
+        let down: HashSet<usize> = down.into_iter().collect();
+        for &i in &down {
+            s.mark_unavailable(all_vendors()[i]);
+        }
+        let d = s.select(x, 1.0);
+        let primary = selector().select(x, 1.0).vendor;
+        let any_up = FallbackChain::starting_from(primary).vendors.iter().any(|&v| s.is_vendor_available(v));
+        if any_up {
+            prop_assert!(s.is_vendor_available(d.vendor), "{:?} is down", d.vendor);
+        }
+        prop_assert_eq!(d.is_fallback, d.vendor != primary);
     }
 }
 
-// ============================================================================
-// Property-Based Tests
-// ============================================================================
-
-mod property_tests {
-    use super::*;
-
-    proptest! {
-        /// Property: Routing always returns a valid vendor.
-        #[test]
-        fn prop_routing_returns_valid_vendor(task_len in 1usize..1000usize) {
-            let router = Router::new(RouterConfig::default());
-            let task: String = (0..task_len).map(|_| 'a').collect();
-            let request = RoutingRequest::new(task);
-
-            let result = router.route(&request);
-
-            prop_assert!(
-                result.vendor == Vendor::Anthropic
-                    || result.vendor == Vendor::OpenAI
-                    || result.vendor == Vendor::Local
-            );
-        }
-
-        /// Property: Complexity is always valid.
-        #[test]
-        fn prop_complexity_always_valid(score in 0.0f32..=1.0f32) {
-            let complexity = ComplexityLevel::from_score(score);
-            prop_assert!(
-                complexity == ComplexityLevel::Low
-                    || complexity == ComplexityLevel::Medium
-                    || complexity == ComplexityLevel::High
-            );
-        }
-
-        /// Property: FastGRNN output is always in [0, 1].
-        #[test]
-        fn prop_grnn_output_bounded(dim in 32usize..256usize) {
-            let grnn = MockFastGRNN::new(dim);
-            let embedding = normalized_embedding(128);
-            let score = grnn.predict_complexity(&embedding);
-
-            prop_assert!(score >= 0.0 && score <= 1.0);
-        }
-
-        /// Property: Fallback chain never contains primary vendor.
-        #[test]
-        fn prop_fallback_excludes_primary(task_len in 1usize..100usize) {
-            let router = Router::new(RouterConfig::default());
-            let task: String = (0..task_len).map(|_| 'a').collect();
-            let request = RoutingRequest::new(task);
-
-            let result = router.route(&request);
-
-            prop_assert!(!result.fallback_chain.contains(&result.vendor));
-        }
-
-        /// Property: Confidence is always bounded.
-        #[test]
-        fn prop_confidence_bounded(task_len in 1usize..100usize) {
-            let router = Router::new(RouterConfig::default());
-            let task: String = (0..task_len).map(|_| 'a').collect();
-            let request = RoutingRequest::new(task);
-
-            let result = router.route(&request);
-
-            prop_assert!(result.confidence >= 0.0 && result.confidence <= 1.0);
-        }
-
-        /// Property: Routing time is always recorded.
-        #[test]
-        fn prop_routing_time_recorded(task_len in 1usize..100usize) {
-            let router = Router::new(RouterConfig::default());
-            let task: String = (0..task_len).map(|_| 'a').collect();
-            let request = RoutingRequest::new(task);
-
-            let result = router.route(&request);
-
-            prop_assert!(result.routing_time_ms < 1000); // Should complete in < 1s
-        }
-    }
-}
-
-// ============================================================================
-// Edge Case Tests
-// ============================================================================
+// ─── Edge cases ─────────────────────────────────────────────────────────────────────────
 
 mod edge_cases {
     use super::*;
 
     #[test]
-    fn test_empty_task() {
-        let router = Router::new(RouterConfig::default());
-        let request = RoutingRequest::new("");
-        let result = router.route(&request);
+    fn test_empty_embedding_is_rejected() {
+        assert!(router().route("anything", &[]).is_err());
+        assert!(router().route_simple("anything", &[]).is_err());
+    }
 
-        // Should still route successfully
-        assert!(result.confidence > 0.0);
-        assert_eq!(result.complexity, ComplexityLevel::Low);
+    /// A NaN component used to produce complexity NaN, which fell through every threshold to the
+    /// most expensive tier. It must be rejected instead.
+    #[test]
+    fn test_non_finite_embedding_is_rejected() {
+        let mut e = normalized_embedding(DIM);
+        e[3] = f32::NAN;
+        assert!(router().route("q", &e).is_err());
+        e[3] = f32::INFINITY;
+        assert!(router().route("q", &e).is_err());
+        assert!(router().estimate_complexity("q", &e).is_err());
     }
 
     #[test]
-    fn test_very_long_task() {
-        let router = Router::new(RouterConfig::default());
-        let long_task = "x".repeat(10000);
-        let request = RoutingRequest::new(long_task);
-        let result = router.route(&request);
-
-        // Should handle long tasks
-        assert!(result.routing_time_ms < 100);
+    fn test_empty_and_whitespace_queries_route() {
+        for q in ["", "   ", "\n\t"] {
+            let d = router().route(q, &fixed_embedding()).unwrap();
+            assert!((0.0..=1.0).contains(&d.complexity));
+        }
     }
 
     #[test]
-    fn test_all_vendors_unhealthy() {
-        let mut router = Router::new(RouterConfig::default());
-
-        router.mark_unhealthy(Vendor::Anthropic);
-        router.mark_unhealthy(Vendor::OpenAI);
-        router.mark_unhealthy(Vendor::Local);
-
-        let request = RoutingRequest::new("Test");
-        let result = router.route(&request);
-
-        // Should fallback to default (Local)
-        assert_eq!(result.vendor, Vendor::Local);
+    fn test_unicode_and_huge_queries_route() {
+        let r = router();
+        r.route(
+            "Kako da testiram async kod? 非同期テスト 🦀",
+            &fixed_embedding(),
+        )
+        .unwrap();
+        r.route(&"ő".repeat(100_000), &fixed_embedding()).unwrap();
     }
 
     #[test]
-    fn test_zero_dimension_embedding() {
-        let router = Router::new(RouterConfig::default());
-        let request = RoutingRequest::new("Test").with_embedding(vec![]);
+    fn test_any_embedding_dimension_is_accepted() {
+        let r = router();
+        for dim in [1, 3, 128, 384, 1536] {
+            r.route("q", &normalized_embedding(dim)).unwrap();
+        }
+    }
+}
 
-        // Should handle gracefully
-        let result = router.route(&request);
-        assert!(result.confidence > 0.0);
+// ─── Estimator quality on held-out labelled queries ────────────────────────────────────
+
+mod quality_tests {
+    use super::*;
+
+    const LEVELS: [ComplexityLevel; 4] = [
+        ComplexityLevel::Low,
+        ComplexityLevel::Medium,
+        ComplexityLevel::High,
+        ComplexityLevel::VeryHigh,
+    ];
+
+    fn label(s: &str) -> ComplexityLevel {
+        match s {
+            "low" => ComplexityLevel::Low,
+            "medium" => ComplexityLevel::Medium,
+            "high" => ComplexityLevel::High,
+            "very_high" => ComplexityLevel::VeryHigh,
+            other => panic!("unknown level {other}"),
+        }
     }
 
-    #[test]
-    fn test_nan_in_embedding() {
-        let router = Router::new(RouterConfig::default());
-        let mut embedding = normalized_embedding(128);
-        embedding[0] = f32::NAN;
-
-        let request = RoutingRequest::new("Test").with_embedding(embedding);
-
-        // Should handle NaN gracefully
-        let result = router.route(&request);
-        // NaN handling - complexity might be weird but shouldn't crash
-        assert!(result.vendor == Vendor::Anthropic || result.vendor == Vendor::OpenAI || result.vendor == Vendor::Local);
+    fn rank(l: ComplexityLevel) -> i32 {
+        LEVELS.iter().position(|&x| x == l).unwrap() as i32
     }
 
+    /// (query, labelled level) for one split of models/router_queries.jsonl.
+    fn split(name: &str) -> Vec<(String, ComplexityLevel)> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/models/router_queries.jsonl");
+        std::fs::read_to_string(path)
+            .unwrap()
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
+            .filter(|r| r["split"] == name)
+            .map(|r| {
+                (
+                    r["query"].as_str().unwrap().to_string(),
+                    label(r["level"].as_str().unwrap()),
+                )
+            })
+            .collect()
+    }
+
+    /// The bar was fixed before training: exact level >= 65%, local-vs-cloud >= 85%, and no
+    /// prediction more than one level off. Measured at training time: 65.0% / 90.0% / 1.
     #[test]
-    fn test_conflicting_constraints() {
-        let router = Router::new(RouterConfig::default());
+    fn test_held_out_queries_meet_the_quality_bar() {
+        let r = router();
+        let test = split("test");
+        assert_eq!(test.len(), 40);
 
-        // Request that wants high capability but low cost - impossible
-        let request = RoutingRequest::new("Complex task")
-            .with_max_cost(0.05) // Very low cost
-            .with_min_capability(0.95); // Very high capability
+        let (mut exact, mut tier, mut worst) = (0usize, 0usize, 0i32);
+        let mut misses = Vec::new();
+        for (q, want) in &test {
+            let d = r.route(q, &fixed_embedding()).unwrap();
+            if d.level == *want {
+                exact += 1;
+            } else {
+                misses.push(format!(
+                    "{:?} -> {:?} ({:.2}): {}",
+                    want, d.level, d.complexity, q
+                ));
+            }
+            let want_cloud = matches!(want, ComplexityLevel::High | ComplexityLevel::VeryHigh);
+            if d.vendor.is_cloud() == want_cloud {
+                tier += 1;
+            }
+            worst = worst.max((rank(d.level) - rank(*want)).abs());
+        }
+        let n = test.len() as f64;
+        let (exact_acc, tier_acc) = (exact as f64 / n, tier as f64 / n);
+        let report = misses.join("\n  ");
+        assert!(
+            exact_acc >= 0.65,
+            "level accuracy {exact_acc:.3} < 0.65\n  {report}"
+        );
+        assert!(
+            tier_acc >= 0.85,
+            "local-vs-cloud accuracy {tier_acc:.3} < 0.85\n  {report}"
+        );
+        assert!(
+            worst <= 1,
+            "a prediction was {worst} levels off\n  {report}"
+        );
+    }
 
-        let result = router.route(&request);
+    /// The router must discriminate: the old weights scored everything 0.47–0.53.
+    #[test]
+    fn test_scores_spread_across_levels() {
+        let r = router();
+        let mean = |lvl: ComplexityLevel| {
+            let xs: Vec<f32> = split("test")
+                .iter()
+                .filter(|(_, l)| *l == lvl)
+                .map(|(q, _)| r.route(q, &fixed_embedding()).unwrap().complexity)
+                .collect();
+            xs.iter().sum::<f32>() / xs.len() as f32
+        };
+        let means: Vec<f32> = LEVELS.iter().map(|&l| mean(l)).collect();
+        assert!(
+            means.windows(2).all(|w| w[0] < w[1]),
+            "per-level means not increasing: {means:?}"
+        );
+        assert!(means[3] - means[0] > 0.4, "spread too small: {means:?}");
+    }
 
-        // Should still return something (Local as fallback)
-        assert_eq!(result.vendor, Vendor::Local);
+    /// Anchors from the original spec: everyday questions stay on the cheapest tier, hard
+    /// design/proof work goes to the cloud.
+    #[test]
+    fn test_anchor_queries() {
+        let r = router();
+        for q in ["hello", "What is 2+2?"] {
+            let d = r.route(q, &fixed_embedding()).unwrap();
+            assert_eq!(d.vendor, Vendor::LocalSmall, "{q}: {:.3}", d.complexity);
+        }
+        let hard =
+            "Design a lock-free concurrent hash map in Rust with epoch-based memory reclamation, \
+                    prove linearizability, and analyse ABA hazards under contention";
+        let d = r.route(hard, &fixed_embedding()).unwrap();
+        assert!(
+            d.vendor.is_cloud() && d.level == ComplexityLevel::VeryHigh,
+            "{:.3} {:?}",
+            d.complexity,
+            d.level
+        );
+    }
+
+    /// The Rust forward pass must reproduce what the training script measured on the test split
+    /// (guards against drift between `router_features`, the trainer and `FastGRNN::forward`).
+    #[test]
+    fn test_rust_inference_matches_recorded_training_metrics() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/models/fastgrnn_router.json");
+        let doc: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let recorded = doc["metrics"]["test"]["level_accuracy"].as_f64().unwrap();
+
+        let r = router();
+        let test = split("test");
+        let exact = test
+            .iter()
+            .filter(|(q, want)| r.route(q, &fixed_embedding()).unwrap().level == *want)
+            .count() as f64
+            / test.len() as f64;
+        assert!(
+            (exact - recorded).abs() < 1e-9,
+            "rust {exact} vs trainer {recorded}"
+        );
     }
 }

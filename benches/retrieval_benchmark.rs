@@ -9,9 +9,7 @@
 //! - p95 < 50ms for 10,000 patterns
 //! - Linear or sub-linear scaling with pattern count
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use ndarray::Array1;
 use rand::prelude::*;
 use std::hint::black_box as hint_black_box;
@@ -192,9 +190,7 @@ fn multi_factor_score(
             let recency = 0.9;
 
             // Reliability score
-            let reliability = pattern.effectiveness * 0.6
-                + pattern.confidence * 0.3
-                + 0.1; // success bonus
+            let reliability = pattern.effectiveness * 0.6 + pattern.confidence * 0.3 + 0.1; // success bonus
 
             // Reuse score (log scale)
             let reuse = if pattern.reuse_count > 0 {
@@ -285,11 +281,7 @@ fn bench_similarity_search(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("brute_force", pattern_count),
             pattern_count,
-            |b, _| {
-                b.iter(|| {
-                    black_box(brute_force_search(&patterns, &query, k, 0.0))
-                })
-            },
+            |b, _| b.iter(|| black_box(brute_force_search(&patterns, &query, k, 0.0))),
         );
     }
 
@@ -323,9 +315,7 @@ fn bench_filtered_search(c: &mut Criterion) {
             BenchmarkId::new("10k_patterns", filter_desc),
             &(min_reward, domain_filter),
             |b, &(min_r, dom)| {
-                b.iter(|| {
-                    black_box(filtered_search(&patterns, &query, k, min_r, dom))
-                })
+                b.iter(|| black_box(filtered_search(&patterns, &query, k, min_r, dom)))
             },
         );
     }
@@ -353,7 +343,13 @@ fn bench_mmr_reranking(c: &mut Criterion) {
                 &(*k, *lambda),
                 |b, &(k_val, lambda_val)| {
                     b.iter(|| {
-                        black_box(mmr_select(&patterns, &candidates, &query, k_val, lambda_val))
+                        black_box(mmr_select(
+                            &patterns,
+                            &candidates,
+                            &query,
+                            k_val,
+                            lambda_val,
+                        ))
                     })
                 },
             );
@@ -418,12 +414,7 @@ fn bench_full_pipeline(c: &mut Criterion) {
             |b, _| {
                 b.iter(|| {
                     black_box(full_retrieval_pipeline(
-                        &patterns,
-                        &query,
-                        k,
-                        0.5,
-                        0.7,
-                        &weights,
+                        &patterns, &query, k, 0.5, 0.7, &weights,
                     ))
                 })
             },
@@ -446,21 +437,13 @@ fn bench_cosine_similarity(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(*dim as u64));
 
-        group.bench_with_input(
-            BenchmarkId::new("unnormalized", dim),
-            dim,
-            |bench, _| {
-                bench.iter(|| black_box(cosine_similarity(&a, &b)))
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("unnormalized", dim), dim, |bench, _| {
+            bench.iter(|| black_box(cosine_similarity(&a, &b)))
+        });
 
-        group.bench_with_input(
-            BenchmarkId::new("normalized", dim),
-            dim,
-            |bench, _| {
-                bench.iter(|| black_box(cosine_similarity_normalized(&a, &b)))
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("normalized", dim), dim, |bench, _| {
+            bench.iter(|| black_box(cosine_similarity_normalized(&a, &b)))
+        });
     }
 
     group.finish();
@@ -483,9 +466,7 @@ fn bench_scaling_characteristics(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("brute_force", pattern_count),
             &pattern_count,
-            |b, _| {
-                b.iter(|| black_box(brute_force_search(&patterns, &query, k, 0.0)))
-            },
+            |b, _| b.iter(|| black_box(brute_force_search(&patterns, &query, k, 0.0))),
         );
     }
 

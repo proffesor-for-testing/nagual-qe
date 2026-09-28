@@ -114,27 +114,25 @@ pub async fn run(args: &ConsolidateArgs) -> Result<()> {
             Ok(wm) => {
                 let wm = Arc::new(wm);
                 match WormholeDetector::new(adapter, wm, DetectorConfig::default()).await {
-                    Ok(detector) => {
-                        match detector.detect_cross_domain_wormholes().await {
-                            Ok(candidates) => {
-                                if !candidates.is_empty() {
+                    Ok(detector) => match detector.detect_cross_domain_wormholes().await {
+                        Ok(candidates) => {
+                            if !candidates.is_empty() {
+                                println!(
+                                    "\n  Cross-domain wormholes detected: {}",
+                                    candidates.len()
+                                );
+                                for c in candidates.iter().take(5) {
                                     println!(
-                                        "\n  Cross-domain wormholes detected: {}",
-                                        candidates.len()
+                                        "    {} <-> {} (score: {:.2})",
+                                        c.source_id, c.target_id, c.score
                                     );
-                                    for c in candidates.iter().take(5) {
-                                        println!(
-                                            "    {} <-> {} (score: {:.2})",
-                                            c.source_id, c.target_id, c.score
-                                        );
-                                    }
                                 }
                             }
-                            Err(e) => {
-                                tracing::debug!("Wormhole detection skipped: {}", e);
-                            }
                         }
-                    }
+                        Err(e) => {
+                            tracing::debug!("Wormhole detection skipped: {}", e);
+                        }
+                    },
                     Err(e) => tracing::debug!("Wormhole detector init skipped: {}", e),
                 }
             }

@@ -126,10 +126,9 @@ impl CloudClient {
         }
 
         // The /api/status endpoint returns a generic JSON; parse what we can
-        let json: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| NagualError::internal(format!("Failed to parse status response: {}", e)))?;
+        let json: serde_json::Value = response.json().await.map_err(|e| {
+            NagualError::internal(format!("Failed to parse status response: {}", e))
+        })?;
 
         Ok(CloudStatusResponse {
             status: json

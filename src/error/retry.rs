@@ -92,11 +92,7 @@ impl Default for RetryPolicy {
 
 impl RetryPolicy {
     /// Create a new retry policy with custom settings.
-    pub fn new(
-        max_retries: u32,
-        base_delay: Duration,
-        max_delay: Duration,
-    ) -> Self {
+    pub fn new(max_retries: u32, base_delay: Duration, max_delay: Duration) -> Self {
         Self {
             max_retries,
             base_delay,
@@ -183,8 +179,8 @@ impl RetryPolicy {
     /// Calculate the delay for a given attempt number (0-indexed).
     pub fn calculate_delay(&self, attempt: u32) -> Duration {
         // Calculate exponential backoff
-        let exponential_delay = self.base_delay.as_secs_f64()
-            * self.backoff_factor.powi(attempt as i32);
+        let exponential_delay =
+            self.base_delay.as_secs_f64() * self.backoff_factor.powi(attempt as i32);
 
         // Cap at max_delay
         let capped_delay = exponential_delay.min(self.max_delay.as_secs_f64());
@@ -282,10 +278,7 @@ impl RetryPolicy {
 }
 
 /// Convenience function to retry an operation with default settings.
-pub async fn with_retry<F, Fut, T, E>(
-    operation_name: &str,
-    operation: F,
-) -> Result<T, RetryError>
+pub async fn with_retry<F, Fut, T, E>(operation_name: &str, operation: F) -> Result<T, RetryError>
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, E>>,
@@ -293,7 +286,9 @@ where
 {
     let policy = RetryPolicy::default();
     let condition = AlwaysRetry;
-    policy.with_retry(operation_name, &condition, operation).await
+    policy
+        .with_retry(operation_name, &condition, operation)
+        .await
 }
 
 /// Convenience function to retry an operation with a custom policy.
@@ -308,7 +303,9 @@ where
     E: std::fmt::Display,
 {
     let condition = AlwaysRetry;
-    policy.with_retry(operation_name, &condition, operation).await
+    policy
+        .with_retry(operation_name, &condition, operation)
+        .await
 }
 
 /// Retry with NagualError and automatic retry condition detection.
@@ -322,7 +319,9 @@ where
     Fut: Future<Output = Result<T, NagualError>>,
 {
     let condition = DefaultRetryCondition;
-    policy.with_retry(operation_name, &condition, operation).await
+    policy
+        .with_retry(operation_name, &condition, operation)
+        .await
 }
 
 #[cfg(test)]
@@ -355,11 +354,8 @@ mod tests {
 
     #[test]
     fn test_calculate_delay_capped() {
-        let policy = RetryPolicy::new(
-            10,
-            Duration::from_secs(1),
-            Duration::from_secs(5),
-        ).with_jitter_factor(0.0);
+        let policy = RetryPolicy::new(10, Duration::from_secs(1), Duration::from_secs(5))
+            .with_jitter_factor(0.0);
 
         // After many retries, delay should be capped
         let delay = policy.calculate_delay(10);
@@ -371,9 +367,7 @@ mod tests {
         let policy = RetryPolicy::default().with_jitter_factor(0.5);
 
         // Run multiple times to verify jitter adds variability
-        let delays: Vec<Duration> = (0..10)
-            .map(|_| policy.calculate_delay(1))
-            .collect();
+        let delays: Vec<Duration> = (0..10).map(|_| policy.calculate_delay(1)).collect();
 
         // Not all delays should be the same (with 50% jitter)
         let all_same = delays.windows(2).all(|w| w[0] == w[1]);

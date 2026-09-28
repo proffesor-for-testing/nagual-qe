@@ -13,10 +13,10 @@
 //! orchestration scenarios.
 
 use chrono::{DateTime, Utc};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use parking_lot::RwLock;
 
 use crate::db::SqliteDb;
 use crate::error::{NagualError, Result};
@@ -302,8 +302,7 @@ impl ViewManager {
         for (agent_id, mode_str, domains_json, created_str, updated_str, meta_str) in rows {
             let grants = self.load_grants(&agent_id, "include").await?;
             let excludes = self.load_grants(&agent_id, "exclude").await?;
-            let domains: Vec<String> =
-                serde_json::from_str(&domains_json).unwrap_or_default();
+            let domains: Vec<String> = serde_json::from_str(&domains_json).unwrap_or_default();
             let created_at = parse_datetime(&created_str);
             let updated_at = parse_datetime(&updated_str);
             let metadata = meta_str.and_then(|s| serde_json::from_str(&s).ok());
@@ -353,11 +352,7 @@ impl ViewManager {
     ///
     /// Returns the newly created `AgentView`. If the agent already exists an
     /// error is returned.
-    pub async fn register_agent(
-        &self,
-        agent_id: &str,
-        mode: ViewMode,
-    ) -> Result<AgentView> {
+    pub async fn register_agent(&self, agent_id: &str, mode: ViewMode) -> Result<AgentView> {
         // Check max agents limit.
         {
             let cache = self.cache.read();
@@ -401,7 +396,9 @@ impl ViewManager {
             metadata: None,
         };
 
-        self.cache.write().insert(agent_id.to_string(), view.clone());
+        self.cache
+            .write()
+            .insert(agent_id.to_string(), view.clone());
         Ok(view)
     }
 
@@ -412,11 +409,7 @@ impl ViewManager {
     }
 
     /// Grant an agent access to a specific pattern (used in Include mode).
-    pub async fn grant_access(
-        &self,
-        agent_id: &str,
-        pattern_id: &str,
-    ) -> Result<()> {
+    pub async fn grant_access(&self, agent_id: &str, pattern_id: &str) -> Result<()> {
         self.ensure_agent_exists(agent_id)?;
         self.check_grants_limit(agent_id)?;
 
@@ -445,11 +438,7 @@ impl ViewManager {
     }
 
     /// Revoke a previously granted pattern from an agent.
-    pub async fn revoke_access(
-        &self,
-        agent_id: &str,
-        pattern_id: &str,
-    ) -> Result<()> {
+    pub async fn revoke_access(&self, agent_id: &str, pattern_id: &str) -> Result<()> {
         self.ensure_agent_exists(agent_id)?;
 
         self.db
@@ -473,11 +462,7 @@ impl ViewManager {
     }
 
     /// Add a pattern to an agent's exclusion list (used in Exclude mode).
-    pub async fn exclude_pattern(
-        &self,
-        agent_id: &str,
-        pattern_id: &str,
-    ) -> Result<()> {
+    pub async fn exclude_pattern(&self, agent_id: &str, pattern_id: &str) -> Result<()> {
         self.ensure_agent_exists(agent_id)?;
 
         self.db
@@ -503,11 +488,7 @@ impl ViewManager {
     }
 
     /// Remove a pattern from an agent's exclusion list.
-    pub async fn remove_exclude(
-        &self,
-        agent_id: &str,
-        pattern_id: &str,
-    ) -> Result<()> {
+    pub async fn remove_exclude(&self, agent_id: &str, pattern_id: &str) -> Result<()> {
         self.ensure_agent_exists(agent_id)?;
 
         self.db
@@ -531,11 +512,7 @@ impl ViewManager {
     }
 
     /// Set the domain filter list for an agent.
-    pub async fn set_domain_filter(
-        &self,
-        agent_id: &str,
-        domains: Vec<String>,
-    ) -> Result<()> {
+    pub async fn set_domain_filter(&self, agent_id: &str, domains: Vec<String>) -> Result<()> {
         self.ensure_agent_exists(agent_id)?;
 
         let domains_json = serde_json::to_string(&domains)
@@ -584,9 +561,10 @@ impl ViewManager {
         // Domain isolation check.
         if self.config.enable_domain_isolation && !view.domain_filters.is_empty() {
             if let Some(domain) = pattern_domain {
-                let domain_allowed = view.domain_filters.iter().any(|d| {
-                    domain == d.as_str() || domain.starts_with(&format!("{}.", d))
-                });
+                let domain_allowed = view
+                    .domain_filters
+                    .iter()
+                    .any(|d| domain == d.as_str() || domain.starts_with(&format!("{}.", d)));
                 if !domain_allowed {
                     return Ok(AccessDecision {
                         allowed: false,
@@ -656,12 +634,10 @@ impl ViewManager {
         };
 
         // Build fast lookup sets.
-        let grants_set: HashSet<&str> =
-            view.pattern_grants.iter().map(|s| s.as_str()).collect();
+        let grants_set: HashSet<&str> = view.pattern_grants.iter().map(|s| s.as_str()).collect();
         let excludes_set: HashSet<&str> =
             view.pattern_excludes.iter().map(|s| s.as_str()).collect();
-        let domain_set: HashSet<&str> =
-            view.domain_filters.iter().map(|s| s.as_str()).collect();
+        let domain_set: HashSet<&str> = view.domain_filters.iter().map(|s| s.as_str()).collect();
 
         let mut result = Vec::new();
 
@@ -670,9 +646,9 @@ impl ViewManager {
             if self.config.enable_domain_isolation && !domain_set.is_empty() {
                 let d = domains.get(i).map(|s| s.as_str()).unwrap_or("");
                 if !d.is_empty() {
-                    let domain_ok = domain_set.iter().any(|&allowed| {
-                        d == allowed || d.starts_with(&format!("{}.", allowed))
-                    });
+                    let domain_ok = domain_set
+                        .iter()
+                        .any(|&allowed| d == allowed || d.starts_with(&format!("{}.", allowed)));
                     if !domain_ok {
                         continue;
                     }
@@ -695,11 +671,7 @@ impl ViewManager {
     }
 
     /// Change an agent's view mode.
-    pub async fn set_view_mode(
-        &self,
-        agent_id: &str,
-        mode: ViewMode,
-    ) -> Result<()> {
+    pub async fn set_view_mode(&self, agent_id: &str, mode: ViewMode) -> Result<()> {
         self.ensure_agent_exists(agent_id)?;
 
         self.db
@@ -941,7 +913,10 @@ mod tests {
         let db = setup_test_db().await;
         let mgr = ViewManager::new(db, ViewConfig::default()).await.unwrap();
 
-        let view = mgr.register_agent("agent-1", ViewMode::Include).await.unwrap();
+        let view = mgr
+            .register_agent("agent-1", ViewMode::Include)
+            .await
+            .unwrap();
         assert_eq!(view.agent_id, "agent-1");
         assert_eq!(view.view_mode, ViewMode::Include);
         assert!(view.domain_filters.is_empty());
@@ -987,7 +962,9 @@ mod tests {
         let db = setup_test_db().await;
         let mgr = ViewManager::new(db, ViewConfig::default()).await.unwrap();
 
-        mgr.register_agent("agent-1", ViewMode::Include).await.unwrap();
+        mgr.register_agent("agent-1", ViewMode::Include)
+            .await
+            .unwrap();
         mgr.grant_access("agent-1", "pat-100").await.unwrap();
 
         let view = mgr.get_view("agent-1").await.unwrap().unwrap();
@@ -999,7 +976,9 @@ mod tests {
         let db = setup_test_db().await;
         let mgr = ViewManager::new(db, ViewConfig::default()).await.unwrap();
 
-        mgr.register_agent("agent-1", ViewMode::Include).await.unwrap();
+        mgr.register_agent("agent-1", ViewMode::Include)
+            .await
+            .unwrap();
         mgr.grant_access("agent-1", "pat-100").await.unwrap();
         mgr.revoke_access("agent-1", "pat-100").await.unwrap();
 
@@ -1012,14 +991,19 @@ mod tests {
         let db = setup_test_db().await;
         let mgr = ViewManager::new(db, ViewConfig::default()).await.unwrap();
 
-        mgr.register_agent("agent-1", ViewMode::Include).await.unwrap();
+        mgr.register_agent("agent-1", ViewMode::Include)
+            .await
+            .unwrap();
         mgr.grant_access("agent-1", "pat-100").await.unwrap();
         mgr.grant_access("agent-1", "pat-100").await.unwrap();
 
         let view = mgr.get_view("agent-1").await.unwrap().unwrap();
         // Should only appear once.
         assert_eq!(
-            view.pattern_grants.iter().filter(|p| *p == "pat-100").count(),
+            view.pattern_grants
+                .iter()
+                .filter(|p| *p == "pat-100")
+                .count(),
             1
         );
     }
@@ -1033,7 +1017,9 @@ mod tests {
         let db = setup_test_db().await;
         let mgr = ViewManager::new(db, ViewConfig::default()).await.unwrap();
 
-        mgr.register_agent("agent-1", ViewMode::Exclude).await.unwrap();
+        mgr.register_agent("agent-1", ViewMode::Exclude)
+            .await
+            .unwrap();
         mgr.exclude_pattern("agent-1", "pat-secret").await.unwrap();
 
         let view = mgr.get_view("agent-1").await.unwrap().unwrap();
@@ -1045,7 +1031,9 @@ mod tests {
         let db = setup_test_db().await;
         let mgr = ViewManager::new(db, ViewConfig::default()).await.unwrap();
 
-        mgr.register_agent("agent-1", ViewMode::Exclude).await.unwrap();
+        mgr.register_agent("agent-1", ViewMode::Exclude)
+            .await
+            .unwrap();
         mgr.exclude_pattern("agent-1", "pat-secret").await.unwrap();
         mgr.remove_exclude("agent-1", "pat-secret").await.unwrap();
 
@@ -1062,7 +1050,9 @@ mod tests {
         let db = setup_test_db().await;
         let mgr = ViewManager::new(db, ViewConfig::default()).await.unwrap();
 
-        mgr.register_agent("agent-1", ViewMode::Include).await.unwrap();
+        mgr.register_agent("agent-1", ViewMode::Include)
+            .await
+            .unwrap();
         mgr.grant_access("agent-1", "pat-1").await.unwrap();
 
         let decision = mgr.check_access("agent-1", "pat-1", None).await.unwrap();
@@ -1075,7 +1065,9 @@ mod tests {
         let db = setup_test_db().await;
         let mgr = ViewManager::new(db, ViewConfig::default()).await.unwrap();
 
-        mgr.register_agent("agent-1", ViewMode::Include).await.unwrap();
+        mgr.register_agent("agent-1", ViewMode::Include)
+            .await
+            .unwrap();
 
         let decision = mgr.check_access("agent-1", "pat-999", None).await.unwrap();
         assert!(!decision.allowed);
@@ -1091,14 +1083,19 @@ mod tests {
         };
         let mgr = ViewManager::new(db, config).await.unwrap();
 
-        mgr.register_agent("agent-1", ViewMode::Include).await.unwrap();
+        mgr.register_agent("agent-1", ViewMode::Include)
+            .await
+            .unwrap();
         mgr.grant_access("agent-1", "pat-1").await.unwrap();
         mgr.set_domain_filter("agent-1", vec!["rust".to_string()])
             .await
             .unwrap();
 
         // Pattern in allowed domain -- access depends on grant.
-        let decision = mgr.check_access("agent-1", "pat-1", Some("rust")).await.unwrap();
+        let decision = mgr
+            .check_access("agent-1", "pat-1", Some("rust"))
+            .await
+            .unwrap();
         assert!(decision.allowed);
 
         // Pattern in disallowed domain -- blocked by domain filter.
@@ -1119,7 +1116,9 @@ mod tests {
         let db = setup_test_db().await;
         let mgr = ViewManager::new(db, ViewConfig::default()).await.unwrap();
 
-        mgr.register_agent("agent-1", ViewMode::Exclude).await.unwrap();
+        mgr.register_agent("agent-1", ViewMode::Exclude)
+            .await
+            .unwrap();
         mgr.exclude_pattern("agent-1", "pat-secret").await.unwrap();
 
         let decision = mgr
@@ -1135,7 +1134,9 @@ mod tests {
         let db = setup_test_db().await;
         let mgr = ViewManager::new(db, ViewConfig::default()).await.unwrap();
 
-        mgr.register_agent("agent-1", ViewMode::Exclude).await.unwrap();
+        mgr.register_agent("agent-1", ViewMode::Exclude)
+            .await
+            .unwrap();
         mgr.exclude_pattern("agent-1", "pat-secret").await.unwrap();
 
         let decision = mgr
@@ -1174,7 +1175,9 @@ mod tests {
         let db = setup_test_db().await;
         let mgr = ViewManager::new(db, ViewConfig::default()).await.unwrap();
 
-        mgr.register_agent("agent-1", ViewMode::Include).await.unwrap();
+        mgr.register_agent("agent-1", ViewMode::Include)
+            .await
+            .unwrap();
         mgr.grant_access("agent-1", "p1").await.unwrap();
         mgr.grant_access("agent-1", "p3").await.unwrap();
 
@@ -1186,7 +1189,10 @@ mod tests {
         ];
         let domains = vec![String::new(); 4];
 
-        let filtered = mgr.filter_patterns("agent-1", &ids, &domains).await.unwrap();
+        let filtered = mgr
+            .filter_patterns("agent-1", &ids, &domains)
+            .await
+            .unwrap();
         assert_eq!(filtered, vec!["p1".to_string(), "p3".to_string()]);
     }
 
@@ -1195,17 +1201,18 @@ mod tests {
         let db = setup_test_db().await;
         let mgr = ViewManager::new(db, ViewConfig::default()).await.unwrap();
 
-        mgr.register_agent("agent-1", ViewMode::Exclude).await.unwrap();
+        mgr.register_agent("agent-1", ViewMode::Exclude)
+            .await
+            .unwrap();
         mgr.exclude_pattern("agent-1", "p2").await.unwrap();
 
-        let ids = vec![
-            "p1".to_string(),
-            "p2".to_string(),
-            "p3".to_string(),
-        ];
+        let ids = vec!["p1".to_string(), "p2".to_string(), "p3".to_string()];
         let domains = vec![String::new(); 3];
 
-        let filtered = mgr.filter_patterns("agent-1", &ids, &domains).await.unwrap();
+        let filtered = mgr
+            .filter_patterns("agent-1", &ids, &domains)
+            .await
+            .unwrap();
         assert_eq!(filtered, vec!["p1".to_string(), "p3".to_string()]);
     }
 
@@ -1228,7 +1235,10 @@ mod tests {
             .unwrap();
 
         // Allowed domain.
-        let d = mgr.check_access("agent-1", "p1", Some("rust")).await.unwrap();
+        let d = mgr
+            .check_access("agent-1", "p1", Some("rust"))
+            .await
+            .unwrap();
         assert!(d.allowed);
 
         // Subdomain also allowed.
@@ -1256,14 +1266,14 @@ mod tests {
         let mgr = ViewManager::new(db, config).await.unwrap();
 
         mgr.register_agent("agent-1", ViewMode::All).await.unwrap();
-        mgr.set_domain_filter(
-            "agent-1",
-            vec!["rust".to_string(), "database".to_string()],
-        )
-        .await
-        .unwrap();
+        mgr.set_domain_filter("agent-1", vec!["rust".to_string(), "database".to_string()])
+            .await
+            .unwrap();
 
-        let d1 = mgr.check_access("agent-1", "p1", Some("rust")).await.unwrap();
+        let d1 = mgr
+            .check_access("agent-1", "p1", Some("rust"))
+            .await
+            .unwrap();
         assert!(d1.allowed);
 
         let d2 = mgr
@@ -1288,7 +1298,9 @@ mod tests {
         let db = setup_test_db().await;
         let mgr = ViewManager::new(db, ViewConfig::default()).await.unwrap();
 
-        mgr.register_agent("agent-1", ViewMode::Include).await.unwrap();
+        mgr.register_agent("agent-1", ViewMode::Include)
+            .await
+            .unwrap();
         mgr.grant_access("agent-1", "p1").await.unwrap();
         mgr.exclude_pattern("agent-1", "p2").await.unwrap();
 

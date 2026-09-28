@@ -349,10 +349,8 @@ impl SyncScheduler {
 
         // Add full backup job
         if self.config.enable_full_backup {
-            let job = self.create_task_job(
-                ScheduledTask::FullBackup,
-                &self.config.full_backup_cron,
-            )?;
+            let job =
+                self.create_task_job(ScheduledTask::FullBackup, &self.config.full_backup_cron)?;
             scheduler.add(job).await.map_err(|e| {
                 NagualError::internal(format!("Failed to add full backup job: {}", e))
             })?;
@@ -361,10 +359,8 @@ impl SyncScheduler {
 
         // Add retention cleanup job
         if self.config.enable_retention {
-            let job = self.create_task_job(
-                ScheduledTask::RetentionCleanup,
-                &self.config.retention_cron,
-            )?;
+            let job =
+                self.create_task_job(ScheduledTask::RetentionCleanup, &self.config.retention_cron)?;
             scheduler.add(job).await.map_err(|e| {
                 NagualError::internal(format!("Failed to add retention job: {}", e))
             })?;
@@ -373,20 +369,19 @@ impl SyncScheduler {
 
         // Add drill job
         if self.config.enable_drill {
-            let job = self.create_task_job(
-                ScheduledTask::RestoreDrill,
-                &self.config.drill_cron,
-            )?;
-            scheduler.add(job).await.map_err(|e| {
-                NagualError::internal(format!("Failed to add drill job: {}", e))
-            })?;
+            let job = self.create_task_job(ScheduledTask::RestoreDrill, &self.config.drill_cron)?;
+            scheduler
+                .add(job)
+                .await
+                .map_err(|e| NagualError::internal(format!("Failed to add drill job: {}", e)))?;
             debug!("Added restore drill job");
         }
 
         // Start the scheduler
-        scheduler.start().await.map_err(|e| {
-            NagualError::internal(format!("Failed to start scheduler: {}", e))
-        })?;
+        scheduler
+            .start()
+            .await
+            .map_err(|e| NagualError::internal(format!("Failed to start scheduler: {}", e)))?;
 
         // Store the scheduler handle
         {
@@ -512,11 +507,18 @@ impl SyncScheduler {
 
         // Emit event
         if success {
-            let _ = self.event_tx.send(SchedulerEvent::TaskCompleted(task, duration_ms));
+            let _ = self
+                .event_tx
+                .send(SchedulerEvent::TaskCompleted(task, duration_ms));
         } else {
             let _ = self.event_tx.send(SchedulerEvent::TaskFailed(
                 task,
-                self.status.read().await.last_error.clone().unwrap_or_default(),
+                self.status
+                    .read()
+                    .await
+                    .last_error
+                    .clone()
+                    .unwrap_or_default(),
             ));
         }
     }
@@ -609,7 +611,8 @@ impl SyncScheduler {
                     let _ = event_tx.send(SchedulerEvent::TaskCompleted(task, duration_ms));
                 } else {
                     warn!(task = %task, error = ?error, "Task failed");
-                    let _ = event_tx.send(SchedulerEvent::TaskFailed(task, error.unwrap_or_default()));
+                    let _ =
+                        event_tx.send(SchedulerEvent::TaskFailed(task, error.unwrap_or_default()));
                 }
             })
         })
@@ -667,16 +670,14 @@ mod tests {
     async fn test_record_execution() {
         let scheduler = SyncScheduler::new(SyncSchedulerConfig::default()).unwrap();
 
-        scheduler.record_execution(
-            ScheduledTask::IncrementalBackup,
-            true,
-            100,
-            50,
-            None,
-        ).await;
+        scheduler
+            .record_execution(ScheduledTask::IncrementalBackup, true, 100, 50, None)
+            .await;
 
         let status = scheduler.status().await;
-        assert!(status.last_sync_times.contains_key(&ScheduledTask::IncrementalBackup));
+        assert!(status
+            .last_sync_times
+            .contains_key(&ScheduledTask::IncrementalBackup));
         assert_eq!(status.consecutive_failures, 0);
     }
 
@@ -684,13 +685,15 @@ mod tests {
     async fn test_record_execution_failure() {
         let scheduler = SyncScheduler::new(SyncSchedulerConfig::default()).unwrap();
 
-        scheduler.record_execution(
-            ScheduledTask::FullBackup,
-            false,
-            100,
-            0,
-            Some("Connection failed".to_string()),
-        ).await;
+        scheduler
+            .record_execution(
+                ScheduledTask::FullBackup,
+                false,
+                100,
+                0,
+                Some("Connection failed".to_string()),
+            )
+            .await;
 
         let status = scheduler.status().await;
         assert_eq!(status.consecutive_failures, 1);
@@ -702,13 +705,15 @@ mod tests {
         let scheduler = SyncScheduler::new(SyncSchedulerConfig::default()).unwrap();
 
         for _ in 0..3 {
-            scheduler.record_execution(
-                ScheduledTask::FullBackup,
-                false,
-                100,
-                0,
-                Some("Failed".to_string()),
-            ).await;
+            scheduler
+                .record_execution(
+                    ScheduledTask::FullBackup,
+                    false,
+                    100,
+                    0,
+                    Some("Failed".to_string()),
+                )
+                .await;
         }
 
         let status = scheduler.status().await;
@@ -718,9 +723,15 @@ mod tests {
 
     #[test]
     fn test_scheduled_task_display() {
-        assert_eq!(ScheduledTask::IncrementalBackup.to_string(), "incremental_backup");
+        assert_eq!(
+            ScheduledTask::IncrementalBackup.to_string(),
+            "incremental_backup"
+        );
         assert_eq!(ScheduledTask::FullBackup.to_string(), "full_backup");
-        assert_eq!(ScheduledTask::RetentionCleanup.to_string(), "retention_cleanup");
+        assert_eq!(
+            ScheduledTask::RetentionCleanup.to_string(),
+            "retention_cleanup"
+        );
         assert_eq!(ScheduledTask::RestoreDrill.to_string(), "restore_drill");
     }
 }

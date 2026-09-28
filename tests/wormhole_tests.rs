@@ -176,7 +176,7 @@ impl CoAccessRecord {
         Self {
             pattern_a: pattern_a.into(),
             pattern_b: pattern_b.into(),
-            count: 0,  // Start at 0, increment will add 1
+            count: 0, // Start at 0, increment will add 1
             first_accessed: now,
             last_accessed: now,
             sessions: HashSet::new(),
@@ -245,9 +245,10 @@ impl WormholeManager {
 
         let key = (ordered_a.clone(), ordered_b.clone());
 
-        let record = self.co_access_records.entry(key.clone()).or_insert_with(|| {
-            CoAccessRecord::new(&ordered_a, &ordered_b)
-        });
+        let record = self
+            .co_access_records
+            .entry(key.clone())
+            .or_insert_with(|| CoAccessRecord::new(&ordered_a, &ordered_b));
 
         record.increment(session_id);
 
@@ -271,7 +272,13 @@ impl WormholeManager {
                         return None;
                     }
                 };
-                self.log_audit(&wh_id, "strength_updated", Some(old_strength), Some(new_strength), "Co-access count increased");
+                self.log_audit(
+                    &wh_id,
+                    "strength_updated",
+                    Some(old_strength),
+                    Some(new_strength),
+                    "Co-access count increased",
+                );
             }
         }
 
@@ -309,7 +316,8 @@ impl WormholeManager {
         let wormhole_key = format!("{}_{}", source_id, target_id);
 
         // Store wormhole
-        self.wormholes.insert(wormhole_key.clone(), wormhole.clone());
+        self.wormholes
+            .insert(wormhole_key.clone(), wormhole.clone());
 
         // Track by node
         self.wormholes_by_node
@@ -323,7 +331,13 @@ impl WormholeManager {
             .push(wormhole_id.clone());
 
         // Log creation
-        self.log_audit(&wormhole_id, "created", None, Some(wormhole.strength), &reason);
+        self.log_audit(
+            &wormhole_id,
+            "created",
+            None,
+            Some(wormhole.strength),
+            &reason,
+        );
 
         Some(wormhole)
     }
@@ -376,7 +390,13 @@ impl WormholeManager {
         // Remove very weak wormholes
         for key in to_remove {
             if let Some(wh) = self.wormholes.remove(&key) {
-                self.log_audit(&wh.id, "removed", Some(wh.strength), None, "Strength below threshold after decay");
+                self.log_audit(
+                    &wh.id,
+                    "removed",
+                    Some(wh.strength),
+                    None,
+                    "Strength below threshold after decay",
+                );
             }
         }
 
@@ -414,7 +434,11 @@ impl WormholeManager {
         let strong_wormholes = self.wormholes.values().filter(|w| w.is_strong()).count();
         let weak_wormholes = self.wormholes.values().filter(|w| w.is_weak()).count();
         let total_traversals: u32 = self.wormholes.values().map(|w| w.traversal_count).sum();
-        let total_savings_ms: u64 = self.wormholes.values().map(|w| w.traversal_savings_ms).sum();
+        let total_savings_ms: u64 = self
+            .wormholes
+            .values()
+            .map(|w| w.traversal_savings_ms)
+            .sum();
 
         WormholeStats {
             total_wormholes,
@@ -505,7 +529,8 @@ impl SimulatedGraph {
 
     /// Calculate traversal savings with a wormhole.
     pub fn calculate_traversal_savings(&self, wormhole: &Wormhole) -> f64 {
-        let without_wormhole = self.shortest_path_distance(&wormhole.source_id, &wormhole.target_id);
+        let without_wormhole =
+            self.shortest_path_distance(&wormhole.source_id, &wormhole.target_id);
         let with_wormhole = 1; // Wormhole provides direct connection
 
         if let Some(normal_dist) = without_wormhole {
@@ -823,13 +848,19 @@ mod max_wormholes_tests {
         let mut manager = WormholeManager::new(config);
 
         // Create first wormhole
-        assert!(manager.record_co_access("central", "node_1", None).is_some());
+        assert!(manager
+            .record_co_access("central", "node_1", None)
+            .is_some());
 
         // Create second wormhole
-        assert!(manager.record_co_access("central", "node_2", None).is_some());
+        assert!(manager
+            .record_co_access("central", "node_2", None)
+            .is_some());
 
         // Third should fail - limit reached for "central"
-        assert!(manager.record_co_access("central", "node_3", None).is_none());
+        assert!(manager
+            .record_co_access("central", "node_3", None)
+            .is_none());
 
         // But wormhole between other nodes should work
         assert!(manager.record_co_access("node_1", "node_2", None).is_some());
@@ -1068,11 +1099,16 @@ mod integration_tests {
         let mut manager = WormholeManager::new(config);
 
         // 1. Accumulate co-accesses (using names that sort as expected)
-        assert!(manager.record_co_access("pat_start", "pat_end", Some("session-1".to_string())).is_none());
-        assert!(manager.record_co_access("pat_start", "pat_end", Some("session-2".to_string())).is_none());
+        assert!(manager
+            .record_co_access("pat_start", "pat_end", Some("session-1".to_string()))
+            .is_none());
+        assert!(manager
+            .record_co_access("pat_start", "pat_end", Some("session-2".to_string()))
+            .is_none());
 
         // 2. Threshold reached - wormhole created
-        let wormhole = manager.record_co_access("pat_start", "pat_end", Some("session-3".to_string()));
+        let wormhole =
+            manager.record_co_access("pat_start", "pat_end", Some("session-3".to_string()));
         assert!(wormhole.is_some());
 
         // Key is ordered: pat_end < pat_start

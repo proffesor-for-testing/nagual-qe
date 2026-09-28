@@ -35,7 +35,11 @@ impl KnowledgeBaseAgent {
         Self { db }
     }
 
-    async fn search_patterns(&self, query: &str, limit: usize) -> Result<Vec<PatternMatch>, NagualError> {
+    async fn search_patterns(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<PatternMatch>, NagualError> {
         let sql = r#"
             SELECT id, problem, solution, category, reward
             FROM reasoning_patterns
@@ -47,10 +51,9 @@ impl KnowledgeBaseAgent {
         let pattern = format!("%{}%", query);
         let limit_str = limit.to_string();
 
-        let results: Vec<PatternMatch> = self.db.query(
-            sql,
-            &[&pattern, &pattern, &pattern, &limit_str],
-            |row| {
+        let results: Vec<PatternMatch> = self
+            .db
+            .query(sql, &[&pattern, &pattern, &pattern, &limit_str], |row| {
                 Ok(PatternMatch {
                     id: row.get(0)?,
                     problem: row.get(1)?,
@@ -58,8 +61,8 @@ impl KnowledgeBaseAgent {
                     category: row.get(3)?,
                     reward: row.get(4)?,
                 })
-            },
-        ).await?;
+            })
+            .await?;
 
         Ok(results)
     }
@@ -84,7 +87,9 @@ impl ResearchAgent for KnowledgeBaseAgent {
 
         // Search for existing patterns
         let search_start = Instant::now();
-        let patterns = self.search_patterns(&request.topic, request.depth.source_count() * 2).await?;
+        let patterns = self
+            .search_patterns(&request.topic, request.depth.source_count() * 2)
+            .await?;
         let search_duration = search_start.elapsed();
 
         trajectory.add_step(ResearchStep {
@@ -115,7 +120,8 @@ impl ResearchAgent for KnowledgeBaseAgent {
         let quality = if patterns.is_empty() {
             0.2 // Low quality if no matches
         } else {
-            let avg_reward: f64 = patterns.iter().map(|p| p.reward).sum::<f64>() / patterns.len() as f64;
+            let avg_reward: f64 =
+                patterns.iter().map(|p| p.reward).sum::<f64>() / patterns.len() as f64;
             (0.3 + avg_reward * 0.7).min(1.0)
         };
 
@@ -172,11 +178,12 @@ impl WebSearchAgent {
             "#;
 
             let pattern = format!("%{}%", keyword);
-            let matches: Vec<(String, String, String)> = self.db.query(
-                sql,
-                &[&pattern, &pattern],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            ).await?;
+            let matches: Vec<(String, String, String)> = self
+                .db
+                .query(sql, &[&pattern, &pattern], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                })
+                .await?;
 
             for (category, problem, solution) in matches {
                 results.push(WebResult {
@@ -229,10 +236,7 @@ impl ResearchAgent for WebSearchAgent {
         for result in &results {
             let content = format!("**{}**\n\n{}", result.title, result.snippet);
 
-            trajectory.add_finding(
-                ResearchFinding::new(content, &result.url)
-                    .with_confidence(0.6),
-            );
+            trajectory.add_finding(ResearchFinding::new(content, &result.url).with_confidence(0.6));
         }
 
         let quality = if results.is_empty() {
@@ -275,7 +279,10 @@ impl CodeAnalysisAgent {
         Self { db }
     }
 
-    async fn analyze_patterns_in_domain(&self, domain: &str) -> Result<Vec<CodePattern>, NagualError> {
+    async fn analyze_patterns_in_domain(
+        &self,
+        domain: &str,
+    ) -> Result<Vec<CodePattern>, NagualError> {
         let sql = r#"
             SELECT id, problem, solution, category, tags
             FROM reasoning_patterns
@@ -285,10 +292,9 @@ impl CodeAnalysisAgent {
         "#;
 
         let pattern = format!("{}%", domain);
-        let results: Vec<CodePattern> = self.db.query(
-            sql,
-            &[&pattern],
-            |row| {
+        let results: Vec<CodePattern> = self
+            .db
+            .query(sql, &[&pattern], |row| {
                 Ok(CodePattern {
                     id: row.get(0)?,
                     problem: row.get(1)?,
@@ -296,8 +302,8 @@ impl CodeAnalysisAgent {
                     category: row.get(3)?,
                     tags: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
                 })
-            },
-        ).await?;
+            })
+            .await?;
 
         Ok(results)
     }
@@ -344,7 +350,8 @@ impl ResearchAgent for CodeAnalysisAgent {
                 pattern.category, pattern.problem, pattern.solution
             );
 
-            let tags: Vec<String> = pattern.tags
+            let tags: Vec<String> = pattern
+                .tags
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
@@ -382,7 +389,9 @@ impl ResearchAgent for CodeAnalysisAgent {
     fn can_handle(&self, request: &ResearchRequest) -> bool {
         matches!(
             request.strategy,
-            ResearchStrategy::CodeAnalysis { .. } | ResearchStrategy::Combined | ResearchStrategy::Auto
+            ResearchStrategy::CodeAnalysis { .. }
+                | ResearchStrategy::Combined
+                | ResearchStrategy::Auto
         )
     }
 }
@@ -397,7 +406,11 @@ impl SynthesisAgent {
         Self { db }
     }
 
-    fn synthesize_findings(&self, findings: &[ResearchFinding], topic: &str) -> Vec<ResearchFinding> {
+    fn synthesize_findings(
+        &self,
+        findings: &[ResearchFinding],
+        topic: &str,
+    ) -> Vec<ResearchFinding> {
         if findings.is_empty() {
             return vec![];
         }
@@ -421,7 +434,7 @@ impl SynthesisAgent {
         synthesized.push(
             ResearchFinding::new(summary, "synthesis")
                 .with_confidence(
-                    findings.iter().map(|f| f.confidence).sum::<f64>() / findings.len() as f64
+                    findings.iter().map(|f| f.confidence).sum::<f64>() / findings.len() as f64,
                 )
                 .with_tags(vec!["synthesized".to_string()]),
         );
@@ -447,7 +460,10 @@ impl ResearchAgent for SynthesisAgent {
             action: ResearchAction::Synthesize {
                 source_count: kb_result.findings.len(),
             },
-            result: Some(format!("Synthesizing {} findings", kb_result.findings.len())),
+            result: Some(format!(
+                "Synthesizing {} findings",
+                kb_result.findings.len()
+            )),
             tokens_used: 100, // Simulated synthesis cost
             duration_ms: start.elapsed().as_millis() as u64,
             success: true,
@@ -546,7 +562,9 @@ mod tests {
                 tags TEXT
             )"#,
             &[],
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
         // Insert test pattern with "error" keyword that will match
         db.execute(

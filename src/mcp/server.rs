@@ -297,12 +297,14 @@ impl McpServer {
             return Err(JsonRpcError::parse_error("empty input"));
         }
 
-        let value: Value = serde_json::from_str(input)
-            .map_err(|e| JsonRpcError::parse_error(&e.to_string()))?;
+        let value: Value =
+            serde_json::from_str(input).map_err(|e| JsonRpcError::parse_error(&e.to_string()))?;
 
         // Reject batch requests (arrays).
         if value.is_array() {
-            return Err(JsonRpcError::invalid_request("batch requests are not supported"));
+            return Err(JsonRpcError::invalid_request(
+                "batch requests are not supported",
+            ));
         }
 
         let request: JsonRpcRequest = serde_json::from_value(value)
@@ -417,9 +419,10 @@ impl McpServer {
             );
         }
 
-        let arguments = params.get("arguments").cloned().unwrap_or(Value::Object(
-            serde_json::Map::new(),
-        ));
+        let arguments = params
+            .get("arguments")
+            .cloned()
+            .unwrap_or(Value::Object(serde_json::Map::new()));
 
         // Delegate to registry if available, otherwise return tool info.
         if let (Some(registry), Some(context)) = (&self.registry, &self.context) {
@@ -572,8 +575,7 @@ impl McpServer {
             },
             McpToolInfo {
                 name: "nagual_get".to_string(),
-                description: "Retrieve a single pattern by its ID."
-                    .to_string(),
+                description: "Retrieve a single pattern by its ID.".to_string(),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
@@ -711,7 +713,8 @@ mod tests {
 
     #[test]
     fn test_parse_request_batch_not_supported() {
-        let input = r#"[{"jsonrpc":"2.0","id":1,"method":"a"},{"jsonrpc":"2.0","id":2,"method":"b"}]"#;
+        let input =
+            r#"[{"jsonrpc":"2.0","id":1,"method":"a"},{"jsonrpc":"2.0","id":2,"method":"b"}]"#;
         let err = McpServer::parse_request(input).unwrap_err();
         assert_eq!(err.code, JsonRpcError::INVALID_REQUEST);
         assert!(err.message.contains("batch"));
@@ -746,7 +749,10 @@ mod tests {
         assert_eq!(resp.jsonrpc, "2.0");
         assert!(resp.result.is_none());
         assert!(resp.error.is_some());
-        assert_eq!(resp.error.as_ref().unwrap().code, JsonRpcError::INTERNAL_ERROR);
+        assert_eq!(
+            resp.error.as_ref().unwrap().code,
+            JsonRpcError::INTERNAL_ERROR
+        );
     }
 
     #[test]
@@ -933,8 +939,14 @@ mod tests {
         let tools = result.get("tools").unwrap().as_array().unwrap();
         for tool in tools {
             assert!(tool.get("name").is_some(), "tool missing name");
-            assert!(tool.get("description").is_some(), "tool missing description");
-            assert!(tool.get("inputSchema").is_some(), "tool missing inputSchema");
+            assert!(
+                tool.get("description").is_some(),
+                "tool missing description"
+            );
+            assert!(
+                tool.get("inputSchema").is_some(),
+                "tool missing inputSchema"
+            );
         }
     }
 

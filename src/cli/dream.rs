@@ -3,11 +3,11 @@
 //! Background maintenance for pattern consolidation, refresh,
 //! prediction calibration, and spreading activation.
 
-use std::sync::Arc;
-use clap::{Args, Subcommand};
 use crate::db::SqliteDb;
-use crate::dream::{DreamCycle, DreamConfig, DreamState};
+use crate::dream::{DreamConfig, DreamCycle, DreamState};
 use crate::error::Result;
+use clap::{Args, Subcommand};
+use std::sync::Arc;
 
 /// Dream cycle management
 #[derive(Debug, Args)]
@@ -114,7 +114,8 @@ impl DreamCommand {
                 items_processed INTEGER
             )"#,
             &[],
-        ).await?;
+        )
+        .await?;
 
         // Load config from database
         let config = self.load_config(&db).await;
@@ -161,7 +162,8 @@ impl DreamCommand {
                         *max_duration,
                         *max_consolidated,
                         *max_refreshed,
-                    ).await?;
+                    )
+                    .await?;
                 }
                 Ok(())
             }
@@ -171,7 +173,8 @@ impl DreamCommand {
                 calibrate,
                 activate,
             }) => {
-                self.update_phases(&db, config, *consolidate, *refresh, *calibrate, *activate).await
+                self.update_phases(&db, config, *consolidate, *refresh, *calibrate, *activate)
+                    .await
             }
             Some(DreamSubcommand::History { limit }) => self.show_history(&db, *limit).await,
         }
@@ -184,9 +187,9 @@ impl DreamCommand {
         let mut cycle = DreamCycle::new(db.clone(), config);
 
         // Try to set up ResearchCoordinator integration
-        let research = std::sync::Arc::new(
-            crate::research::ResearchCoordinator::with_defaults(db.clone())
-        );
+        let research = std::sync::Arc::new(crate::research::ResearchCoordinator::with_defaults(
+            db.clone(),
+        ));
         cycle.set_research(research);
 
         // Try to set up GraphStorage integration
@@ -222,21 +225,45 @@ impl DreamCommand {
             println!("   Duration: {}ms", phase_result.duration_ms);
 
             match &phase_result.details {
-                crate::dream::PhaseDetails::Consolidate { patterns_merged, patterns_archived, duplicates_removed } => {
-                    println!("   Merged: {}, Archived: {}, Deduped: {}",
-                        patterns_merged, patterns_archived, duplicates_removed);
+                crate::dream::PhaseDetails::Consolidate {
+                    patterns_merged,
+                    patterns_archived,
+                    duplicates_removed,
+                } => {
+                    println!(
+                        "   Merged: {}, Archived: {}, Deduped: {}",
+                        patterns_merged, patterns_archived, duplicates_removed
+                    );
                 }
-                crate::dream::PhaseDetails::Refresh { patterns_refreshed, research_triggered, patterns_updated } => {
-                    println!("   Refreshed: {}, Research triggered: {}, Updated: {}",
-                        patterns_refreshed, research_triggered, patterns_updated);
+                crate::dream::PhaseDetails::Refresh {
+                    patterns_refreshed,
+                    research_triggered,
+                    patterns_updated,
+                } => {
+                    println!(
+                        "   Refreshed: {}, Research triggered: {}, Updated: {}",
+                        patterns_refreshed, research_triggered, patterns_updated
+                    );
                 }
-                crate::dream::PhaseDetails::Calibrate { predictions_reviewed, brier_score_before, brier_score_after } => {
-                    println!("   Predictions: {}, Brier: {:.3} → {:.3}",
-                        predictions_reviewed, brier_score_before, brier_score_after);
+                crate::dream::PhaseDetails::Calibrate {
+                    predictions_reviewed,
+                    brier_score_before,
+                    brier_score_after,
+                } => {
+                    println!(
+                        "   Predictions: {}, Brier: {:.3} → {:.3}",
+                        predictions_reviewed, brier_score_before, brier_score_after
+                    );
                 }
-                crate::dream::PhaseDetails::Activate { connections_strengthened, new_connections, activation_spread } => {
-                    println!("   Strengthened: {}, New: {}, Spread: {:.2}",
-                        connections_strengthened, new_connections, activation_spread);
+                crate::dream::PhaseDetails::Activate {
+                    connections_strengthened,
+                    new_connections,
+                    activation_spread,
+                } => {
+                    println!(
+                        "   Strengthened: {}, New: {}, Spread: {:.2}",
+                        connections_strengthened, new_connections, activation_spread
+                    );
                 }
             }
             println!();
@@ -270,7 +297,10 @@ impl DreamCommand {
         };
 
         println!("State:          {} {}", state_emoji, status.state);
-        println!("Enabled:        {}", if status.enabled { "Yes" } else { "No" });
+        println!(
+            "Enabled:        {}",
+            if status.enabled { "Yes" } else { "No" }
+        );
         println!("Total Cycles:   {}", status.total_cycles);
         println!("Items Processed: {}", status.total_items_processed);
 
@@ -287,18 +317,22 @@ impl DreamCommand {
             println!("Last Cycle");
             println!("───────────────────────────────────────────────────────────");
             println!("  ID:       {}", last.cycle_id);
-            println!("  Time:     {}", last.completed_at.format("%Y-%m-%d %H:%M:%S"));
+            println!(
+                "  Time:     {}",
+                last.completed_at.format("%Y-%m-%d %H:%M:%S")
+            );
             println!("  Duration: {}ms", last.total_duration_ms);
             println!("  Phases:   {}", last.phases_completed.len());
             println!("  Items:    {}", last.total_items_processed());
         }
 
         // Get history count
-        let count: i64 = db.query_one(
-            "SELECT COUNT(*) as count FROM dream_cycles",
-            &[],
-            |row| row.get(0),
-        ).await?.unwrap_or(0);
+        let count: i64 = db
+            .query_one("SELECT COUNT(*) as count FROM dream_cycles", &[], |row| {
+                row.get(0)
+            })
+            .await?
+            .unwrap_or(0);
 
         println!();
         println!("Historical Cycles: {}", count);
@@ -316,23 +350,58 @@ impl DreamCommand {
         println!("═══════════════════════════════════════════════════════════\n");
 
         println!("General");
-        println!("  Enabled:           {}", if config.enabled { "Yes" } else { "No" });
+        println!(
+            "  Enabled:           {}",
+            if config.enabled { "Yes" } else { "No" }
+        );
         println!("  Idle Threshold:    {}s", config.idle_threshold_seconds);
         println!("  Max Duration:      {}s", config.max_duration_seconds);
         println!();
 
         println!("Phases");
-        println!("  Consolidate:       {}", if config.phases.consolidate { "✅" } else { "❌" });
-        println!("  Refresh:           {}", if config.phases.refresh { "✅" } else { "❌" });
-        println!("  Calibrate:         {}", if config.phases.calibrate { "✅" } else { "❌" });
-        println!("  Activate:          {}", if config.phases.activate { "✅" } else { "❌" });
+        println!(
+            "  Consolidate:       {}",
+            if config.phases.consolidate {
+                "✅"
+            } else {
+                "❌"
+            }
+        );
+        println!(
+            "  Refresh:           {}",
+            if config.phases.refresh { "✅" } else { "❌" }
+        );
+        println!(
+            "  Calibrate:         {}",
+            if config.phases.calibrate {
+                "✅"
+            } else {
+                "❌"
+            }
+        );
+        println!(
+            "  Activate:          {}",
+            if config.phases.activate { "✅" } else { "❌" }
+        );
         println!();
 
         println!("Budget");
-        println!("  Max Consolidated:  {}", config.budget.max_patterns_consolidated);
-        println!("  Max Refreshed:     {}", config.budget.max_patterns_refreshed);
-        println!("  Max Calibrated:    {}", config.budget.max_predictions_calibrated);
-        println!("  Max Tokens:        {}", config.budget.max_tokens_per_cycle);
+        println!(
+            "  Max Consolidated:  {}",
+            config.budget.max_patterns_consolidated
+        );
+        println!(
+            "  Max Refreshed:     {}",
+            config.budget.max_patterns_refreshed
+        );
+        println!(
+            "  Max Calibrated:    {}",
+            config.budget.max_predictions_calibrated
+        );
+        println!(
+            "  Max Tokens:        {}",
+            config.budget.max_tokens_per_cycle
+        );
     }
 
     async fn update_config(
@@ -400,38 +469,72 @@ impl DreamCommand {
         println!("✅ Phase configuration updated");
         println!();
         println!("Phases");
-        println!("  Consolidate: {}", if config.phases.consolidate { "✅" } else { "❌" });
-        println!("  Refresh:     {}", if config.phases.refresh { "✅" } else { "❌" });
-        println!("  Calibrate:   {}", if config.phases.calibrate { "✅" } else { "❌" });
-        println!("  Activate:    {}", if config.phases.activate { "✅" } else { "❌" });
+        println!(
+            "  Consolidate: {}",
+            if config.phases.consolidate {
+                "✅"
+            } else {
+                "❌"
+            }
+        );
+        println!(
+            "  Refresh:     {}",
+            if config.phases.refresh { "✅" } else { "❌" }
+        );
+        println!(
+            "  Calibrate:   {}",
+            if config.phases.calibrate {
+                "✅"
+            } else {
+                "❌"
+            }
+        );
+        println!(
+            "  Activate:    {}",
+            if config.phases.activate { "✅" } else { "❌" }
+        );
 
         Ok(())
     }
 
     async fn show_history(&self, db: &Arc<SqliteDb>, limit: usize) -> Result<()> {
         let limit_str = limit.to_string();
-        let rows: Vec<(String, String, String, i64, i64, i64)> = db.query(
-            r#"
+        let rows: Vec<(String, String, String, i64, i64, i64)> = db
+            .query(
+                r#"
             SELECT id, started_at, completed_at, total_duration_ms, tokens_used, items_processed
             FROM dream_cycles
             ORDER BY started_at DESC
             LIMIT ?
             "#,
-            &[&limit_str],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
-        ).await?;
+                &[&limit_str],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
+                },
+            )
+            .await?;
 
         if self.json {
-            let history: Vec<serde_json::Value> = rows.iter().map(|(id, started, completed, duration, tokens, items)| {
-                serde_json::json!({
-                    "id": id,
-                    "started_at": started,
-                    "completed_at": completed,
-                    "total_duration_ms": duration,
-                    "tokens_used": tokens,
-                    "items_processed": items,
+            let history: Vec<serde_json::Value> = rows
+                .iter()
+                .map(|(id, started, completed, duration, tokens, items)| {
+                    serde_json::json!({
+                        "id": id,
+                        "started_at": started,
+                        "completed_at": completed,
+                        "total_duration_ms": duration,
+                        "tokens_used": tokens,
+                        "items_processed": items,
+                    })
                 })
-            }).collect();
+                .collect();
             println!("{}", serde_json::to_string_pretty(&history)?);
             return Ok(());
         }
@@ -445,16 +548,20 @@ impl DreamCommand {
             return Ok(());
         }
 
-        println!("{:<36} {:>10} {:>8} {:>8}",
-            "Cycle ID", "Duration", "Tokens", "Items");
+        println!(
+            "{:<36} {:>10} {:>8} {:>8}",
+            "Cycle ID", "Duration", "Tokens", "Items"
+        );
         println!("───────────────────────────────────────────────────────────");
 
         for (id, _started, _completed, duration, tokens, items) in &rows {
-            println!("{:<36} {:>8}ms {:>8} {:>8}",
+            println!(
+                "{:<36} {:>8}ms {:>8} {:>8}",
                 &id[..36.min(id.len())],
                 duration,
                 tokens,
-                items);
+                items
+            );
         }
 
         println!();
@@ -465,20 +572,25 @@ impl DreamCommand {
 
     async fn load_config(&self, db: &Arc<SqliteDb>) -> DreamConfig {
         // Ensure config table exists
-        let _ = db.execute(
-            r#"CREATE TABLE IF NOT EXISTS dream_config (
+        let _ = db
+            .execute(
+                r#"CREATE TABLE IF NOT EXISTS dream_config (
                 key TEXT PRIMARY KEY,
                 value TEXT
             )"#,
-            &[],
-        ).await;
+                &[],
+            )
+            .await;
 
         // Try to load from database
-        let result: Option<String> = db.query_one(
-            "SELECT value FROM dream_config WHERE key = 'config'",
-            &[],
-            |row| row.get(0),
-        ).await.unwrap_or(None);
+        let result: Option<String> = db
+            .query_one(
+                "SELECT value FROM dream_config WHERE key = 'config'",
+                &[],
+                |row| row.get(0),
+            )
+            .await
+            .unwrap_or(None);
 
         if let Some(json) = result {
             if let Ok(config) = serde_json::from_str(&json) {
@@ -495,12 +607,17 @@ impl DreamCommand {
         db.execute(
             "INSERT OR REPLACE INTO dream_config (key, value) VALUES ('config', ?)",
             &[&json],
-        ).await?;
+        )
+        .await?;
 
         Ok(())
     }
 
-    async fn store_cycle_result(&self, db: &Arc<SqliteDb>, result: &crate::dream::DreamResult) -> Result<()> {
+    async fn store_cycle_result(
+        &self,
+        db: &Arc<SqliteDb>,
+        result: &crate::dream::DreamResult,
+    ) -> Result<()> {
         let phases_json = serde_json::to_string(&result.phases_completed)?;
 
         db.execute(

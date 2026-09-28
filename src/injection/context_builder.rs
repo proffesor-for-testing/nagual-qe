@@ -462,8 +462,7 @@ impl<'a> ContextBuilder<'a> {
             for pattern in &e_nagual.negative_examples {
                 content.push_str(&format!(
                     "- {} (failed approach: {})\n",
-                    pattern.problem,
-                    pattern.solution
+                    pattern.problem, pattern.solution
                 ));
             }
             content.push('\n');
@@ -527,7 +526,8 @@ impl<'a> ContextBuilder<'a> {
         // System message
         messages.push(FewShotMessage {
             role: "system".to_string(),
-            content: "You are a helpful assistant that learns from past successful patterns.".to_string(),
+            content: "You are a helpful assistant that learns from past successful patterns."
+                .to_string(),
         });
 
         // Add examples
@@ -724,7 +724,7 @@ mod tests {
         let pattern = Pattern::new(
             "How to handle errors?",
             "Use Result type with proper error handling",
-            "rust.error_handling"
+            "rust.error_handling",
         )
         .with_context("Rust best practices")
         .with_confidence(0.9)
@@ -742,7 +742,10 @@ mod tests {
 
     #[test]
     fn test_provider_from_model_name() {
-        assert_eq!(Provider::from_model_name("claude-3-opus"), Provider::Anthropic);
+        assert_eq!(
+            Provider::from_model_name("claude-3-opus"),
+            Provider::Anthropic
+        );
         assert_eq!(Provider::from_model_name("gpt-4"), Provider::OpenAI);
         assert_eq!(Provider::from_model_name("gemini-pro"), Provider::Google);
         assert_eq!(Provider::from_model_name("llama-2"), Provider::Local);

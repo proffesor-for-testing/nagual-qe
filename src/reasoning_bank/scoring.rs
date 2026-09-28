@@ -230,11 +230,16 @@ impl MultiFactorScorer {
         let mut scored: Vec<ScoredPattern> = results
             .iter()
             .filter_map(|result| {
-                let components = self.compute_components(&result.pattern, query_embedding, result.similarity);
+                let components =
+                    self.compute_components(&result.pattern, query_embedding, result.similarity);
                 let score = components.weighted_sum(&self.config.weights);
 
                 if score >= self.config.min_score {
-                    Some(ScoredPattern::new(result.pattern.clone(), score, components))
+                    Some(ScoredPattern::new(
+                        result.pattern.clone(),
+                        score,
+                        components,
+                    ))
                 } else {
                     None
                 }
@@ -242,17 +247,17 @@ impl MultiFactorScorer {
             .collect();
 
         // Sort by score (highest first)
-        scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        scored.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         scored
     }
 
     /// Score a single pattern.
-    pub fn score_pattern(
-        &self,
-        pattern: &Pattern,
-        query_embedding: &[f32],
-    ) -> ScoredPattern {
+    pub fn score_pattern(&self, pattern: &Pattern, query_embedding: &[f32]) -> ScoredPattern {
         // Compute similarity if pattern has embedding
         let similarity = pattern.embedding().map_or(0.0, |emb| {
             let query_arr = Array1::from_vec(query_embedding.to_vec());

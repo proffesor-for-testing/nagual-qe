@@ -275,11 +275,7 @@ pub struct InsightsConfig {
 impl Default for InsightsConfig {
     fn default() -> Self {
         Self {
-            time_windows: vec![
-                TimeWindow::Days7,
-                TimeWindow::Days30,
-                TimeWindow::Days90,
-            ],
+            time_windows: vec![TimeWindow::Days7, TimeWindow::Days30, TimeWindow::Days90],
             top_patterns_count: 10,
             min_patterns: 3,
             success_threshold: 0.6,
@@ -452,7 +448,10 @@ pub fn aggregate_insights(
     let total_reward: f32 = filtered_patterns.iter().map(|p| p.reward()).sum();
     let total_effectiveness: f32 = filtered_patterns.iter().map(|p| p.effectiveness()).sum();
     let total_confidence: f32 = filtered_patterns.iter().map(|p| p.confidence()).sum();
-    let total_usage: u64 = filtered_patterns.iter().map(|p| p.reuse_count() as u64).sum();
+    let total_usage: u64 = filtered_patterns
+        .iter()
+        .map(|p| p.reuse_count() as u64)
+        .sum();
 
     let avg_reward = total_reward / total_patterns as f32;
     let avg_effectiveness = total_effectiveness / total_patterns as f32;
@@ -563,10 +562,7 @@ fn analyze_window(
 
     let updated_patterns = pattern_count - new_patterns;
 
-    let total_usage: u64 = window_patterns
-        .iter()
-        .map(|p| p.reuse_count() as u64)
-        .sum();
+    let total_usage: u64 = window_patterns.iter().map(|p| p.reuse_count() as u64).sum();
 
     TrendAnalysis {
         window,
@@ -589,7 +585,10 @@ fn calculate_trend(
     let long_window = window_analysis.get("30d");
 
     match (short_window, long_window) {
-        (Some(short), Some(long)) if short.pattern_count >= config.min_patterns && long.pattern_count >= config.min_patterns => {
+        (Some(short), Some(long))
+            if short.pattern_count >= config.min_patterns
+                && long.pattern_count >= config.min_patterns =>
+        {
             // Calculate changes
             let reward_change = if long.avg_reward > 0.0 {
                 ((short.avg_reward - long.avg_reward) / long.avg_reward) * 100.0
@@ -604,7 +603,8 @@ fn calculate_trend(
             };
 
             let usage_growth = if long.total_usage > 0 {
-                ((short.total_usage as f32 - long.total_usage as f32) / long.total_usage as f32) * 100.0
+                ((short.total_usage as f32 - long.total_usage as f32) / long.total_usage as f32)
+                    * 100.0
             } else {
                 0.0
             };
@@ -659,7 +659,8 @@ fn calculate_child_domains(
         .into_iter()
         .filter(|(_, patterns)| patterns.len() >= config.min_patterns)
         .map(|(domain, patterns)| {
-            let avg_reward = patterns.iter().map(|p| p.reward()).sum::<f32>() / patterns.len() as f32;
+            let avg_reward =
+                patterns.iter().map(|p| p.reward()).sum::<f32>() / patterns.len() as f32;
 
             // Simple trend based on recency
             let recent_avg: f32 = patterns
@@ -859,7 +860,12 @@ mod tests {
 
     #[test]
     fn test_top_pattern_info() {
-        let pattern = create_test_pattern("Test problem description", PatternCategory::Testing, 0.85, 10);
+        let pattern = create_test_pattern(
+            "Test problem description",
+            PatternCategory::Testing,
+            0.85,
+            10,
+        );
         let info = TopPatternInfo::from_pattern(&pattern);
 
         assert_eq!(info.reward, 0.85);
@@ -885,8 +891,8 @@ mod tests {
     #[test]
     fn test_insights_success_rate() {
         let patterns = vec![
-            create_test_pattern("P1", PatternCategory::Testing, 0.9, 5),  // Success
-            create_test_pattern("P2", PatternCategory::Testing, 0.7, 3),  // Success
+            create_test_pattern("P1", PatternCategory::Testing, 0.9, 5), // Success
+            create_test_pattern("P2", PatternCategory::Testing, 0.7, 3), // Success
             create_test_pattern("P3", PatternCategory::Testing, 0.3, 10), // Failure
         ];
 

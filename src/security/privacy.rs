@@ -179,15 +179,26 @@ impl PrivacyPolicy {
         let mut policy = Self::default();
 
         // Shorter retention periods
-        if let Some(rule) = policy.retention_rules.get_mut(&DataClassification::Internal) {
-            rule.retention_period = Some(Duration::from_secs(180 * 24 * 60 * 60)); // 180 days
+        if let Some(rule) = policy
+            .retention_rules
+            .get_mut(&DataClassification::Internal)
+        {
+            rule.retention_period = Some(Duration::from_secs(180 * 24 * 60 * 60));
+            // 180 days
         }
-        if let Some(rule) = policy.retention_rules.get_mut(&DataClassification::Confidential) {
+        if let Some(rule) = policy
+            .retention_rules
+            .get_mut(&DataClassification::Confidential)
+        {
             rule.retention_period = Some(Duration::from_secs(30 * 24 * 60 * 60)); // 30 days
             rule.require_approval = true;
         }
-        if let Some(rule) = policy.retention_rules.get_mut(&DataClassification::Restricted) {
-            rule.retention_period = Some(Duration::from_secs(7 * 24 * 60 * 60)); // 7 days
+        if let Some(rule) = policy
+            .retention_rules
+            .get_mut(&DataClassification::Restricted)
+        {
+            rule.retention_period = Some(Duration::from_secs(7 * 24 * 60 * 60));
+            // 7 days
         }
 
         // Default to higher classification
@@ -253,8 +264,8 @@ impl PrivacyManager {
             .map(|k| regex::escape(k))
             .collect::<Vec<_>>()
             .join("|");
-        let confidential_regex =
-            Regex::new(&format!(r"(?i)\b({})\b", pattern)).unwrap_or_else(|_| Regex::new(r"^$").unwrap());
+        let confidential_regex = Regex::new(&format!(r"(?i)\b({})\b", pattern))
+            .unwrap_or_else(|_| Regex::new(r"^$").unwrap());
 
         Self {
             policy,
@@ -324,7 +335,10 @@ impl PrivacyManager {
         match style {
             RedactionStyle::Fixed => "[REDACTED]".to_string(),
             RedactionStyle::TypeLabeled => {
-                format!("[REDACTED_{}]", pii_match.pii_type.label().to_uppercase().replace(' ', "_"))
+                format!(
+                    "[REDACTED_{}]",
+                    pii_match.pii_type.label().to_uppercase().replace(' ', "_")
+                )
             }
             RedactionStyle::Masked => pii_match.redacted_text(),
             RedactionStyle::FullMask => "*".repeat(pii_match.matched_text.len()),
@@ -357,7 +371,10 @@ impl PrivacyManager {
         }
 
         // Remove confidential keywords
-        result = self.confidential_regex.replace_all(&result, "[FILTERED]").to_string();
+        result = self
+            .confidential_regex
+            .replace_all(&result, "[FILTERED]")
+            .to_string();
 
         AnonymizedText {
             text: result,
@@ -422,9 +439,7 @@ impl PrivacyManager {
         let classification = self.classify(data);
 
         let (processed_text, needs_encryption) = match classification {
-            DataClassification::Public | DataClassification::Internal => {
-                (data.to_string(), false)
-            }
+            DataClassification::Public | DataClassification::Internal => (data.to_string(), false),
             DataClassification::Confidential => {
                 let redacted = self.redact(data, RedactionStyle::TypeLabeled);
                 (redacted.text, false)
@@ -624,7 +639,9 @@ mod tests {
             DataClassification::Confidential
         );
 
-        let restricted_rule = policy.get_retention_rule(DataClassification::Restricted).unwrap();
+        let restricted_rule = policy
+            .get_retention_rule(DataClassification::Restricted)
+            .unwrap();
         assert_eq!(
             restricted_rule.retention_period,
             Some(Duration::from_secs(7 * 24 * 60 * 60))
@@ -633,8 +650,7 @@ mod tests {
 
     #[test]
     fn test_custom_redaction_patterns() {
-        let policy = PrivacyPolicy::default()
-            .add_redaction_pattern(r"PROJECT-\d+", "[PROJECT_ID]");
+        let policy = PrivacyPolicy::default().add_redaction_pattern(r"PROJECT-\d+", "[PROJECT_ID]");
         let manager = PrivacyManager::new(policy);
 
         let redacted = manager.redact("Working on PROJECT-12345", RedactionStyle::Fixed);

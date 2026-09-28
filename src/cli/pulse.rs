@@ -51,11 +51,11 @@ fn count_to_block(count: u32) -> char {
 /// Uses green shades similar to GitHub's contribution graph.
 fn count_to_color(count: u32) -> &'static str {
     match count {
-        0 => "\x1b[90m",       // dark gray
-        1..=2 => "\x1b[32m",   // green
-        3..=5 => "\x1b[92m",   // bright green
-        6..=10 => "\x1b[33m",  // yellow
-        _ => "\x1b[93m",       // bright yellow
+        0 => "\x1b[90m",      // dark gray
+        1..=2 => "\x1b[32m",  // green
+        3..=5 => "\x1b[92m",  // bright green
+        6..=10 => "\x1b[33m", // yellow
+        _ => "\x1b[93m",      // bright yellow
     }
 }
 
@@ -241,15 +241,51 @@ mod tests {
 
     #[test]
     fn test_count_to_block_intensity_levels() {
-        assert_eq!(count_to_block(0), BLOCK_EMPTY, "count=0 should render space");
-        assert_eq!(count_to_block(1), BLOCK_LOW, "count=1 should render low block");
-        assert_eq!(count_to_block(2), BLOCK_LOW, "count=2 should render low block");
-        assert_eq!(count_to_block(3), BLOCK_MED, "count=3 should render medium block");
-        assert_eq!(count_to_block(5), BLOCK_MED, "count=5 should render medium block");
-        assert_eq!(count_to_block(6), BLOCK_HIGH, "count=6 should render high block");
-        assert_eq!(count_to_block(10), BLOCK_HIGH, "count=10 should render high block");
-        assert_eq!(count_to_block(11), BLOCK_FULL, "count=11 should render full block");
-        assert_eq!(count_to_block(100), BLOCK_FULL, "count=100 should render full block");
+        assert_eq!(
+            count_to_block(0),
+            BLOCK_EMPTY,
+            "count=0 should render space"
+        );
+        assert_eq!(
+            count_to_block(1),
+            BLOCK_LOW,
+            "count=1 should render low block"
+        );
+        assert_eq!(
+            count_to_block(2),
+            BLOCK_LOW,
+            "count=2 should render low block"
+        );
+        assert_eq!(
+            count_to_block(3),
+            BLOCK_MED,
+            "count=3 should render medium block"
+        );
+        assert_eq!(
+            count_to_block(5),
+            BLOCK_MED,
+            "count=5 should render medium block"
+        );
+        assert_eq!(
+            count_to_block(6),
+            BLOCK_HIGH,
+            "count=6 should render high block"
+        );
+        assert_eq!(
+            count_to_block(10),
+            BLOCK_HIGH,
+            "count=10 should render high block"
+        );
+        assert_eq!(
+            count_to_block(11),
+            BLOCK_FULL,
+            "count=11 should render full block"
+        );
+        assert_eq!(
+            count_to_block(100),
+            BLOCK_FULL,
+            "count=100 should render full block"
+        );
     }
 
     #[test]
@@ -366,7 +402,14 @@ mod tests {
             Pulse(PulseCommand),
         }
 
-        let args = vec!["test", "pulse", "--weeks", "26", "--db-path", "/tmp/test.db"];
+        let args = vec![
+            "test",
+            "pulse",
+            "--weeks",
+            "26",
+            "--db-path",
+            "/tmp/test.db",
+        ];
         let cli = TestCli::try_parse_from(args).unwrap();
         match cli.cmd {
             TestCmd::Pulse(cmd) => {

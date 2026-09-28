@@ -52,9 +52,7 @@ pub mod ladder;
 pub use complexity_estimator::{
     ComplexityEstimator, ComplexityFeatures, ComplexityLevel, ComplexityScore, EstimatorConfig,
 };
-pub use fastgrnn::{
-    FastGRNN, FastGRNNBackend, FastGRNNConfig, FastGRNNWeights, GRNNCell,
-};
+pub use fastgrnn::{FastGRNN, FastGRNNBackend, FastGRNNConfig, FastGRNNWeights, GRNNCell};
 #[cfg(feature = "onnx-embed")]
 pub use fastgrnn::{OnnxFastGRNN, OnnxFastGRNNConfig};
 pub use vendor_selector::{

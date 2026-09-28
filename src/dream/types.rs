@@ -108,7 +108,10 @@ impl DreamResult {
 
     /// Get total items processed across all phases
     pub fn total_items_processed(&self) -> usize {
-        self.phases_completed.iter().map(|p| p.items_processed).sum()
+        self.phases_completed
+            .iter()
+            .map(|p| p.items_processed)
+            .sum()
     }
 }
 

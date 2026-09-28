@@ -91,11 +91,15 @@ pub async fn cloud_push(
     }
 
     // Update sync state with max updated_at from pushed patterns
-    if let Some(max_ts) = patterns.iter().filter_map(|p| {
-        DateTime::parse_from_rfc3339(&p.updated_at)
-            .ok()
-            .map(|dt| dt.with_timezone(&Utc))
-    }).max() {
+    if let Some(max_ts) = patterns
+        .iter()
+        .filter_map(|p| {
+            DateTime::parse_from_rfc3339(&p.updated_at)
+                .ok()
+                .map(|dt| dt.with_timezone(&Utc))
+        })
+        .max()
+    {
         sync_state::update_push_state(db, remote_url, max_ts, total as i64).await?;
     }
 
@@ -122,79 +126,87 @@ async fn query_patterns_since(
 ) -> Result<Vec<SyncPatternData>> {
     let since_str = since.map(|dt| dt.to_rfc3339());
 
-    let patterns = db.with_connection(move |conn| {
-        let (sql, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(ref ts) = since_str {
-            (
+    let patterns = db
+        .with_connection(move |conn| {
+            let (sql, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) =
+                if let Some(ref ts) = since_str {
+                    (
                 "SELECT id, problem, solution, context, category, tags, reward, confidence, \
                  success, reuse_count, effectiveness, timestamp, updated_at, agent_id, \
                  session_id, content_hash, critique \
                  FROM reasoning_patterns WHERE updated_at > ? ORDER BY updated_at ASC",
                 vec![Box::new(ts.clone()) as Box<dyn rusqlite::types::ToSql>],
             )
-        } else {
-            (
+                } else {
+                    (
                 "SELECT id, problem, solution, context, category, tags, reward, confidence, \
                  success, reuse_count, effectiveness, timestamp, updated_at, agent_id, \
                  session_id, content_hash, critique \
                  FROM reasoning_patterns ORDER BY updated_at ASC",
                 vec![],
             )
-        };
+                };
 
-        let mut stmt = conn.prepare(sql).map_err(crate::error::DatabaseError::from)?;
+            let mut stmt = conn
+                .prepare(sql)
+                .map_err(crate::error::DatabaseError::from)?;
 
-        let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                params.iter().map(|p| p.as_ref()).collect();
 
-        let rows = stmt
-            .query_map(param_refs.as_slice(), |row| {
-                let id: String = row.get(0)?;
-                let problem: String = row.get(1)?;
-                let solution: String = row.get(2)?;
-                let context: String = row.get::<_, Option<String>>(3)?.unwrap_or_default();
-                let domain: String = row.get(4)?;
-                let tags_json: String = row.get::<_, Option<String>>(5)?.unwrap_or_else(|| "[]".to_string());
-                let reward: f64 = row.get(6)?;
-                let confidence: f64 = row.get(7)?;
-                let success: bool = row.get::<_, i32>(8)? != 0;
-                let reuse_count: i32 = row.get(9)?;
-                let effectiveness: f64 = row.get(10)?;
-                let created_at: String = row.get(11)?;
-                let updated_at: String = row.get(12)?;
-                let agent_id: Option<String> = row.get(13)?;
-                let session_id: Option<String> = row.get(14)?;
-                let content_hash: Option<String> = row.get(15)?;
-                let critique: Option<String> = row.get(16)?;
+            let rows = stmt
+                .query_map(param_refs.as_slice(), |row| {
+                    let id: String = row.get(0)?;
+                    let problem: String = row.get(1)?;
+                    let solution: String = row.get(2)?;
+                    let context: String = row.get::<_, Option<String>>(3)?.unwrap_or_default();
+                    let domain: String = row.get(4)?;
+                    let tags_json: String = row
+                        .get::<_, Option<String>>(5)?
+                        .unwrap_or_else(|| "[]".to_string());
+                    let reward: f64 = row.get(6)?;
+                    let confidence: f64 = row.get(7)?;
+                    let success: bool = row.get::<_, i32>(8)? != 0;
+                    let reuse_count: i32 = row.get(9)?;
+                    let effectiveness: f64 = row.get(10)?;
+                    let created_at: String = row.get(11)?;
+                    let updated_at: String = row.get(12)?;
+                    let agent_id: Option<String> = row.get(13)?;
+                    let session_id: Option<String> = row.get(14)?;
+                    let content_hash: Option<String> = row.get(15)?;
+                    let critique: Option<String> = row.get(16)?;
 
-                let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+                    let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
 
-                Ok(SyncPatternData {
-                    id,
-                    problem,
-                    solution,
-                    context,
-                    domain,
-                    tags,
-                    reward: reward as f32,
-                    confidence: confidence as f32,
-                    success,
-                    reuse_count: reuse_count as u32,
-                    effectiveness: effectiveness as f32,
-                    created_at,
-                    updated_at,
-                    agent_id,
-                    session_id,
-                    content_hash,
-                    critique: critique.filter(|c| !c.is_empty()),
+                    Ok(SyncPatternData {
+                        id,
+                        problem,
+                        solution,
+                        context,
+                        domain,
+                        tags,
+                        reward: reward as f32,
+                        confidence: confidence as f32,
+                        success,
+                        reuse_count: reuse_count as u32,
+                        effectiveness: effectiveness as f32,
+                        created_at,
+                        updated_at,
+                        agent_id,
+                        session_id,
+                        content_hash,
+                        critique: critique.filter(|c| !c.is_empty()),
+                    })
                 })
-            })
-            .map_err(crate::error::DatabaseError::from)?;
+                .map_err(crate::error::DatabaseError::from)?;
 
-        let mut patterns = Vec::new();
-        for row in rows {
-            patterns.push(row.map_err(crate::error::DatabaseError::from)?);
-        }
-        Ok(patterns)
-    }).await?;
+            let mut patterns = Vec::new();
+            for row in rows {
+                patterns.push(row.map_err(crate::error::DatabaseError::from)?);
+            }
+            Ok(patterns)
+        })
+        .await?;
 
     Ok(patterns)
 }

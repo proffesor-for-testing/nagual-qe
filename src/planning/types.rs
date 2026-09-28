@@ -20,15 +20,18 @@ impl WorldState {
     }
 
     pub fn set_bool(&mut self, key: impl Into<String>, value: bool) {
-        self.propositions.insert(key.into(), StateValue::Bool(value));
+        self.propositions
+            .insert(key.into(), StateValue::Bool(value));
     }
 
     pub fn set_number(&mut self, key: impl Into<String>, value: f64) {
-        self.propositions.insert(key.into(), StateValue::Number(value));
+        self.propositions
+            .insert(key.into(), StateValue::Number(value));
     }
 
     pub fn set_text(&mut self, key: impl Into<String>, value: impl Into<String>) {
-        self.propositions.insert(key.into(), StateValue::Text(value.into()));
+        self.propositions
+            .insert(key.into(), StateValue::Text(value.into()));
     }
 
     pub fn get(&self, key: &str) -> Option<&StateValue> {
@@ -334,7 +337,10 @@ impl Plan {
     }
 
     pub fn completed_steps(&self) -> usize {
-        self.actions.iter().filter(|a| matches!(a.status, ActionStatus::Completed)).count()
+        self.actions
+            .iter()
+            .filter(|a| matches!(a.status, ActionStatus::Completed))
+            .count()
     }
 
     pub fn progress_percentage(&self) -> f64 {

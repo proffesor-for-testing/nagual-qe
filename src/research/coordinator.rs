@@ -3,11 +3,11 @@
 //! Orchestrates the research process: parses requests, spawns agents,
 //! manages budgets, and aggregates results into patterns.
 
+use chrono::Utc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
-use tracing::{debug, info, warn, instrument};
-use chrono::Utc;
+use tracing::{debug, info, instrument, warn};
 
 use super::agents::{AgentFactory, ResearchAgent};
 use super::matts::{MaTTS, MaTTSConfig};
@@ -49,11 +49,7 @@ pub struct ResearchCoordinator {
 impl ResearchCoordinator {
     pub fn new(db: Arc<SqliteDb>, config: CoordinatorConfig) -> Self {
         let matts = MaTTS::new(config.matts.clone());
-        Self {
-            db,
-            config,
-            matts,
-        }
+        Self { db, config, matts }
     }
 
     pub fn with_defaults(db: Arc<SqliteDb>) -> Self {
@@ -64,7 +60,10 @@ impl ResearchCoordinator {
     #[instrument(skip(self), fields(topic = %request.topic, depth = %request.depth))]
     pub async fn research(&self, request: ResearchRequest) -> Result<ResearchResult, NagualError> {
         let start = Instant::now();
-        info!("Starting research: {} (depth: {})", request.topic, request.depth);
+        info!(
+            "Starting research: {} (depth: {})",
+            request.topic, request.depth
+        );
 
         // Create agents based on strategy
         let agents = AgentFactory::create_agents(
@@ -77,7 +76,9 @@ impl ResearchCoordinator {
 
         // Execute research with timeout
         let max_duration = Duration::from_secs(request.budget.max_time_seconds);
-        let trajectories = self.execute_with_timeout(agents, &request, max_duration).await?;
+        let trajectories = self
+            .execute_with_timeout(agents, &request, max_duration)
+            .await?;
 
         info!("Collected {} trajectories", trajectories.len());
 
@@ -86,7 +87,8 @@ impl ResearchCoordinator {
 
         // Create patterns from findings
         let patterns_created = if self.config.auto_store_patterns {
-            self.create_patterns(&request, &trajectories, &consensus).await?
+            self.create_patterns(&request, &trajectories, &consensus)
+                .await?
         } else {
             vec![]
         };
@@ -170,7 +172,10 @@ impl ResearchCoordinator {
         _consensus: &ConsensusResult,
     ) -> Result<Vec<PatternSummary>, NagualError> {
         let mut created = Vec::new();
-        let domain = request.domain.clone().unwrap_or_else(|| "research".to_string());
+        let domain = request
+            .domain
+            .clone()
+            .unwrap_or_else(|| "research".to_string());
 
         // Collect high-confidence findings
         let mut findings: Vec<&ResearchFinding> = trajectories
@@ -191,7 +196,8 @@ impl ResearchCoordinator {
 
         for finding in findings {
             // Extract problem and solution from finding
-            let (problem, solution) = self.extract_problem_solution(&finding.content, &request.topic);
+            let (problem, solution) =
+                self.extract_problem_solution(&finding.content, &request.topic);
             let id = uuid::Uuid::new_v4().to_string();
             let tags = finding.tags.join(",");
             let now = chrono::Utc::now().to_rfc3339();
@@ -324,7 +330,9 @@ mod tests {
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )"#,
             &[],
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
         // Add some test patterns
         for i in 0..5 {
@@ -353,8 +361,7 @@ mod tests {
     async fn test_research_execution() {
         let coordinator = setup_coordinator().await;
 
-        let request = ResearchRequest::new("error handling")
-            .with_depth(ResearchDepth::Quick);
+        let request = ResearchRequest::new("error handling").with_depth(ResearchDepth::Quick);
 
         let result = coordinator.research(request).await.unwrap();
 

@@ -948,7 +948,10 @@ impl CalibrationBucket {
     /// Create a bucket for a specific domain.
     pub fn with_domain(mut self, domain: impl Into<String>) -> Self {
         self.domain = domain.into();
-        self.id = format!("{}-{:.1}-{:.1}", self.domain, self.lower_bound, self.upper_bound);
+        self.id = format!(
+            "{}-{:.1}-{:.1}",
+            self.domain, self.lower_bound, self.upper_bound
+        );
         self
     }
 
@@ -1288,7 +1291,10 @@ mod tests {
         prediction.resolve(true).unwrap();
 
         let result = prediction.resolve(false);
-        assert!(matches!(result, Err(PredictionError::AlreadyResolved { .. })));
+        assert!(matches!(
+            result,
+            Err(PredictionError::AlreadyResolved { .. })
+        ));
     }
 
     #[test]
@@ -1310,7 +1316,10 @@ mod tests {
             .timeline_max_days(7)
             .build();
 
-        assert!(matches!(result, Err(PredictionError::InvalidTimeline { .. })));
+        assert!(matches!(
+            result,
+            Err(PredictionError::InvalidTimeline { .. })
+        ));
     }
 
     #[test]

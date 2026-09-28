@@ -188,17 +188,18 @@ impl RestoreManager {
         info!(backup = %backup_path, "Starting restore from backup");
 
         // Create pre-restore backup if configured
-        let pre_restore_backup_id = if self.config.backup_before_restore && self.config.target_path.exists() {
-            match self.create_pre_restore_backup().await {
-                Ok(id) => Some(id),
-                Err(e) => {
-                    warnings.push(format!("Failed to create pre-restore backup: {}", e));
-                    None
+        let pre_restore_backup_id =
+            if self.config.backup_before_restore && self.config.target_path.exists() {
+                match self.create_pre_restore_backup().await {
+                    Ok(id) => Some(id),
+                    Err(e) => {
+                        warnings.push(format!("Failed to create pre-restore backup: {}", e));
+                        None
+                    }
                 }
-            }
-        } else {
-            None
-        };
+            } else {
+                None
+            };
 
         // Determine if this is a local file or GCloud URL
         let local_path = if backup_path.starts_with("gs://") {
@@ -325,7 +326,8 @@ impl RestoreManager {
         }
 
         // Sort incrementals by timestamp
-        plan.incrementals.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+        plan.incrementals
+            .sort_by(|a, b| a.created_at.cmp(&b.created_at));
 
         plan.calculate_estimated_duration();
 
@@ -338,17 +340,18 @@ impl RestoreManager {
         let mut warnings = Vec::new();
 
         // Create pre-restore backup if configured
-        let pre_restore_backup_id = if self.config.backup_before_restore && self.config.target_path.exists() {
-            match self.create_pre_restore_backup().await {
-                Ok(id) => Some(id),
-                Err(e) => {
-                    warnings.push(format!("Failed to create pre-restore backup: {}", e));
-                    None
+        let pre_restore_backup_id =
+            if self.config.backup_before_restore && self.config.target_path.exists() {
+                match self.create_pre_restore_backup().await {
+                    Ok(id) => Some(id),
+                    Err(e) => {
+                        warnings.push(format!("Failed to create pre-restore backup: {}", e));
+                        None
+                    }
                 }
-            }
-        } else {
-            None
-        };
+            } else {
+                None
+            };
 
         // Step 1: Restore from base backup
         info!(backup_id = %plan.base_backup.id, "Restoring from base backup");
@@ -494,7 +497,9 @@ impl RestoreManager {
         let file = File::open(path).map_err(NagualError::from)?;
         let mut decoder = GzDecoder::new(file);
         let mut decompressed = Vec::new();
-        decoder.read_to_end(&mut decompressed).map_err(NagualError::from)?;
+        decoder
+            .read_to_end(&mut decompressed)
+            .map_err(NagualError::from)?;
         Ok(decompressed)
     }
 
@@ -514,10 +519,8 @@ impl RestoreManager {
     }
 
     fn verify_database_integrity(&self) -> Result<()> {
-        let conn =
-            rusqlite::Connection::open(&self.config.target_path).map_err(|e| {
-                NagualError::config(format!("Failed to open restored database: {}", e))
-            })?;
+        let conn = rusqlite::Connection::open(&self.config.target_path)
+            .map_err(|e| NagualError::config(format!("Failed to open restored database: {}", e)))?;
 
         let result: String = conn
             .query_row("PRAGMA integrity_check", [], |row| row.get(0))
@@ -607,11 +610,7 @@ mod tests {
 
     #[test]
     fn test_recovery_plan_new() {
-        let metadata = BackupMetadata::new(
-            BackupType::Full,
-            "/path/to/db",
-            "/path/to/backup.gz",
-        );
+        let metadata = BackupMetadata::new(BackupType::Full, "/path/to/db", "/path/to/backup.gz");
         let plan = RecoveryPlan::new(Utc::now(), metadata);
         assert_eq!(plan.step_count(), 1);
         assert!(plan.incrementals.is_empty());
@@ -619,18 +618,10 @@ mod tests {
 
     #[test]
     fn test_recovery_plan_add_incremental() {
-        let base = BackupMetadata::new(
-            BackupType::Full,
-            "/path/to/db",
-            "/path/to/backup.gz",
-        );
+        let base = BackupMetadata::new(BackupType::Full, "/path/to/db", "/path/to/backup.gz");
         let mut plan = RecoveryPlan::new(Utc::now(), base);
 
-        let incr = BackupMetadata::new(
-            BackupType::Incremental,
-            "/path/to/db",
-            "/path/to/incr.gz",
-        );
+        let incr = BackupMetadata::new(BackupType::Incremental, "/path/to/db", "/path/to/incr.gz");
         plan.add_incremental(incr);
 
         assert_eq!(plan.step_count(), 2);

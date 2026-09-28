@@ -18,9 +18,7 @@
 //! cargo bench --bench factory_benchmarks -- --save-baseline factory
 //! ```
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::prelude::*;
 use std::time::Instant;
 
@@ -194,7 +192,9 @@ fn bench_pyramid_title_generation(c: &mut Criterion) {
                                 .take(10)
                                 .collect::<Vec<_>>()
                                 .join(" ")
-                                .trim_end_matches(|c: char| matches!(c, ',' | ';' | ':' | '-' | '.'))
+                                .trim_end_matches(|c: char| {
+                                    matches!(c, ',' | ';' | ':' | '-' | '.')
+                                })
                                 .to_string()
                         })
                         .collect();
@@ -246,7 +246,8 @@ fn bench_pyramid_summary_generation(c: &mut Criterion) {
                         .iter()
                         .take(size)
                         .map(|solution| {
-                            let first_para = solution.split("\n\n").next().unwrap_or(solution).trim();
+                            let first_para =
+                                solution.split("\n\n").next().unwrap_or(solution).trim();
                             let words: Vec<&str> = first_para.split_whitespace().take(50).collect();
                             if words.len() == 50 {
                                 format!("{}...", words.join(" "))
@@ -272,7 +273,12 @@ fn bench_pyramid_summary_generation(c: &mut Criterion) {
 fn bench_content_hash_generation(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(42);
     let patterns: Vec<(String, String)> = (0..1000)
-        .map(|i| (generate_problem(i, &mut rng), generate_solution(i, &mut rng)))
+        .map(|i| {
+            (
+                generate_problem(i, &mut rng),
+                generate_solution(i, &mut rng),
+            )
+        })
         .collect();
 
     let mut group = c.benchmark_group("content_hash_generation");
@@ -328,7 +334,10 @@ fn bench_dedup_scan_simulation(c: &mut Criterion) {
         let (problem, solution) = if i % 10 == 0 && i > 100 {
             // Duplicate: reuse a previous pattern
             let dup_idx = i % 100;
-            (base_problems[dup_idx].clone(), base_solutions[dup_idx].clone())
+            (
+                base_problems[dup_idx].clone(),
+                base_solutions[dup_idx].clone(),
+            )
         } else {
             (
                 base_problems[i % 100].clone() + &format!(" unique {}", i),
@@ -429,7 +438,11 @@ fn bench_pattern_serialization(c: &mut Criterion) {
                 .take(10)
                 .collect::<Vec<_>>()
                 .join(" ");
-            let summary = solution.split("\n\n").next().unwrap_or(&solution).to_string();
+            let summary = solution
+                .split("\n\n")
+                .next()
+                .unwrap_or(&solution)
+                .to_string();
 
             BenchPattern {
                 id: format!("pat_{}", uuid::Uuid::new_v4()),
@@ -664,13 +677,11 @@ fn bench_scenario_evaluation(c: &mut Criterion) {
 
             // Keyword overlap in expected behavior vs solution
             let expected_lower = scenario.expected_behavior.to_lowercase();
-            let expected_words: std::collections::HashSet<&str> = expected_lower
-                .split_whitespace()
-                .collect();
+            let expected_words: std::collections::HashSet<&str> =
+                expected_lower.split_whitespace().collect();
             let solution_lower = pattern.solution.to_lowercase();
-            let solution_words: std::collections::HashSet<&str> = solution_lower
-                .split_whitespace()
-                .collect();
+            let solution_words: std::collections::HashSet<&str> =
+                solution_lower.split_whitespace().collect();
 
             let overlap = expected_words.intersection(&solution_words).count();
             let keyword_score = (overlap as f32 / expected_words.len().max(1) as f32).min(0.7);
@@ -688,9 +699,8 @@ fn bench_scenario_evaluation(c: &mut Criterion) {
         let expected_lower = scenario.expected_behavior.to_lowercase();
 
         b.iter(|| {
-            let expected_words: std::collections::HashSet<&str> = expected_lower
-                .split_whitespace()
-                .collect();
+            let expected_words: std::collections::HashSet<&str> =
+                expected_lower.split_whitespace().collect();
 
             let results: Vec<(f32, bool)> = patterns
                 .iter()
@@ -700,9 +710,8 @@ fn bench_scenario_evaluation(c: &mut Criterion) {
                         score += 0.3;
                     }
                     let solution_lower = pattern.solution.to_lowercase();
-                    let solution_words: std::collections::HashSet<&str> = solution_lower
-                        .split_whitespace()
-                        .collect();
+                    let solution_words: std::collections::HashSet<&str> =
+                        solution_lower.split_whitespace().collect();
                     let overlap = expected_words.intersection(&solution_words).count();
                     let keyword_score =
                         (overlap as f32 / expected_words.len().max(1) as f32).min(0.7);
@@ -801,8 +810,16 @@ fn bench_performance_targets(c: &mut Criterion) {
         let solution = generate_solution(0, &mut rng);
         let embedding = generate_embedding(&mut rng);
         let hash = generate_content_hash(&problem, &solution);
-        let title = problem.split_whitespace().take(10).collect::<Vec<_>>().join(" ");
-        let summary = solution.split("\n\n").next().unwrap_or(&solution).to_string();
+        let title = problem
+            .split_whitespace()
+            .take(10)
+            .collect::<Vec<_>>()
+            .join(" ");
+        let summary = solution
+            .split("\n\n")
+            .next()
+            .unwrap_or(&solution)
+            .to_string();
 
         b.iter(|| {
             let start = Instant::now();
@@ -858,9 +875,12 @@ fn bench_performance_targets(c: &mut Criterion) {
                 .collect();
 
             // Calculate stats
-            let success_count = matching.iter().filter(|(_, _, success, _)| *success).count();
-            let avg_reward: f32 =
-                matching.iter().map(|(_, _, _, reward)| reward).sum::<f32>() / matching.len().max(1) as f32;
+            let success_count = matching
+                .iter()
+                .filter(|(_, _, success, _)| *success)
+                .count();
+            let avg_reward: f32 = matching.iter().map(|(_, _, _, reward)| reward).sum::<f32>()
+                / matching.len().max(1) as f32;
 
             let elapsed = start.elapsed();
             black_box((matching.len(), success_count, avg_reward, elapsed))

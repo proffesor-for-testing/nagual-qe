@@ -1,581 +1,282 @@
 #!/usr/bin/env python3
 """
-FastGRNN Router Model Training Script
+Train the FastGRNN router (query complexity -> vendor tier) on labelled queries.
 
-This script trains a FastGRNN model for query complexity estimation.
-The model is used to route queries to appropriate LLM vendors.
+Pipeline (run from the repository root):
 
-Usage:
-    python train_fastgrnn.py --data trajectory_data.json --output fastgrnn_router.json
-    python train_fastgrnn.py --export-onnx fastgrnn_router.onnx
+    cargo run -q --example router_features --no-default-features --features kos -- \\
+        models/router_queries.jsonl > /tmp/router_features.jsonl
+    python3 models/train_fastgrnn.py --features /tmp/router_features.jsonl \\
+        --output models/fastgrnn_router.json
 
-Features (input to model):
-    1. query_length: Normalized length of query (0-1)
-    2. embedding_norm: L2 norm of query embedding (0-1)
-    3. domain_specificity: Technical domain specificity score (0-1)
-    4. pattern_coverage: How well patterns cover the query (0-1)
-    5. historical_accuracy: Past accuracy on similar queries (0-1)
+`router_features` computes the 5 input features with the production `ComplexityEstimator`,
+so the weights are trained on exactly what `VendorRouter` sees at runtime:
 
-Output:
-    complexity score [0.0, 1.0] for vendor routing:
-    - < 0.3: local-small model
-    - 0.3-0.5: local-large model
-    - >= 0.5: cloud API (Claude/GPT)
+    [query_length, reasoning_demand, domain_specificity, structure, historical_accuracy]
+
+Labels come from `models/router_queries.jsonl` (level + train/test split, rubric in
+models/README.md). Targets are the level midpoints; the router's thresholds are 0.3 / 0.5 / 0.7.
+
+The model is the exact forward pass of `src/router/fastgrnn.rs` for a single step from a zero
+hidden state:
+
+    z = sigmoid(W_z x + b_z)
+    h = (zeta * (1 - z) + nu) * tanh(W_h x + b_h)
+    y = sigmoid(W_o h + b_o)
+
+(U_z / U_h multiply the zero initial state, so they are exported as zeros.)
+
+This replaces an earlier script that trained on random synthetic features with incomplete
+gradients (no gate updates, no activation derivatives); the resulting weights scored almost
+every query 0.47-0.53. This version is dependency-free (pure Python); `--export-onnx` needs
+torch + numpy.
 """
 
 import argparse
+import hashlib
 import json
-import numpy as np
-from dataclasses import dataclass, asdict
-from typing import List, Tuple, Optional
+import math
 import random
 
-
-@dataclass
-class FastGRNNConfig:
-    """Configuration for FastGRNN model."""
-    input_dim: int = 5
-    hidden_dim: int = 16
-    output_dim: int = 1
-    zeta: float = 1.0
-    nu: float = -0.001
-    learning_rate: float = 0.01
-    epochs: int = 100
-    batch_size: int = 32
+LEVEL_TARGET = {"low": 0.15, "medium": 0.40, "high": 0.60, "very_high": 0.85}
+LEVELS = ["low", "medium", "high", "very_high"]
 
 
-@dataclass
-class FastGRNNWeights:
-    """Weights for FastGRNN model."""
-    w_z: List[float]  # Gate weights for input (hidden_dim x input_dim)
-    u_z: List[float]  # Gate weights for hidden (hidden_dim x hidden_dim)
-    b_z: List[float]  # Gate bias (hidden_dim)
-    w_h: List[float]  # Hidden weights for input (hidden_dim x input_dim)
-    u_h: List[float]  # Hidden weights for hidden (hidden_dim x hidden_dim)
-    b_h: List[float]  # Hidden bias (hidden_dim)
-    w_o: List[float]  # Output weights (output_dim x hidden_dim)
-    b_o: List[float]  # Output bias (output_dim)
-    zeta: float
-    nu: float
+def level_of(score):
+    """Same thresholds as ComplexityLevel::from_score."""
+    if score < 0.3:
+        return "low"
+    if score < 0.5:
+        return "medium"
+    if score < 0.7:
+        return "high"
+    return "very_high"
 
 
-class FastGRNN:
-    """FastGRNN model for complexity estimation."""
-
-    def __init__(self, config: FastGRNNConfig):
-        self.config = config
-        self._init_weights()
-
-    def _init_weights(self):
-        """Initialize weights using Xavier initialization."""
-        c = self.config
-
-        xavier_input = np.sqrt(6.0 / (c.input_dim + c.hidden_dim))
-        xavier_hidden = np.sqrt(6.0 / (c.hidden_dim * 2))
-        xavier_output = np.sqrt(6.0 / (c.hidden_dim + c.output_dim))
-
-        self.W_z = np.random.uniform(-xavier_input, xavier_input, (c.hidden_dim, c.input_dim))
-        self.U_z = np.random.uniform(-xavier_hidden, xavier_hidden, (c.hidden_dim, c.hidden_dim))
-        self.b_z = np.zeros(c.hidden_dim)
-
-        self.W_h = np.random.uniform(-xavier_input, xavier_input, (c.hidden_dim, c.input_dim))
-        self.U_h = np.random.uniform(-xavier_hidden, xavier_hidden, (c.hidden_dim, c.hidden_dim))
-        self.b_h = np.zeros(c.hidden_dim)
-
-        self.W_o = np.random.uniform(-xavier_output, xavier_output, (c.output_dim, c.hidden_dim))
-        self.b_o = np.zeros(c.output_dim)
-
-        self.zeta = c.zeta
-        self.nu = c.nu
-
-    def sigmoid(self, x: np.ndarray) -> np.ndarray:
-        """Sigmoid activation."""
-        return 1.0 / (1.0 + np.exp(-np.clip(x, -500, 500)))
-
-    def forward(self, x: np.ndarray, h_prev: Optional[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Forward pass.
-
-        Args:
-            x: Input features (batch_size, input_dim) or (input_dim,)
-            h_prev: Previous hidden state (optional)
-
-        Returns:
-            (output, hidden_state)
-        """
-        if x.ndim == 1:
-            x = x.reshape(1, -1)
-
-        batch_size = x.shape[0]
-
-        if h_prev is None:
-            h_prev = np.zeros((batch_size, self.config.hidden_dim))
-
-        # z_t = sigmoid(W_z * x + U_z * h_prev + b_z)
-        z = self.sigmoid(x @ self.W_z.T + h_prev @ self.U_z.T + self.b_z)
-
-        # h_tilde = tanh(W_h * x + U_h * h_prev + b_h)
-        h_tilde = np.tanh(x @ self.W_h.T + h_prev @ self.U_h.T + self.b_h)
-
-        # h_t = (zeta * (1 - z) + nu) * h_tilde + z * h_prev
-        h = (self.zeta * (1 - z) + self.nu) * h_tilde + z * h_prev
-
-        # output = sigmoid(W_o * h + b_o)
-        output = self.sigmoid(h @ self.W_o.T + self.b_o)
-
-        return output, h
-
-    def predict(self, x: np.ndarray) -> np.ndarray:
-        """Predict complexity score."""
-        output, _ = self.forward(x)
-        return output.flatten()
-
-    def get_weights(self) -> FastGRNNWeights:
-        """Export weights for Rust model."""
-        return FastGRNNWeights(
-            w_z=self.W_z.flatten().tolist(),
-            u_z=self.U_z.flatten().tolist(),
-            b_z=self.b_z.tolist(),
-            w_h=self.W_h.flatten().tolist(),
-            u_h=self.U_h.flatten().tolist(),
-            b_h=self.b_h.tolist(),
-            w_o=self.W_o.flatten().tolist(),
-            b_o=self.b_o.tolist(),
-            zeta=float(self.zeta),
-            nu=float(self.nu)
-        )
-
-    def set_weights(self, weights: FastGRNNWeights):
-        """Load weights from exported format."""
-        c = self.config
-        self.W_z = np.array(weights.w_z).reshape(c.hidden_dim, c.input_dim)
-        self.U_z = np.array(weights.u_z).reshape(c.hidden_dim, c.hidden_dim)
-        self.b_z = np.array(weights.b_z)
-        self.W_h = np.array(weights.w_h).reshape(c.hidden_dim, c.input_dim)
-        self.U_h = np.array(weights.u_h).reshape(c.hidden_dim, c.hidden_dim)
-        self.b_h = np.array(weights.b_h)
-        self.W_o = np.array(weights.w_o).reshape(c.output_dim, c.hidden_dim)
-        self.b_o = np.array(weights.b_o)
-        self.zeta = weights.zeta
-        self.nu = weights.nu
+def is_cloud(level):
+    """VendorSelector (default config): >= 0.5 routes to a cloud vendor."""
+    return level in ("high", "very_high")
 
 
-def generate_synthetic_data(n_samples: int = 1000) -> List[Tuple[List[float], float]]:
-    """
-    Generate synthetic training data.
-
-    Features:
-        0. query_length: normalized length
-        1. embedding_norm: semantic density
-        2. domain_specificity: technical vs general
-        3. pattern_coverage: existing pattern coverage
-        4. historical_accuracy: past accuracy
-
-    Label:
-        complexity score based on feature combination
-    """
-    data = []
-
-    for _ in range(n_samples):
-        # Generate features
-        query_length = random.random()
-        embedding_norm = random.random()
-        domain_specificity = random.random()
-        pattern_coverage = random.random()
-        historical_accuracy = random.random()
-
-        features = [
-            query_length,
-            embedding_norm,
-            domain_specificity,
-            pattern_coverage,
-            historical_accuracy
-        ]
-
-        # Compute complexity label based on features
-        # Higher complexity when:
-        # - Longer queries
-        # - Higher embedding norm (more semantic content)
-        # - Higher domain specificity
-        # - Lower pattern coverage (fewer existing solutions)
-        # - Lower historical accuracy (harder queries)
-
-        complexity = (
-            0.15 * query_length +
-            0.15 * embedding_norm +
-            0.30 * domain_specificity +
-            0.20 * (1 - pattern_coverage) +
-            0.20 * (1 - historical_accuracy)
-        )
-
-        # Add some noise
-        complexity += random.gauss(0, 0.05)
-        complexity = max(0.0, min(1.0, complexity))
-
-        data.append((features, complexity))
-
-    return data
+def sigmoid(v):
+    if v < -60:
+        return 0.0
+    if v > 60:
+        return 1.0
+    return 1.0 / (1.0 + math.exp(-v))
 
 
-def train_model(
-    model: FastGRNN,
-    data: List[Tuple[List[float], float]],
-    epochs: int = 100,
-    batch_size: int = 32,
-    learning_rate: float = 0.01,
-    verbose: bool = True
-) -> List[float]:
-    """
-    Train the FastGRNN model using gradient descent.
+class Model:
+    def __init__(self, input_dim, hidden_dim, zeta, nu, rng):
+        self.n, self.h, self.zeta, self.nu = input_dim, hidden_dim, zeta, nu
+        xi = math.sqrt(6.0 / (input_dim + hidden_dim))
+        xo = math.sqrt(6.0 / (hidden_dim + 1))
+        self.p = {
+            "w_z": [[rng.uniform(-xi, xi) for _ in range(input_dim)] for _ in range(hidden_dim)],
+            "b_z": [0.0] * hidden_dim,
+            "w_h": [[rng.uniform(-xi, xi) for _ in range(input_dim)] for _ in range(hidden_dim)],
+            "b_h": [0.0] * hidden_dim,
+            "w_o": [rng.uniform(-xo, xo) for _ in range(hidden_dim)],
+            "b_o": 0.0,
+        }
 
-    Returns:
-        List of loss values per epoch
-    """
-    losses = []
-    n_samples = len(data)
+    def forward(self, x):
+        p = self.p
+        z = [sigmoid(sum(w * xi for w, xi in zip(p["w_z"][j], x)) + p["b_z"][j]) for j in range(self.h)]
+        t = [math.tanh(sum(w * xi for w, xi in zip(p["w_h"][j], x)) + p["b_h"][j]) for j in range(self.h)]
+        s = [self.zeta * (1.0 - zj) + self.nu for zj in z]
+        h = [sj * tj for sj, tj in zip(s, t)]
+        y = sigmoid(sum(w * hj for w, hj in zip(p["w_o"], h)) + p["b_o"])
+        return y, (z, t, s, h)
 
-    for epoch in range(epochs):
-        random.shuffle(data)
-        epoch_loss = 0.0
-
-        for i in range(0, n_samples, batch_size):
-            batch = data[i:i + batch_size]
-            X = np.array([d[0] for d in batch])
-            y = np.array([d[1] for d in batch])
-
-            # Forward pass
-            pred, h = model.forward(X)
-            pred = pred.flatten()
-
-            # Compute loss (MSE)
-            loss = np.mean((pred - y) ** 2)
-            epoch_loss += loss * len(batch)
-
-            # Backward pass (simplified gradient descent)
-            # Gradient of MSE: 2 * (pred - y) / n
-            grad_output = 2 * (pred - y) / len(batch)
-
-            # Gradient for output layer
-            # Average gradient across batch
-            h_mean = h.mean(axis=0)  # (hidden_dim,)
-            grad_output_mean = grad_output.mean()  # scalar
-            grad_W_o = grad_output_mean * h_mean.reshape(1, -1)  # (1, hidden_dim)
-            grad_b_o = grad_output_mean
-
-            # Update output weights
-            model.W_o -= learning_rate * grad_W_o
-            model.b_o -= learning_rate * np.array([grad_b_o])
-
-            # Simplified: Also update hidden layer weights slightly
-            # (Full backprop through RNN is more complex)
-            grad_h = grad_output_mean * model.W_o  # (1, hidden_dim)
-            X_mean = X.mean(axis=0)  # (input_dim,)
-            grad_W_h = grad_h.T @ X_mean.reshape(1, -1)  # (hidden_dim, input_dim)
-            grad_b_h = grad_h.flatten()  # (hidden_dim,)
-
-            model.W_h -= learning_rate * 0.1 * grad_W_h
-            model.b_h -= learning_rate * 0.1 * grad_b_h
-
-        epoch_loss /= n_samples
-        losses.append(epoch_loss)
-
-        if verbose and (epoch + 1) % 10 == 0:
-            print(f"Epoch {epoch + 1}/{epochs}, Loss: {epoch_loss:.6f}")
-
-    return losses
+    def grads(self, batch, l2):
+        p, H, N = self.p, self.h, self.n
+        g = {
+            "w_z": [[0.0] * N for _ in range(H)], "b_z": [0.0] * H,
+            "w_h": [[0.0] * N for _ in range(H)], "b_h": [0.0] * H,
+            "w_o": [0.0] * H, "b_o": 0.0,
+        }
+        loss = 0.0
+        for x, target in batch:
+            y, (z, t, s, h) = self.forward(x)
+            loss += (y - target) ** 2
+            g_o = 2.0 * (y - target) * y * (1.0 - y)
+            g["b_o"] += g_o
+            for j in range(H):
+                g["w_o"][j] += g_o * h[j]
+                dh = g_o * p["w_o"][j]
+                da_h = dh * s[j] * (1.0 - t[j] ** 2)
+                da_z = dh * t[j] * (-self.zeta) * z[j] * (1.0 - z[j])
+                g["b_h"][j] += da_h
+                g["b_z"][j] += da_z
+                for i in range(N):
+                    g["w_h"][j][i] += da_h * x[i]
+                    g["w_z"][j][i] += da_z * x[i]
+        m = float(len(batch))
+        for k in ("w_z", "w_h"):
+            for j in range(H):
+                for i in range(N):
+                    g[k][j][i] = g[k][j][i] / m + l2 * p[k][j][i]
+        for k in ("b_z", "b_h"):
+            g[k] = [v / m for v in g[k]]
+        g["w_o"] = [v / m + l2 * w for v, w in zip(g["w_o"], p["w_o"])]
+        g["b_o"] /= m
+        return loss / m, g
 
 
-def evaluate_model(model: FastGRNN, data: List[Tuple[List[float], float]]) -> dict:
-    """Evaluate model performance."""
-    X = np.array([d[0] for d in data])
-    y = np.array([d[1] for d in data])
-
-    pred = model.predict(X)
-
-    mse = np.mean((pred - y) ** 2)
-    mae = np.mean(np.abs(pred - y))
-
-    # Routing accuracy (correct vendor selection)
-    def get_vendor(score):
-        if score < 0.3:
-            return 0  # local-small
-        elif score < 0.5:
-            return 1  # local-large
+def flat_keys(model):
+    """(param key, index path) for every scalar, so Adam can run over a flat view."""
+    keys = []
+    for k, v in model.p.items():
+        if isinstance(v, float):
+            keys.append((k, ()))
+        elif isinstance(v[0], list):
+            keys += [(k, (j, i)) for j in range(len(v)) for i in range(len(v[0]))]
         else:
-            return 2  # cloud
+            keys += [(k, (j,)) for j in range(len(v))]
+    return keys
 
-    pred_vendors = [get_vendor(p) for p in pred]
-    true_vendors = [get_vendor(t) for t in y]
-    routing_accuracy = np.mean([p == t for p, t in zip(pred_vendors, true_vendors)])
 
+def get(d, k, idx):
+    v = d[k]
+    for i in idx:
+        v = v[i]
+    return v
+
+
+def put(d, k, idx, val):
+    if not idx:
+        d[k] = val
+    elif len(idx) == 1:
+        d[k][idx[0]] = val
+    else:
+        d[k][idx[0]][idx[1]] = val
+
+
+def train(data, hidden, epochs, lr, l2, seed, zeta, nu):
+    rng = random.Random(seed)
+    model = Model(len(data[0][0]), hidden, zeta, nu, rng)
+    keys = flat_keys(model)
+    m1 = {kk: 0.0 for kk in keys}
+    m2 = {kk: 0.0 for kk in keys}
+    b1, b2, eps = 0.9, 0.999, 1e-8
+    loss = None
+    for step in range(1, epochs + 1):
+        loss, g = model.grads(data, l2)  # full batch: the set is small
+        for kk in keys:
+            gv = get(g, *kk)
+            m1[kk] = b1 * m1[kk] + (1 - b1) * gv
+            m2[kk] = b2 * m2[kk] + (1 - b2) * gv * gv
+            mhat = m1[kk] / (1 - b1 ** step)
+            vhat = m2[kk] / (1 - b2 ** step)
+            put(model.p, *kk, get(model.p, *kk) - lr * mhat / (math.sqrt(vhat) + eps))
+    return model, loss
+
+
+def evaluate(model, rows):
+    preds = [model.forward(r["features"])[0] for r in rows]
+    targets = [LEVEL_TARGET[r["level"]] for r in rows]
+    n = len(rows)
+    exact = sum(level_of(p) == r["level"] for p, r in zip(preds, rows)) / n
+    tier = sum(is_cloud(level_of(p)) == is_cloud(r["level"]) for p, r in zip(preds, rows)) / n
+    worst = max(abs(LEVELS.index(level_of(p)) - LEVELS.index(r["level"])) for p, r in zip(preds, rows))
+    mse = sum((p - t) ** 2 for p, t in zip(preds, targets)) / n
+    mae = sum(abs(p - t) for p, t in zip(preds, targets)) / n
     return {
-        "mse": float(mse),
-        "mae": float(mae),
-        "routing_accuracy": float(routing_accuracy)
+        "n": n, "mse": round(mse, 5), "mae": round(mae, 5),
+        "level_accuracy": round(exact, 4), "local_vs_cloud_accuracy": round(tier, 4),
+        "max_level_error": worst,
     }
 
 
-def export_to_onnx(model: FastGRNN, output_path: str, opset_version: int = 13):
-    """
-    Export FastGRNN model to ONNX format.
+def export(model, cfg, metrics, data_meta, out):
+    H, N = model.h, model.n
+    weights = {
+        "w_z": [v for row in model.p["w_z"] for v in row],
+        "u_z": [0.0] * (H * H),
+        "b_z": model.p["b_z"],
+        "w_h": [v for row in model.p["w_h"] for v in row],
+        "u_h": [0.0] * (H * H),
+        "b_h": model.p["b_h"],
+        "w_o": model.p["w_o"],
+        "b_o": [model.p["b_o"]],
+        "zeta": model.zeta,
+        "nu": model.nu,
+    }
+    doc = {"config": cfg, "weights": weights, "metrics": metrics, "data": data_meta}
+    with open(out, "w") as f:
+        json.dump(doc, f, indent=2)
+        f.write("\n")
 
-    This creates a simplified feedforward version of the model that computes
-    the complexity score in a single forward pass (no recurrent state).
 
-    Args:
-        model: Trained FastGRNN model
-        output_path: Path to save the ONNX model
-        opset_version: ONNX opset version (default: 13)
-    """
-    try:
-        import torch
-        import torch.nn as nn
-    except ImportError:
-        print("Error: PyTorch is required for ONNX export.")
-        print("Install with: pip install torch")
-        return False
+def export_onnx(json_path, onnx_path):
+    import numpy as np
+    import torch
+    import torch.nn as nn
 
-    class FastGRNNTorch(nn.Module):
-        """PyTorch version of FastGRNN for ONNX export."""
+    doc = json.load(open(json_path))
+    w, cfg = doc["weights"], doc["config"]
+    H, N = cfg["hidden_dim"], cfg["input_dim"]
 
-        def __init__(self, numpy_model: FastGRNN):
+    class Router(nn.Module):
+        def __init__(self):
             super().__init__()
-            c = numpy_model.config
+            t = lambda v, shape: torch.tensor(np.array(v, dtype=np.float32).reshape(shape))
+            self.w_z, self.b_z = t(w["w_z"], (H, N)), t(w["b_z"], (H,))
+            self.w_h, self.b_h = t(w["w_h"], (H, N)), t(w["b_h"], (H,))
+            self.w_o, self.b_o = t(w["w_o"], (1, H)), t(w["b_o"], (1,))
 
-            # Gate weights
-            self.W_z = nn.Parameter(torch.from_numpy(numpy_model.W_z.astype(np.float32)))
-            self.U_z = nn.Parameter(torch.from_numpy(numpy_model.U_z.astype(np.float32)))
-            self.b_z = nn.Parameter(torch.from_numpy(numpy_model.b_z.astype(np.float32)))
+        def forward(self, x):
+            z = torch.sigmoid(x @ self.w_z.T + self.b_z)
+            h = (w["zeta"] * (1 - z) + w["nu"]) * torch.tanh(x @ self.w_h.T + self.b_h)
+            return torch.sigmoid(h @ self.w_o.T + self.b_o)
 
-            # Hidden weights
-            self.W_h = nn.Parameter(torch.from_numpy(numpy_model.W_h.astype(np.float32)))
-            self.U_h = nn.Parameter(torch.from_numpy(numpy_model.U_h.astype(np.float32)))
-            self.b_h = nn.Parameter(torch.from_numpy(numpy_model.b_h.astype(np.float32)))
-
-            # Output weights
-            self.W_o = nn.Parameter(torch.from_numpy(numpy_model.W_o.astype(np.float32)))
-            self.b_o = nn.Parameter(torch.from_numpy(numpy_model.b_o.astype(np.float32)))
-
-            # Scalars
-            self.zeta = numpy_model.zeta
-            self.nu = numpy_model.nu
-            self.hidden_dim = c.hidden_dim
-
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            """
-            Forward pass for single time step.
-
-            Args:
-                x: Input tensor of shape (batch_size, input_dim)
-
-            Returns:
-                Output tensor of shape (batch_size, 1)
-            """
-            batch_size = x.shape[0]
-
-            # Initialize hidden state as zeros
-            h_prev = torch.zeros(batch_size, self.hidden_dim, device=x.device, dtype=x.dtype)
-
-            # z = sigmoid(W_z @ x + U_z @ h_prev + b_z)
-            z = torch.sigmoid(
-                torch.mm(x, self.W_z.T) +
-                torch.mm(h_prev, self.U_z.T) +
-                self.b_z
-            )
-
-            # h_tilde = tanh(W_h @ x + U_h @ h_prev + b_h)
-            h_tilde = torch.tanh(
-                torch.mm(x, self.W_h.T) +
-                torch.mm(h_prev, self.U_h.T) +
-                self.b_h
-            )
-
-            # h = (zeta * (1 - z) + nu) * h_tilde + z * h_prev
-            h = (self.zeta * (1 - z) + self.nu) * h_tilde + z * h_prev
-
-            # output = sigmoid(W_o @ h + b_o)
-            output = torch.sigmoid(torch.mm(h, self.W_o.T) + self.b_o)
-
-            return output
-
-    # Create PyTorch model
-    torch_model = FastGRNNTorch(model)
-    torch_model.eval()
-
-    # Create dummy input
-    dummy_input = torch.randn(1, model.config.input_dim)
-
-    # Export to ONNX
-    try:
-        torch.onnx.export(
-            torch_model,
-            dummy_input,
-            output_path,
-            export_params=True,
-            opset_version=opset_version,
-            do_constant_folding=True,
-            input_names=['input'],
-            output_names=['output'],
-            dynamic_axes={
-                'input': {0: 'batch_size'},
-                'output': {0: 'batch_size'}
-            }
-        )
-        print(f"Successfully exported ONNX model to: {output_path}")
-
-        # Verify the exported model
-        try:
-            import onnx
-            onnx_model = onnx.load(output_path)
-            onnx.checker.check_model(onnx_model)
-            print("ONNX model validation passed!")
-
-            # Print model info
-            print(f"  Inputs: {[i.name for i in onnx_model.graph.input]}")
-            print(f"  Outputs: {[o.name for o in onnx_model.graph.output]}")
-
-        except ImportError:
-            print("Note: Install 'onnx' package to validate the exported model")
-        except Exception as e:
-            print(f"Warning: ONNX validation failed: {e}")
-
-        return True
-
-    except Exception as e:
-        print(f"Error exporting to ONNX: {e}")
-        return False
-
-
-def load_weights_from_json(json_path: str, config: FastGRNNConfig) -> FastGRNN:
-    """Load a model from JSON weights file."""
-    with open(json_path) as f:
-        data = json.load(f)
-
-    model = FastGRNN(config)
-    weights = FastGRNNWeights(**data['weights'])
-    model.set_weights(weights)
-    return model
+    torch.onnx.export(Router(), torch.zeros(1, N), onnx_path, input_names=["features"],
+                      output_names=["complexity"], dynamic_axes={"features": {0: "batch"}}, opset_version=13)
+    print(f"ONNX model written to {onnx_path}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train FastGRNN router model")
-    parser.add_argument("--data", type=str, help="Path to training data JSON")
-    parser.add_argument("--output", type=str, default="fastgrnn_router.json",
-                        help="Output path for trained weights (JSON)")
-    parser.add_argument("--epochs", type=int, default=100, help="Training epochs")
-    parser.add_argument("--hidden-dim", type=int, default=16, help="Hidden dimension")
-    parser.add_argument("--lr", type=float, default=0.01, help="Learning rate")
-    parser.add_argument("--samples", type=int, default=5000, help="Synthetic samples")
-    parser.add_argument("--export-onnx", type=str, default=None,
-                        help="Export trained model to ONNX format")
-    parser.add_argument("--load-json", type=str, default=None,
-                        help="Load existing JSON weights for ONNX export (skip training)")
-    args = parser.parse_args()
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--features", default="/tmp/router_features.jsonl",
+                    help="output of `cargo run --example router_features`")
+    ap.add_argument("--output", default="models/fastgrnn_router.json")
+    ap.add_argument("--hidden-dim", type=int, default=16)
+    ap.add_argument("--epochs", type=int, default=1500)
+    ap.add_argument("--lr", type=float, default=0.02)
+    ap.add_argument("--l2", type=float, default=1e-3)
+    ap.add_argument("--restarts", type=int, default=5)
+    ap.add_argument("--seed", type=int, default=20260928)
+    ap.add_argument("--export-onnx", metavar="PATH", help="also write an ONNX model (needs torch)")
+    a = ap.parse_args()
 
-    # Configuration
-    config = FastGRNNConfig(
-        input_dim=5,
-        hidden_dim=args.hidden_dim,
-        output_dim=1,
-        learning_rate=args.lr,
-        epochs=args.epochs
-    )
+    raw = open(a.features, "rb").read()
+    rows = [json.loads(l) for l in raw.decode().splitlines() if l.strip()]
+    train_rows = [r for r in rows if r["split"] == "train"]
+    test_rows = [r for r in rows if r["split"] == "test"]
+    data = [(r["features"], LEVEL_TARGET[r["level"]]) for r in train_rows]
+    zeta, nu = 1.0, -0.001
 
-    print(f"FastGRNN Router Training")
-    print(f"========================")
-    print(f"Config: {asdict(config)}")
-    print()
+    best = None
+    for k in range(a.restarts):
+        model, loss = train(data, a.hidden_dim, a.epochs, a.lr, a.l2, a.seed + k, zeta, nu)
+        print(f"restart {k}: train mse {loss:.5f}")
+        if best is None or loss < best[1]:  # selected on TRAIN loss only
+            best = (model, loss)
+    model = best[0]
 
-    # If loading existing weights for ONNX export only
-    if args.load_json:
-        print(f"Loading existing model from {args.load_json}...")
-        model = load_weights_from_json(args.load_json, config)
-
-        if args.export_onnx:
-            export_to_onnx(model, args.export_onnx)
-        else:
-            print("No --export-onnx specified. Use --export-onnx <path> to export.")
-        return
-
-    # Load or generate data
-    if args.data:
-        print(f"Loading data from {args.data}...")
-        with open(args.data) as f:
-            raw_data = json.load(f)
-        # Convert to training format
-        data = [(d["features"], d["complexity"]) for d in raw_data]
-    else:
-        print(f"Generating {args.samples} synthetic samples...")
-        data = generate_synthetic_data(args.samples)
-
-    # Split data
-    n_train = int(len(data) * 0.8)
-    train_data = data[:n_train]
-    test_data = data[n_train:]
-
-    print(f"Training samples: {len(train_data)}")
-    print(f"Test samples: {len(test_data)}")
-    print()
-
-    # Initialize model
-    model = FastGRNN(config)
-
-    # Train
-    print("Training...")
-    losses = train_model(
-        model, train_data,
-        epochs=args.epochs,
-        learning_rate=args.lr,
-        verbose=True
-    )
-    print()
-
-    # Evaluate
-    print("Evaluation:")
-    train_metrics = evaluate_model(model, train_data)
-    test_metrics = evaluate_model(model, test_data)
-
-    print(f"  Train MSE: {train_metrics['mse']:.6f}")
-    print(f"  Train MAE: {train_metrics['mae']:.6f}")
-    print(f"  Train Routing Accuracy: {train_metrics['routing_accuracy']:.2%}")
-    print(f"  Test MSE: {test_metrics['mse']:.6f}")
-    print(f"  Test MAE: {test_metrics['mae']:.6f}")
-    print(f"  Test Routing Accuracy: {test_metrics['routing_accuracy']:.2%}")
-    print()
-
-    # Export weights to JSON
-    weights = model.get_weights()
-    output_data = {
-        "config": asdict(config),
-        "weights": asdict(weights),
-        "metrics": {
-            "train": train_metrics,
-            "test": test_metrics
-        }
-    }
-
-    with open(args.output, 'w') as f:
-        json.dump(output_data, f, indent=2)
-
-    print(f"Weights saved to {args.output}")
-
-    # Model size
-    n_params = (
-        config.hidden_dim * config.input_dim * 2 +  # W_z, W_h
-        config.hidden_dim * config.hidden_dim * 2 +  # U_z, U_h
-        config.hidden_dim * 2 +  # b_z, b_h
-        config.output_dim * config.hidden_dim +  # W_o
-        config.output_dim +  # b_o
-        2  # zeta, nu
-    )
-    size_bytes = n_params * 4  # float32
-    print(f"Model size: {n_params} parameters, ~{size_bytes/1024:.1f} KB")
-
-    # Export to ONNX if requested
-    if args.export_onnx:
-        print()
-        print("Exporting to ONNX...")
-        export_to_onnx(model, args.export_onnx)
+    metrics = {"train": evaluate(model, train_rows), "test": evaluate(model, test_rows)}
+    print(json.dumps(metrics, indent=2))
+    cfg = {"input_dim": len(data[0][0]), "hidden_dim": a.hidden_dim, "output_dim": 1, "zeta": zeta, "nu": nu,
+           "optimizer": "adam", "learning_rate": a.lr, "epochs": a.epochs, "l2": a.l2,
+           "restarts": a.restarts, "seed": a.seed}
+    data_meta = {"source": "models/router_queries.jsonl", "features_sha256": hashlib.sha256(raw).hexdigest(),
+                 "train_rows": len(train_rows), "test_rows": len(test_rows),
+                 "targets": LEVEL_TARGET, "selection": "lowest train mse across restarts"}
+    export(model, cfg, metrics, data_meta, a.output)
+    print(f"weights written to {a.output}")
+    if a.export_onnx:
+        export_onnx(a.output, a.export_onnx)
 
 
 if __name__ == "__main__":

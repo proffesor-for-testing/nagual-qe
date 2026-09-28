@@ -2596,7 +2596,7 @@ dependencies = [
 
 [[package]]
 name = "nagual"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2623,7 +2623,7 @@ dependencies = [
  "parking_lot",
  "proptest",
  "rand 0.8.6",
- "rand_chacha 0.10.0",
+ "rand_chacha 0.3.1",
  "ratatui",
  "regex",
  "reqwest",
@@ -2634,6 +2634,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sha3",
+ "shake",
  "sqlx",
  "strange-loop",
  "tempfile",
@@ -3450,16 +3451,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rand_chacha"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e6af7f3e25ded52c41df4e0b1af2d047e45896c2f3281792ed68a1c243daedb"
-dependencies = [
- "ppv-lite86",
- "rand_core 0.10.1",
-]
-
-[[package]]
 name = "rand_core"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4009,6 +4000,17 @@ name = "sha3"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc9bad02c26382724b2d2692c6f179285e4b54eeecd7968f52a50059c3c11759"
+dependencies = [
+ "digest 0.11.2",
+ "keccak",
+ "sponge-cursor",
+]
+
+[[package]]
+name = "shake"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09057cb2149ad4cbd2da1e26b351f9a4c354219421229c69c3063e6f61947c4a"
 dependencies = [
  "digest 0.11.2",
  "keccak",

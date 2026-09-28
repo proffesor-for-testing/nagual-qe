@@ -284,17 +284,10 @@ impl QualityGate {
             );
 
             // Get predicted neighbors using new embedding
-            let predicted = self.find_neighbors_new(
-                &sample.new_embedding,
-                samples,
-                self.config.k,
-            );
+            let predicted = self.find_neighbors_new(&sample.new_embedding, samples, self.config.k);
 
             // Calculate metrics
-            let (recall, precision, rr) = self.calculate_sample_metrics(
-                &ground_truth,
-                &predicted,
-            );
+            let (recall, precision, rr) = self.calculate_sample_metrics(&ground_truth, &predicted);
 
             if recall < self.config.min_recall_at_k || precision < self.config.min_precision {
                 samples_failed += 1;
@@ -338,7 +331,11 @@ impl QualityGate {
                 id: sample.id.clone(),
                 recall,
                 precision,
-                first_match_rank: if rr > 0.0 { Some((1.0 / rr) as usize) } else { None },
+                first_match_rank: if rr > 0.0 {
+                    Some((1.0 / rr) as usize)
+                } else {
+                    None
+                },
             });
         }
 
@@ -346,8 +343,8 @@ impl QualityGate {
         let avg_precision = total_precision / num_samples as f32;
         let mrr = total_rr / num_samples as f32;
 
-        let passed = avg_recall >= self.config.min_recall_at_k
-            && avg_precision >= self.config.min_precision;
+        let passed =
+            avg_recall >= self.config.min_recall_at_k && avg_precision >= self.config.min_precision;
 
         let failure_reason = if !passed {
             if avg_recall < self.config.min_recall_at_k {
@@ -393,9 +390,8 @@ impl QualityGate {
             let mut rng = if let Some(seed) = self.config.seed {
                 rand::rngs::StdRng::seed_from_u64(seed)
             } else {
-                rand::rngs::StdRng::from_rng(thread_rng()).unwrap_or_else(|_| {
-                    rand::rngs::StdRng::seed_from_u64(42)
-                })
+                rand::rngs::StdRng::from_rng(thread_rng())
+                    .unwrap_or_else(|_| rand::rngs::StdRng::seed_from_u64(42))
             };
 
             let mut indices: Vec<usize> = (0..samples.len()).collect();
@@ -502,11 +498,7 @@ impl QualityGate {
     }
 
     /// Validate a single embedding pair.
-    pub fn validate_single(
-        &self,
-        old_embedding: &[f32],
-        new_embedding: &[f32],
-    ) -> MlResult<bool> {
+    pub fn validate_single(&self, old_embedding: &[f32], new_embedding: &[f32]) -> MlResult<bool> {
         // Normalize both
         let _old_arr = normalize_l2(&Array1::from_vec(old_embedding.to_vec()).view());
         let _new_arr = normalize_l2(&Array1::from_vec(new_embedding.to_vec()).view());

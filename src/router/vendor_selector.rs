@@ -141,7 +141,8 @@ impl VendorStatus {
     /// Record a successful request.
     pub fn record_success(&self, latency_us: u64) {
         self.success_count.fetch_add(1, Ordering::Relaxed);
-        self.total_latency_us.fetch_add(latency_us, Ordering::Relaxed);
+        self.total_latency_us
+            .fetch_add(latency_us, Ordering::Relaxed);
         *self.last_success.write() = Some(Instant::now());
         self.consecutive_failures.store(0, Ordering::Relaxed);
         self.available.store(true, Ordering::Relaxed);
@@ -376,12 +377,7 @@ pub struct RoutingDecision {
 
 impl RoutingDecision {
     /// Create a new routing decision.
-    pub fn new(
-        vendor: Vendor,
-        complexity: f32,
-        confidence: f32,
-        latency_us: u64,
-    ) -> Self {
+    pub fn new(vendor: Vendor, complexity: f32, confidence: f32, latency_us: u64) -> Self {
         Self {
             vendor,
             complexity,
@@ -390,11 +386,7 @@ impl RoutingDecision {
             confidence,
             routing_latency_us: latency_us,
             is_fallback: false,
-            reason: format!(
-                "Complexity {:.2} -> {}",
-                complexity,
-                vendor.as_str()
-            ),
+            reason: format!("Complexity {:.2} -> {}", complexity, vendor.as_str()),
         }
     }
 
@@ -545,7 +537,10 @@ impl VendorSelector {
 
     /// Select a vendor based on complexity score.
     pub fn select(&self, complexity: f32, confidence: f32) -> RoutingDecision {
-        let _guard = self.profiler.as_ref().map(|p| p.start_operation(OperationType::Routing));
+        let _guard = self
+            .profiler
+            .as_ref()
+            .map(|p| p.start_operation(OperationType::Routing));
         let start = Instant::now();
 
         let primary_vendor = if complexity < self.config.local_small_threshold {
@@ -568,8 +563,11 @@ impl VendorSelector {
                 .unwrap_or(Vendor::LocalLarge) // Last resort
         };
 
-        let latency_us = start.elapsed().as_micros() as u64;
-        let mut decision = RoutingDecision::new(selected_vendor, complexity, confidence, latency_us);
+        // Ceil to 1 µs: routing decisions regularly finish in < 1 µs on release builds, and
+        // truncating to 0 made avg_latency_us() report 0.0 (see test_vendor_router_metrics).
+        let latency_us = start.elapsed().as_nanos().div_ceil(1000) as u64;
+        let mut decision =
+            RoutingDecision::new(selected_vendor, complexity, confidence, latency_us);
 
         if selected_vendor != primary_vendor {
             decision = decision.as_fallback(
@@ -604,15 +602,13 @@ impl VendorSelector {
     /// Get the next available vendor after a failure.
     pub fn get_fallback(&self, current: Vendor) -> Option<Vendor> {
         let chain = FallbackChain::starting_from(current);
-        chain
-            .next_after(current)
-            .and_then(|v| {
-                if self.is_vendor_available(v) {
-                    Some(v)
-                } else {
-                    self.get_fallback(v)
-                }
-            })
+        chain.next_after(current).and_then(|v| {
+            if self.is_vendor_available(v) {
+                Some(v)
+            } else {
+                self.get_fallback(v)
+            }
+        })
     }
 
     /// Record a successful vendor request.
@@ -709,8 +705,7 @@ impl VendorRouter {
     /// This wires the profiler into both the router and its inner VendorSelector.
     pub fn with_profiler(mut self, profiler: Arc<ProfDAGProfiler>) -> Self {
         self.profiler = Some(profiler.clone());
-        self.selector = VendorSelector::new(self.config.selector.clone())
-            .with_profiler(profiler);
+        self.selector = VendorSelector::new(self.config.selector.clone()).with_profiler(profiler);
         self
     }
 
@@ -718,7 +713,10 @@ impl VendorRouter {
     ///
     /// Returns the routing decision including vendor, complexity, and fallback chain.
     pub fn route(&self, query: &str, embedding: &[f32]) -> RouterResult<RoutingDecision> {
-        let _guard = self.profiler.as_ref().map(|p| p.start_operation(OperationType::Routing));
+        let _guard = self
+            .profiler
+            .as_ref()
+            .map(|p| p.start_operation(OperationType::Routing));
         let start = Instant::now();
 
         // Extract features
@@ -732,7 +730,7 @@ impl VendorRouter {
         let confidence = features.simple_complexity(&self.config.estimator);
 
         // Check latency limit
-        let elapsed_us = start.elapsed().as_micros() as u64;
+        let elapsed_us = start.elapsed().as_nanos().div_ceil(1000) as u64;
         if elapsed_us > self.config.max_latency_ms * 1000 {
             tracing::warn!(
                 elapsed_us = elapsed_us,
@@ -763,7 +761,7 @@ impl VendorRouter {
         let start = Instant::now();
 
         let score = self.estimator.estimate_simple(query, embedding)?;
-        let elapsed_us = start.elapsed().as_micros() as u64;
+        let elapsed_us = start.elapsed().as_nanos().div_ceil(1000) as u64;
 
         let mut decision = self.selector.select(score.score, score.confidence);
         decision.routing_latency_us = elapsed_us;
@@ -772,7 +770,11 @@ impl VendorRouter {
     }
 
     /// Get complexity score without vendor selection.
-    pub fn estimate_complexity(&self, query: &str, embedding: &[f32]) -> RouterResult<ComplexityScore> {
+    pub fn estimate_complexity(
+        &self,
+        query: &str,
+        embedding: &[f32],
+    ) -> RouterResult<ComplexityScore> {
         let start = Instant::now();
 
         let features = self.estimator.extract_features(query, embedding)?;
@@ -780,9 +782,11 @@ impl VendorRouter {
         let complexity = self.fastgrnn.forward(&feature_vector)?;
         let confidence = features.simple_complexity(&self.config.estimator);
 
-        let time_us = start.elapsed().as_micros() as u64;
+        let time_us = start.elapsed().as_nanos().div_ceil(1000) as u64;
 
-        Ok(ComplexityScore::new(complexity, features, confidence, time_us))
+        Ok(ComplexityScore::new(
+            complexity, features, confidence, time_us,
+        ))
     }
 
     /// Record outcome for learning.
@@ -791,7 +795,8 @@ impl VendorRouter {
             self.selector.record_success(vendor, latency_us);
             self.estimator.record_accuracy(query, 1.0);
         } else {
-            self.selector.record_failure(vendor, "Request failed".to_string());
+            self.selector
+                .record_failure(vendor, "Request failed".to_string());
             self.estimator.record_accuracy(query, 0.0);
         }
     }
@@ -897,7 +902,10 @@ mod tests {
     #[test]
     fn test_fallback_chain_next() {
         let chain = FallbackChain::default();
-        assert_eq!(chain.next_after(Vendor::LocalSmall), Some(Vendor::LocalLarge));
+        assert_eq!(
+            chain.next_after(Vendor::LocalSmall),
+            Some(Vendor::LocalLarge)
+        );
         assert_eq!(chain.next_after(Vendor::GPT), None);
     }
 
@@ -1073,7 +1081,10 @@ mod tests {
         status.record_failure("err2".to_string());
         assert!(status.is_available());
         status.record_failure("err3".to_string());
-        assert!(!status.is_available(), "Should be unavailable after 3 consecutive failures");
+        assert!(
+            !status.is_available(),
+            "Should be unavailable after 3 consecutive failures"
+        );
     }
 
     #[test]
@@ -1087,7 +1098,10 @@ mod tests {
         assert_eq!(status.consecutive_failure_count(), 0);
         status.record_failure("err3".to_string());
         status.record_failure("err4".to_string());
-        assert!(status.is_available(), "Should still be available - only 2 consecutive failures after success");
+        assert!(
+            status.is_available(),
+            "Should still be available - only 2 consecutive failures after success"
+        );
     }
 
     #[test]
@@ -1099,17 +1113,19 @@ mod tests {
             status.record_failure("err".to_string());
             status.record_success(100);
         }
-        assert!(status.is_available(), "Alternating failures should never trigger unavailable");
+        assert!(
+            status.is_available(),
+            "Alternating failures should never trigger unavailable"
+        );
         assert_eq!(status.consecutive_failure_count(), 0);
     }
 
     #[test]
     fn test_profiler_wired_into_vendor_selector() {
-        use crate::profdag::profiler::{ProfDAGProfiler, ProfilerConfig, OperationType};
+        use crate::profdag::profiler::{OperationType, ProfDAGProfiler, ProfilerConfig};
 
         let profiler = Arc::new(ProfDAGProfiler::new(ProfilerConfig::default()));
-        let selector = VendorSelector::new(VendorConfig::default())
-            .with_profiler(profiler.clone());
+        let selector = VendorSelector::new(VendorConfig::default()).with_profiler(profiler.clone());
 
         // Perform several routing decisions
         let _ = selector.select(0.1, 0.9);
@@ -1133,11 +1149,12 @@ mod tests {
 
     #[test]
     fn test_profiler_wired_into_vendor_router() {
-        use crate::profdag::profiler::{ProfDAGProfiler, ProfilerConfig, OperationType};
+        use crate::profdag::profiler::{OperationType, ProfDAGProfiler, ProfilerConfig};
 
         let profiler = Arc::new(ProfDAGProfiler::new(ProfilerConfig::default()));
         let config = RouterConfig::default();
-        let router = VendorRouter::new(config).unwrap()
+        let router = VendorRouter::new(config)
+            .unwrap()
             .with_profiler(profiler.clone());
 
         let embedding = sample_embedding();

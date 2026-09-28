@@ -40,17 +40,17 @@ pub use fts::{
     Fts5Tokenizer, FtsSearchOptions, FtsSearchResult, PatternFts,
 };
 pub use pg_notify::{
-    parse_notification, notification_to_event, PgNotification, PgNotifyHandle, PgNotifyListener,
-    ConsolidationCompletePayload, PatternPromotedPayload, PatternStoredPayload,
+    notification_to_event, parse_notification, ConsolidationCompletePayload,
+    PatternPromotedPayload, PatternStoredPayload, PgNotification, PgNotifyHandle, PgNotifyListener,
     CHANNEL_CONSOLIDATION_COMPLETE, CHANNEL_PATTERN_PROMOTED, CHANNEL_PATTERN_STORED,
 };
 pub use postgres::{PoolConfig, PostgresConfig, TlsConfig, TlsVerifyMode};
 pub use sessions::{Session, SessionManager, SessionStats};
-pub use users::{User, UserStore};
 pub use sqlite::{
     is_database_encrypted, migrate_to_encrypted, EncryptedSqliteDb, SharedEncryptedSqliteDb,
     SqliteConfig,
 };
+pub use users::{User, UserStore};
 
 use std::path::Path;
 use std::sync::Arc;
@@ -146,7 +146,12 @@ impl SqliteDb {
     }
 
     /// Query and map results.
-    pub async fn query<T, F>(&self, sql: &str, params: &[&dyn rusqlite::ToSql], f: F) -> Result<Vec<T>>
+    pub async fn query<T, F>(
+        &self,
+        sql: &str,
+        params: &[&dyn rusqlite::ToSql],
+        f: F,
+    ) -> Result<Vec<T>>
     where
         F: FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
     {
@@ -232,7 +237,10 @@ pub struct PostgresDb {
 
 impl PostgresDb {
     /// Connect to a PostgreSQL database.
-    pub async fn connect(url: &str, max_connections: u32) -> std::result::Result<Self, DatabaseError> {
+    pub async fn connect(
+        url: &str,
+        max_connections: u32,
+    ) -> std::result::Result<Self, DatabaseError> {
         let pool = PgPoolOptions::new()
             .max_connections(max_connections)
             .acquire_timeout(std::time::Duration::from_secs(30))
@@ -266,7 +274,9 @@ impl PostgresDb {
 
     /// Execute a SQL statement.
     pub async fn execute(&self, sql: &str) -> Result<u64> {
-        let result = sqlx::query(sql)
+        // sqlx 0.9: dynamic SQL is only accepted when the caller vouches for it.
+        // Callers of this helper pass migration/DDL strings they own, never user input.
+        let result = sqlx::query(sqlx::AssertSqlSafe(sql.to_owned()))
             .execute(&self.pool)
             .await
             .map_err(DatabaseError::from)?;
@@ -292,10 +302,7 @@ impl PostgresDb {
 
     /// Check connection health.
     pub async fn is_healthy(&self) -> bool {
-        sqlx::query("SELECT 1")
-            .fetch_one(&self.pool)
-            .await
-            .is_ok()
+        sqlx::query("SELECT 1").fetch_one(&self.pool).await.is_ok()
     }
 }
 

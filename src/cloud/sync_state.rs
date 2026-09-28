@@ -41,36 +41,54 @@ pub async fn get_sync_state(db: &SqliteDb, remote_url: &str) -> Result<Option<Sy
     let sql = "SELECT remote_url, last_push_at, last_pull_at, last_push_count, last_pull_count, updated_at FROM cloud_sync_state WHERE remote_url = ?";
     let url = remote_url.to_string();
 
-    let state = db.with_connection(move |conn| {
-        let mut stmt = conn.prepare(sql).map_err(crate::error::DatabaseError::from)?;
-        let mut rows = stmt.query(rusqlite::params![url]).map_err(crate::error::DatabaseError::from)?;
-        match rows.next().map_err(crate::error::DatabaseError::from)? {
-            Some(row) => {
-                let remote_url: String = row.get(0).map_err(crate::error::DatabaseError::from)?;
-                let push_str: Option<String> = row.get(1).map_err(crate::error::DatabaseError::from)?;
-                let pull_str: Option<String> = row.get(2).map_err(crate::error::DatabaseError::from)?;
-                let push_count: i64 = row.get(3).map_err(crate::error::DatabaseError::from)?;
-                let pull_count: i64 = row.get(4).map_err(crate::error::DatabaseError::from)?;
-                let updated_str: String = row.get(5).map_err(crate::error::DatabaseError::from)?;
+    let state = db
+        .with_connection(move |conn| {
+            let mut stmt = conn
+                .prepare(sql)
+                .map_err(crate::error::DatabaseError::from)?;
+            let mut rows = stmt
+                .query(rusqlite::params![url])
+                .map_err(crate::error::DatabaseError::from)?;
+            match rows.next().map_err(crate::error::DatabaseError::from)? {
+                Some(row) => {
+                    let remote_url: String =
+                        row.get(0).map_err(crate::error::DatabaseError::from)?;
+                    let push_str: Option<String> =
+                        row.get(1).map_err(crate::error::DatabaseError::from)?;
+                    let pull_str: Option<String> =
+                        row.get(2).map_err(crate::error::DatabaseError::from)?;
+                    let push_count: i64 = row.get(3).map_err(crate::error::DatabaseError::from)?;
+                    let pull_count: i64 = row.get(4).map_err(crate::error::DatabaseError::from)?;
+                    let updated_str: String =
+                        row.get(5).map_err(crate::error::DatabaseError::from)?;
 
-                let last_push_at = push_str.and_then(|s| DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&Utc)));
-                let last_pull_at = pull_str.and_then(|s| DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&Utc)));
-                let updated_at = DateTime::parse_from_rfc3339(&updated_str)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now());
+                    let last_push_at = push_str.and_then(|s| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .ok()
+                            .map(|dt| dt.with_timezone(&Utc))
+                    });
+                    let last_pull_at = pull_str.and_then(|s| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .ok()
+                            .map(|dt| dt.with_timezone(&Utc))
+                    });
+                    let updated_at = DateTime::parse_from_rfc3339(&updated_str)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .unwrap_or_else(|_| Utc::now());
 
-                Ok(Some(SyncState {
-                    remote_url,
-                    last_push_at,
-                    last_pull_at,
-                    last_push_count: push_count,
-                    last_pull_count: pull_count,
-                    updated_at,
-                }))
+                    Ok(Some(SyncState {
+                        remote_url,
+                        last_push_at,
+                        last_pull_at,
+                        last_push_count: push_count,
+                        last_pull_count: pull_count,
+                        updated_at,
+                    }))
+                }
+                None => Ok(None),
             }
-            None => Ok(None),
-        }
-    }).await?;
+        })
+        .await?;
 
     Ok(state)
 }
@@ -98,7 +116,8 @@ pub async fn update_push_state(
         conn.execute(sql, rusqlite::params![url, ts, count, now])
             .map_err(crate::error::DatabaseError::from)?;
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     Ok(())
 }
@@ -126,7 +145,8 @@ pub async fn update_pull_state(
         conn.execute(sql, rusqlite::params![url, ts, count, now])
             .map_err(crate::error::DatabaseError::from)?;
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     Ok(())
 }
@@ -155,9 +175,14 @@ mod tests {
     async fn test_update_push_state() {
         let (db, _temp) = setup_db().await;
         let now = Utc::now();
-        update_push_state(&db, "https://example.com", now, 42).await.unwrap();
+        update_push_state(&db, "https://example.com", now, 42)
+            .await
+            .unwrap();
 
-        let state = get_sync_state(&db, "https://example.com").await.unwrap().unwrap();
+        let state = get_sync_state(&db, "https://example.com")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(state.remote_url, "https://example.com");
         assert!(state.last_push_at.is_some());
         assert_eq!(state.last_push_count, 42);
@@ -168,9 +193,14 @@ mod tests {
     async fn test_update_pull_state() {
         let (db, _temp) = setup_db().await;
         let now = Utc::now();
-        update_pull_state(&db, "https://example.com", now, 10).await.unwrap();
+        update_pull_state(&db, "https://example.com", now, 10)
+            .await
+            .unwrap();
 
-        let state = get_sync_state(&db, "https://example.com").await.unwrap().unwrap();
+        let state = get_sync_state(&db, "https://example.com")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(state.last_pull_count, 10);
         assert!(state.last_pull_at.is_some());
     }
@@ -180,10 +210,17 @@ mod tests {
         let (db, _temp) = setup_db().await;
         let now = Utc::now();
 
-        update_push_state(&db, "https://example.com", now, 5).await.unwrap();
-        update_pull_state(&db, "https://example.com", now, 3).await.unwrap();
+        update_push_state(&db, "https://example.com", now, 5)
+            .await
+            .unwrap();
+        update_pull_state(&db, "https://example.com", now, 3)
+            .await
+            .unwrap();
 
-        let state = get_sync_state(&db, "https://example.com").await.unwrap().unwrap();
+        let state = get_sync_state(&db, "https://example.com")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(state.last_push_count, 5);
         assert_eq!(state.last_pull_count, 3);
     }

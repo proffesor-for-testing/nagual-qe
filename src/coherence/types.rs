@@ -11,8 +11,8 @@ pub struct Belief {
     pub statement: String,
     pub domain: String,
     pub confidence: f64,
-    pub dependencies: Vec<String>,  // Belief IDs this depends on
-    pub contradicts: Vec<String>,   // Belief IDs this contradicts
+    pub dependencies: Vec<String>, // Belief IDs this depends on
+    pub contradicts: Vec<String>,  // Belief IDs this contradicts
 }
 
 impl Belief {
@@ -59,20 +59,23 @@ impl BeliefGraph {
     }
 
     pub fn beliefs_in_domain(&self, domain: &str) -> Vec<&Belief> {
-        self.beliefs.values()
+        self.beliefs
+            .values()
             .filter(|b| b.domain == domain || b.domain.starts_with(&format!("{}.", domain)))
             .collect()
     }
 
     pub fn get_supporting_beliefs(&self, belief_id: &str) -> Vec<&Belief> {
-        self.edges.iter()
+        self.edges
+            .iter()
             .filter(|e| e.to == belief_id && matches!(e.relation, BeliefRelation::Supports))
             .filter_map(|e| self.beliefs.get(&e.from))
             .collect()
     }
 
     pub fn get_contradicting_beliefs(&self, belief_id: &str) -> Vec<&Belief> {
-        self.edges.iter()
+        self.edges
+            .iter()
             .filter(|e| {
                 (e.to == belief_id || e.from == belief_id)
                     && matches!(e.relation, BeliefRelation::Contradicts)
@@ -138,10 +141,10 @@ impl BeliefEdge {
 /// Relationship between beliefs
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum BeliefRelation {
-    Supports,      // Strengthens the other belief
-    Contradicts,   // Conflicts with the other belief
-    DependsOn,     // Requires the other belief
-    Refines,       // More specific version of
+    Supports,    // Strengthens the other belief
+    Contradicts, // Conflicts with the other belief
+    DependsOn,   // Requires the other belief
+    Refines,     // More specific version of
 }
 
 impl std::fmt::Display for BeliefRelation {
@@ -183,7 +186,8 @@ impl CoherenceResult {
     }
 
     pub fn major_conflicts(&self) -> Vec<&Conflict> {
-        self.conflicts.iter()
+        self.conflicts
+            .iter()
             .filter(|c| matches!(c.severity, ConflictSeverity::Major))
             .collect()
     }
@@ -224,9 +228,9 @@ impl Conflict {
 /// Severity of a conflict
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ConflictSeverity {
-    Minor,     // Different approaches, both valid
-    Moderate,  // Conflicting recommendations
-    Major,     // Logical contradiction
+    Minor,    // Different approaches, both valid
+    Moderate, // Conflicting recommendations
+    Major,    // Logical contradiction
 }
 
 impl std::fmt::Display for ConflictSeverity {
@@ -272,10 +276,10 @@ impl std::fmt::Display for CoherenceAction {
 /// Configuration for the coherence gate
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoherenceConfig {
-    pub energy_threshold: f64,       // 0.4 default - minimum energy to accept
-    pub similarity_threshold: f64,   // 0.85 for potential contradiction detection
-    pub max_conflicts: usize,        // 3 before auto-reject
-    pub check_enabled: bool,         // Enable/disable coherence checking
+    pub energy_threshold: f64,     // 0.4 default - minimum energy to accept
+    pub similarity_threshold: f64, // 0.85 for potential contradiction detection
+    pub max_conflicts: usize,      // 3 before auto-reject
+    pub check_enabled: bool,       // Enable/disable coherence checking
 }
 
 impl Default for CoherenceConfig {

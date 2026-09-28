@@ -171,6 +171,23 @@ impl ApiKeyStore {
     }
 
     /// List all keys, optionally including revoked ones.
+    /// Whether at least one non-revoked key exists. Send-safe (usable from axum extractors),
+    /// unlike `list_keys`, whose `query` params are `&dyn ToSql`.
+    pub async fn has_active_keys(&self) -> Result<bool> {
+        self.db
+            .with_connection(|conn| {
+                let n: i64 = conn
+                    .query_row(
+                        "SELECT COUNT(*) FROM api_keys WHERE revoked_at IS NULL",
+                        [],
+                        |row| row.get(0),
+                    )
+                    .map_err(crate::error::DatabaseError::from)?;
+                Ok(n > 0)
+            })
+            .await
+    }
+
     pub async fn list_keys(&self, include_revoked: bool) -> Result<Vec<ApiKeyRecord>> {
         let sql = if include_revoked {
             "SELECT id, name, key_prefix, scopes, created_at, last_used_at, revoked_at, created_by
@@ -187,7 +204,10 @@ impl ApiKeyStore {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     key_prefix: row.get(2)?,
-                    scopes: scopes_str.split(',').map(|s| s.trim().to_string()).collect(),
+                    scopes: scopes_str
+                        .split(',')
+                        .map(|s| s.trim().to_string())
+                        .collect(),
                     created_at: parse_dt(row.get::<_, String>(4)?),
                     last_used_at: row.get::<_, Option<String>>(5)?.map(parse_dt),
                     revoked_at: row.get::<_, Option<String>>(6)?.map(parse_dt),
@@ -358,8 +378,14 @@ mod tests {
         let db = Arc::new(SqliteDb::open_in_memory().unwrap());
         let store = ApiKeyStore::new(db).await.unwrap();
 
-        store.create_key("key-a", &["read".into()], None).await.unwrap();
-        store.create_key("key-b", &["write".into()], None).await.unwrap();
+        store
+            .create_key("key-a", &["read".into()], None)
+            .await
+            .unwrap();
+        store
+            .create_key("key-b", &["write".into()], None)
+            .await
+            .unwrap();
 
         let active = store.list_keys(false).await.unwrap();
         assert_eq!(active.len(), 2);
@@ -395,7 +421,10 @@ mod tests {
         let db = Arc::new(SqliteDb::open_in_memory().unwrap());
         let store = ApiKeyStore::new(db).await.unwrap();
 
-        store.create_key("unique", &["read".into()], None).await.unwrap();
+        store
+            .create_key("unique", &["read".into()], None)
+            .await
+            .unwrap();
         let result = store.create_key("unique", &["read".into()], None).await;
         assert!(result.is_err());
     }

@@ -500,7 +500,8 @@ pub fn retrieve_patterns(
         .into_iter()
         .map(|(idx, similarity)| {
             let pattern = patterns[idx].clone();
-            let factor_scores = compute_factor_scores(&pattern, similarity, &config.scoring_weights);
+            let factor_scores =
+                compute_factor_scores(&pattern, similarity, &config.scoring_weights);
             let final_score = compute_final_score(&factor_scores, &config.scoring_weights);
 
             ScoredPattern {
@@ -576,8 +577,14 @@ pub fn retrieve_patterns_hybrid(
         HashMap::new()
     } else {
         // Find min/max BM25 ranks for normalization
-        let min_rank = fts_results.iter().map(|(_, r)| *r).fold(f64::INFINITY, f64::min);
-        let max_rank = fts_results.iter().map(|(_, r)| *r).fold(f64::NEG_INFINITY, f64::max);
+        let min_rank = fts_results
+            .iter()
+            .map(|(_, r)| *r)
+            .fold(f64::INFINITY, f64::min);
+        let max_rank = fts_results
+            .iter()
+            .map(|(_, r)| *r)
+            .fold(f64::NEG_INFINITY, f64::max);
         let range = max_rank - min_rank;
 
         fts_results
@@ -604,9 +611,10 @@ pub fn retrieve_patterns_hybrid(
         .iter()
         .enumerate()
         .filter_map(|(idx, p)| {
-            let cosine_sim = p.embedding.as_ref().map(|emb| {
-                cosine_similarity(query_embedding, &emb.view())
-            });
+            let cosine_sim = p
+                .embedding
+                .as_ref()
+                .map(|emb| cosine_similarity(query_embedding, &emb.view()));
 
             let fts_score = fts_scores.get(p.id.as_str()).copied();
 
@@ -704,7 +712,8 @@ pub fn retrieve_patterns_hybrid(
         .into_iter()
         .map(|(idx, similarity)| {
             let pattern = patterns[idx].clone();
-            let factor_scores = compute_factor_scores(&pattern, similarity, &config.scoring_weights);
+            let factor_scores =
+                compute_factor_scores(&pattern, similarity, &config.scoring_weights);
             let final_score = compute_final_score(&factor_scores, &config.scoring_weights);
 
             ScoredPattern {
@@ -901,10 +910,11 @@ pub fn retrieve_patterns_hyperbolic(
     let w = hyper_config.poincare_weight;
     for scored in &mut result.patterns {
         if let Some(ref emb) = scored.pattern.embedding {
-            let pattern_hyper = match embedder.embed_from_euclidean(&emb.view(), &scored.pattern.domain) {
-                Ok(p) => p,
-                Err(_) => continue,
-            };
+            let pattern_hyper =
+                match embedder.embed_from_euclidean(&emb.view(), &scored.pattern.domain) {
+                    Ok(p) => p,
+                    Err(_) => continue,
+                };
 
             let poincare_dist = crate::ml::poincare_distance(
                 &query_hyper.coords().view(),
@@ -985,7 +995,8 @@ mod tests {
         let query = PatternQuery::new("Error handling").with_limit(10);
         let config = RetrievalConfig::default();
 
-        let result = retrieve_patterns(&patterns, &query_embedding.view(), &query, &config).unwrap();
+        let result =
+            retrieve_patterns(&patterns, &query_embedding.view(), &query, &config).unwrap();
 
         assert!(!result.is_empty());
         assert_eq!(result.total_candidates, 3);
@@ -1005,7 +1016,8 @@ mod tests {
             .with_limit(10);
         let config = RetrievalConfig::default();
 
-        let result = retrieve_patterns(&patterns, &query_embedding.view(), &query, &config).unwrap();
+        let result =
+            retrieve_patterns(&patterns, &query_embedding.view(), &query, &config).unwrap();
 
         // Should match "rust" and "rust.async" (hierarchy match)
         assert_eq!(result.patterns.len(), 2);
@@ -1024,10 +1036,13 @@ mod tests {
         ];
 
         let query_embedding = create_test_embedding();
-        let query = PatternQuery::new("Test").with_min_reward(0.5).with_limit(10);
+        let query = PatternQuery::new("Test")
+            .with_min_reward(0.5)
+            .with_limit(10);
         let config = RetrievalConfig::default();
 
-        let result = retrieve_patterns(&patterns, &query_embedding.view(), &query, &config).unwrap();
+        let result =
+            retrieve_patterns(&patterns, &query_embedding.view(), &query, &config).unwrap();
 
         // Should only include patterns with reward >= 0.5
         assert_eq!(result.patterns.len(), 2);
@@ -1050,7 +1065,8 @@ mod tests {
             .with_limit(10);
         let config = RetrievalConfig::default();
 
-        let result = retrieve_patterns(&patterns, &query_embedding.view(), &query, &config).unwrap();
+        let result =
+            retrieve_patterns(&patterns, &query_embedding.view(), &query, &config).unwrap();
 
         // Should match rust domain hierarchy AND reward >= 0.7
         assert_eq!(result.patterns.len(), 2);
@@ -1478,12 +1494,11 @@ mod tests {
         ];
 
         let query_embedding = create_test_embedding();
-        let fts_results = vec![
-            ("p1".to_string(), -5.0),
-            ("p2".to_string(), -3.0),
-        ];
+        let fts_results = vec![("p1".to_string(), -5.0), ("p2".to_string(), -3.0)];
 
-        let query = PatternQuery::new("Test").with_min_reward(0.5).with_limit(10);
+        let query = PatternQuery::new("Test")
+            .with_min_reward(0.5)
+            .with_limit(10);
         let config = RetrievalConfig::default();
         let hybrid_config = HybridSearchConfig::default();
 

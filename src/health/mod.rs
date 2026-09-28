@@ -361,10 +361,7 @@ impl HealthReport {
                 HealthStatus::Unknown => "[?]",
             };
 
-            output.push_str(&format!(
-                "  {} {}: {}\n",
-                icon, name, result.message
-            ));
+            output.push_str(&format!("  {} {}: {}\n", icon, name, result.message));
 
             if result.duration.as_millis() > 0 {
                 output.push_str(&format!("      Response time: {:?}\n", result.duration));
@@ -480,8 +477,7 @@ impl HealthRegistry {
             results.push(result);
         }
 
-        let report = HealthReport::from_results(results)
-            .with_uptime(self.start_time.elapsed());
+        let report = HealthReport::from_results(results).with_uptime(self.start_time.elapsed());
 
         // Store the last report
         let mut last_report = self.last_report.write().await;

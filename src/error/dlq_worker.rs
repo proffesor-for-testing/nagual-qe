@@ -115,7 +115,8 @@ pub type HandlerFn = Arc<dyn Fn(&DlqEntry) -> Result<(), String> + Send + Sync +
 
 /// Router for handling different operation types.
 pub struct OperationRouter {
-    handlers: hashbrown::HashMap<String, Arc<dyn Fn(&DlqEntry) -> Result<(), String> + Send + Sync>>,
+    handlers:
+        hashbrown::HashMap<String, Arc<dyn Fn(&DlqEntry) -> Result<(), String> + Send + Sync>>,
     default_handler: Option<Arc<dyn Fn(&DlqEntry) -> Result<(), String> + Send + Sync>>,
 }
 
@@ -158,7 +159,10 @@ impl OperationRouter {
         } else if let Some(default) = &self.default_handler {
             default(entry)
         } else {
-            Err(format!("No handler registered for operation: {}", entry.operation))
+            Err(format!(
+                "No handler registered for operation: {}",
+                entry.operation
+            ))
         }
     }
 

@@ -35,9 +35,9 @@ use tracing::{debug, info, instrument};
 use super::NagualState;
 use crate::error::{NagualError, Result};
 use crate::learning::{
-    aggregate_insights, consolidate_patterns, DomainInsights, ImprovementPlan,
-    InsightsConfig, Outcome, PatternConsolidationConfig,
-    RewardModifiers, SelfImprover, SonaConfig, SonaLearner, SonaStats,
+    aggregate_insights, consolidate_patterns, DomainInsights, ImprovementPlan, InsightsConfig,
+    Outcome, PatternConsolidationConfig, RewardModifiers, SelfImprover, SonaConfig, SonaLearner,
+    SonaStats,
 };
 use crate::reasoning_bank::pattern::PatternId;
 
@@ -292,7 +292,9 @@ impl LearningApi {
         feedback: Option<String>,
     ) -> Result<f32> {
         let pattern_id = PatternId::from_string(pattern_id);
-        self.learner.record_outcome(&pattern_id, outcome, feedback).await
+        self.learner
+            .record_outcome(&pattern_id, outcome, feedback)
+            .await
     }
 
     /// Record an outcome with additional options.
@@ -472,7 +474,7 @@ impl LearningApi {
         Ok(ConsolidationResult {
             groups_consolidated,
             patterns_merged,
-            patterns_archived: 0, // Would come from archive operation
+            patterns_archived: 0,   // Would come from archive operation
             patterns_for_review: 0, // Would come from review operation
             timestamp: Utc::now(),
         })

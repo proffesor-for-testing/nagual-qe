@@ -639,11 +639,7 @@ impl NagualEvent {
     }
 
     /// Create a DeltaRecorded event.
-    pub fn delta_recorded(
-        pattern_id: impl Into<String>,
-        seq: u64,
-        fields_changed: usize,
-    ) -> Self {
+    pub fn delta_recorded(pattern_id: impl Into<String>, seq: u64, fields_changed: usize) -> Self {
         NagualEvent::DeltaRecorded {
             event_id: EventId::new(),
             timestamp: Utc::now(),
@@ -729,7 +725,9 @@ mod tests {
         assert_eq!(changes.new_reward, Some(0.8));
         assert!(changes.success_changed);
         assert!(changes.modified_fields.contains(&"reward".to_string()));
-        assert!(changes.modified_fields.contains(&"effectiveness".to_string()));
+        assert!(changes
+            .modified_fields
+            .contains(&"effectiveness".to_string()));
         assert!(changes.modified_fields.contains(&"success".to_string()));
     }
 
@@ -777,13 +775,8 @@ mod tests {
 
     #[test]
     fn test_prediction_events() {
-        let created = NagualEvent::prediction_created(
-            "pred-123",
-            0.75,
-            0.85,
-            "devops.deployment",
-            5,
-        );
+        let created =
+            NagualEvent::prediction_created("pred-123", 0.75, 0.85, "devops.deployment", 5);
 
         if let NagualEvent::PredictionCreated {
             id,

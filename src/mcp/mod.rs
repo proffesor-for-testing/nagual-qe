@@ -51,8 +51,8 @@ pub mod server;
 pub use tools::{
     get_all_tool_definitions, GetInsightsInput, GetInsightsOutput, OutcomeType, PatternResult,
     PredictInput, PredictOutput, ProbabilityBreakdown, RecordOutcomeInput, RecordOutcomeOutput,
-    SearchPatternsInput, SearchPatternsOutput, StorePatternInput, StorePatternOutput,
-    TimeWindow, TimelineRange, ToolDefinition, TopPatternSummary, TrendSummary,
+    SearchPatternsInput, SearchPatternsOutput, StorePatternInput, StorePatternOutput, TimeWindow,
+    TimelineRange, ToolDefinition, TopPatternSummary, TrendSummary,
 };
 
 use std::collections::HashMap;
@@ -130,7 +130,11 @@ impl ToolResult {
     }
 
     /// Create a failed result.
-    pub fn failure(tool: impl Into<String>, error: impl Into<String>, execution_time_ms: u64) -> Self {
+    pub fn failure(
+        tool: impl Into<String>,
+        error: impl Into<String>,
+        execution_time_ms: u64,
+    ) -> Self {
         Self {
             success: false,
             tool: tool.into(),
@@ -205,16 +209,16 @@ impl NagualContext {
 
     /// Get the pattern storage.
     pub fn storage(&self) -> McpResult<&Arc<PatternStorage>> {
-        self.storage.as_ref().ok_or_else(|| {
-            McpError::Internal("Pattern storage not available".to_string())
-        })
+        self.storage
+            .as_ref()
+            .ok_or_else(|| McpError::Internal("Pattern storage not available".to_string()))
     }
 
     /// Get the SONA learner.
     pub fn learner(&self) -> McpResult<&Arc<SonaLearner>> {
-        self.learner.as_ref().ok_or_else(|| {
-            McpError::Internal("SONA learner not available".to_string())
-        })
+        self.learner
+            .as_ref()
+            .ok_or_else(|| McpError::Internal("SONA learner not available".to_string()))
     }
 
     /// Get the event bus.
@@ -382,7 +386,10 @@ impl McpRegistry {
         {
             let mut stats = self.stats.write();
             stats.total_executions += 1;
-            *stats.executions_by_tool.entry(name.to_string()).or_insert(0) += 1;
+            *stats
+                .executions_by_tool
+                .entry(name.to_string())
+                .or_insert(0) += 1;
 
             // Update average execution time
             let n = stats.total_executions as f64;
@@ -432,13 +439,23 @@ impl ToolExecutor for StorePatternExecutor {
     }
 
     fn validate_input(&self, input: &Value) -> McpResult<()> {
-        if input.get("problem").and_then(|v| v.as_str()).unwrap_or("").is_empty() {
+        if input
+            .get("problem")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .is_empty()
+        {
             return Err(McpError::InvalidInput {
                 tool: self.name().to_string(),
                 reason: "problem is required and cannot be empty".to_string(),
             });
         }
-        if input.get("solution").and_then(|v| v.as_str()).unwrap_or("").is_empty() {
+        if input
+            .get("solution")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .is_empty()
+        {
             return Err(McpError::InvalidInput {
                 tool: self.name().to_string(),
                 reason: "solution is required and cannot be empty".to_string(),
@@ -487,17 +504,20 @@ impl ToolExecutor for StorePatternExecutor {
         let domain_str = domain.clone();
 
         // Store the pattern
-        storage.store_pattern(&pattern).await.map_err(|e| {
-            McpError::ExecutionFailed(format!("Failed to store pattern: {}", e))
-        })?;
+        storage
+            .store_pattern(&pattern)
+            .await
+            .map_err(|e| McpError::ExecutionFailed(format!("Failed to store pattern: {}", e)))?;
 
         // Publish event
-        context.publish_event(NagualEvent::pattern_stored_with_context(
-            &pattern_id,
-            &domain_str,
-            pattern.session_id().map(|s| s.to_string()),
-            pattern.agent_id().map(|s| s.to_string()),
-        )).await;
+        context
+            .publish_event(NagualEvent::pattern_stored_with_context(
+                &pattern_id,
+                &domain_str,
+                pattern.session_id().map(|s| s.to_string()),
+                pattern.agent_id().map(|s| s.to_string()),
+            ))
+            .await;
 
         let output = StorePatternOutput {
             success: true,
@@ -520,7 +540,12 @@ impl ToolExecutor for SearchPatternsExecutor {
     }
 
     fn validate_input(&self, input: &Value) -> McpResult<()> {
-        if input.get("query").and_then(|v| v.as_str()).unwrap_or("").is_empty() {
+        if input
+            .get("query")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .is_empty()
+        {
             return Err(McpError::InvalidInput {
                 tool: self.name().to_string(),
                 reason: "query is required and cannot be empty".to_string(),
@@ -546,9 +571,10 @@ impl ToolExecutor for SearchPatternsExecutor {
             let query_embedding = ndarray::Array1::from_vec(embedding_result.embedding);
 
             // Get all patterns with embeddings for similarity search
-            let all_patterns = storage.get_all_with_embeddings().await.map_err(|e| {
-                McpError::ExecutionFailed(format!("Failed to get patterns: {}", e))
-            })?;
+            let all_patterns = storage
+                .get_all_with_embeddings()
+                .await
+                .map_err(|e| McpError::ExecutionFailed(format!("Failed to get patterns: {}", e)))?;
 
             // Calculate similarity scores for each pattern
             let mut scored_patterns: Vec<(_, f32)> = all_patterns
@@ -568,27 +594,30 @@ impl ToolExecutor for SearchPatternsExecutor {
                 // Apply domain filter
                 .filter(|(p, _)| {
                     input.domains.is_empty()
-                        || input.domains.iter().any(|d| p.category().to_string().starts_with(d))
+                        || input
+                            .domains
+                            .iter()
+                            .any(|d| p.category().to_string().starts_with(d))
                 })
                 // Apply reward filter
-                .filter(|(p, _)| {
-                    input.min_reward.map_or(true, |min| p.reward() >= min)
-                })
+                .filter(|(p, _)| input.min_reward.map_or(true, |min| p.reward() >= min))
                 // Apply effectiveness filter
                 .filter(|(p, _)| {
-                    input.min_effectiveness.map_or(true, |min| p.effectiveness() >= min)
+                    input
+                        .min_effectiveness
+                        .map_or(true, |min| p.effectiveness() >= min)
                 })
                 // Apply success filter
                 .filter(|(p, _)| !input.success_only || p.success())
                 // Apply tag filter (any match)
                 .filter(|(p, _)| {
-                    input.tags.is_empty()
-                        || input.tags.iter().any(|t| p.tags().contains(t))
+                    input.tags.is_empty() || input.tags.iter().any(|t| p.tags().contains(t))
                 })
                 .collect();
 
             // Sort by similarity (descending)
-            scored_patterns.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+            scored_patterns
+                .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
             // Apply MMR for diversity if enabled
             let final_patterns = if input.use_mmr && scored_patterns.len() > 1 {
@@ -632,11 +661,12 @@ impl ToolExecutor for SearchPatternsExecutor {
                 })
                 .filter(|p| {
                     input.domains.is_empty()
-                        || input.domains.iter().any(|d| p.category().to_string().starts_with(d))
+                        || input
+                            .domains
+                            .iter()
+                            .any(|d| p.category().to_string().starts_with(d))
                 })
-                .filter(|p| {
-                    input.min_reward.map_or(true, |min| p.reward() >= min)
-                })
+                .filter(|p| input.min_reward.map_or(true, |min| p.reward() >= min))
                 .filter(|p| !input.success_only || p.success())
                 .take(input.limit)
                 .map(|p| PatternResult {
@@ -654,7 +684,11 @@ impl ToolExecutor for SearchPatternsExecutor {
                 .collect();
 
             // Sort by reward as a fallback ranking
-            filtered.sort_by(|a, b| b.reward.partial_cmp(&a.reward).unwrap_or(std::cmp::Ordering::Equal));
+            filtered.sort_by(|a, b| {
+                b.reward
+                    .partial_cmp(&a.reward)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
             filtered
         };
 
@@ -677,11 +711,12 @@ impl ToolExecutor for SearchPatternsExecutor {
                 })
                 .filter(|p| {
                     input.domains.is_empty()
-                        || input.domains.iter().any(|d| p.category().to_string().starts_with(d))
+                        || input
+                            .domains
+                            .iter()
+                            .any(|d| p.category().to_string().starts_with(d))
                 })
-                .filter(|p| {
-                    input.min_reward.map_or(true, |min| p.reward() >= min)
-                })
+                .filter(|p| input.min_reward.map_or(true, |min| p.reward() >= min))
                 .filter(|p| !input.success_only || p.success())
                 .take(input.limit)
                 .map(|p| PatternResult {
@@ -698,7 +733,11 @@ impl ToolExecutor for SearchPatternsExecutor {
                 })
                 .collect();
 
-            filtered.sort_by(|a, b| b.reward.partial_cmp(&a.reward).unwrap_or(std::cmp::Ordering::Equal));
+            filtered.sort_by(|a, b| {
+                b.reward
+                    .partial_cmp(&a.reward)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
             filtered
         };
 
@@ -773,7 +812,12 @@ impl ToolExecutor for RecordOutcomeExecutor {
     }
 
     fn validate_input(&self, input: &Value) -> McpResult<()> {
-        if input.get("pattern_id").and_then(|v| v.as_str()).unwrap_or("").is_empty() {
+        if input
+            .get("pattern_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .is_empty()
+        {
             return Err(McpError::InvalidInput {
                 tool: self.name().to_string(),
                 reason: "pattern_id is required".to_string(),
@@ -805,25 +849,45 @@ impl ToolExecutor for RecordOutcomeExecutor {
 
         let pattern_id = PatternId::from_string(&input.pattern_id);
 
+        let failure_mode = match (outcome, input.failure_mode.as_deref()) {
+            (Outcome::Failure, Some(fm)) => {
+                Some(crate::reasoning_bank::pattern::FailureMode::from(fm))
+            }
+            _ => None,
+        };
+
         // Record the outcome
         let reward = learner
-            .record_outcome(&pattern_id, outcome, input.feedback.clone())
+            .record_outcome_classified(&pattern_id, outcome, input.feedback.clone(), failure_mode)
             .await
             .map_err(|e| McpError::ExecutionFailed(format!("Failed to record outcome: {}", e)))?;
 
+        // Report the pattern's actual state after the update (this used to echo the outcome's
+        // target reward as both new_reward and new_effectiveness).
+        let updated = learner
+            .storage()
+            .get_pattern(&pattern_id)
+            .await
+            .map_err(|e| McpError::ExecutionFailed(format!("Failed to read pattern: {}", e)))?;
+        let (new_reward, new_effectiveness) = updated
+            .map(|p| (p.reward(), p.effectiveness()))
+            .unwrap_or((reward, reward));
+
         // Publish event
-        context.publish_event(NagualEvent::outcome_recorded(
-            &input.pattern_id,
-            input.outcome.to_outcome_string(),
-            reward,
-            input.feedback,
-        )).await;
+        context
+            .publish_event(NagualEvent::outcome_recorded(
+                &input.pattern_id,
+                input.outcome.to_outcome_string(),
+                reward,
+                input.feedback,
+            ))
+            .await;
 
         let output = RecordOutcomeOutput {
             success: true,
             reward,
-            new_effectiveness: reward, // Simplified - would get from updated pattern
-            new_reward: reward,
+            new_effectiveness,
+            new_reward,
             message: format!("Outcome recorded for pattern {}", input.pattern_id),
         };
 
@@ -846,9 +910,10 @@ impl ToolExecutor for GetInsightsExecutor {
         let storage = context.storage()?;
 
         // Get patterns for analysis
-        let patterns = storage.get_top_effective(input.max_patterns).await.map_err(|e| {
-            McpError::ExecutionFailed(format!("Failed to get patterns: {}", e))
-        })?;
+        let patterns = storage
+            .get_top_effective(input.max_patterns)
+            .await
+            .map_err(|e| McpError::ExecutionFailed(format!("Failed to get patterns: {}", e)))?;
 
         let total = patterns.len();
         if total == 0 {
@@ -865,16 +930,16 @@ impl ToolExecutor for GetInsightsExecutor {
         }
 
         // Calculate statistics
-        let (reward_sum, effectiveness_sum, success_count) = patterns.iter().fold(
-            (0.0f32, 0.0f32, 0usize),
-            |(rs, es, sc), p| {
-                (
-                    rs + p.reward(),
-                    es + p.effectiveness(),
-                    sc + if p.success() { 1 } else { 0 },
-                )
-            },
-        );
+        let (reward_sum, effectiveness_sum, success_count) =
+            patterns
+                .iter()
+                .fold((0.0f32, 0.0f32, 0usize), |(rs, es, sc), p| {
+                    (
+                        rs + p.reward(),
+                        es + p.effectiveness(),
+                        sc + if p.success() { 1 } else { 0 },
+                    )
+                });
 
         let avg_reward = reward_sum / total as f32;
         let avg_effectiveness = effectiveness_sum / total as f32;
@@ -895,13 +960,21 @@ impl ToolExecutor for GetInsightsExecutor {
         // Generate recommendations
         let mut recommendations = Vec::new();
         if avg_reward < 0.5 {
-            recommendations.push("Average reward is low. Consider reviewing and updating low-performing patterns.".to_string());
+            recommendations.push(
+                "Average reward is low. Consider reviewing and updating low-performing patterns."
+                    .to_string(),
+            );
         }
         if success_rate < 0.7 {
-            recommendations.push("Success rate is below 70%. Focus on patterns that consistently work.".to_string());
+            recommendations.push(
+                "Success rate is below 70%. Focus on patterns that consistently work.".to_string(),
+            );
         }
         if total < 10 {
-            recommendations.push("You have few patterns. Keep recording successful approaches to build knowledge.".to_string());
+            recommendations.push(
+                "You have few patterns. Keep recording successful approaches to build knowledge."
+                    .to_string(),
+            );
         }
 
         let output = GetInsightsOutput {
@@ -938,7 +1011,12 @@ impl ToolExecutor for PredictExecutor {
     }
 
     fn validate_input(&self, input: &Value) -> McpResult<()> {
-        if input.get("description").and_then(|v| v.as_str()).unwrap_or("").is_empty() {
+        if input
+            .get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .is_empty()
+        {
             return Err(McpError::InvalidInput {
                 tool: self.name().to_string(),
                 reason: "description is required".to_string(),
@@ -956,7 +1034,9 @@ impl ToolExecutor for PredictExecutor {
         let timeline_max = input.timeline_max_days.unwrap_or(30);
 
         // Try to use the prediction generator if available with evidence patterns
-        if let (Some(generator), Some(storage)) = (context.prediction_generator(), context.storage.as_ref()) {
+        if let (Some(generator), Some(storage)) =
+            (context.prediction_generator(), context.storage.as_ref())
+        {
             if !input.evidence_patterns.is_empty() {
                 // Build input patterns from evidence pattern IDs
                 let mut input_patterns = Vec::new();
@@ -969,7 +1049,11 @@ impl ToolExecutor for PredictExecutor {
                         // Calculate a base similarity (we don't have the query embedding here,
                         // so use 0.8 as a reasonable default for explicitly provided evidence)
                         let input_pattern = InputPattern::new(pattern_id.clone(), 0.8)
-                            .with_success_rate(if pattern.success() { pattern.effectiveness() as f64 } else { 0.3 })
+                            .with_success_rate(if pattern.success() {
+                                pattern.effectiveness() as f64
+                            } else {
+                                0.3
+                            })
                             .with_confidence(pattern.confidence() as f64)
                             .with_effectiveness(pattern.effectiveness() as f64)
                             .with_created_at(pattern.timestamp());
@@ -1011,13 +1095,15 @@ impl ToolExecutor for PredictExecutor {
                             let prediction_id = prediction.id().to_string();
 
                             // Publish event
-                            context.publish_event(NagualEvent::prediction_created(
-                                &prediction_id,
-                                prediction.probability(),
-                                prediction.confidence(),
-                                prediction.domain(),
-                                input.evidence_patterns.len(),
-                            )).await;
+                            context
+                                .publish_event(NagualEvent::prediction_created(
+                                    &prediction_id,
+                                    prediction.probability(),
+                                    prediction.confidence(),
+                                    prediction.domain(),
+                                    input.evidence_patterns.len(),
+                                ))
+                                .await;
 
                             let output = PredictOutput {
                                 success: true,
@@ -1063,18 +1149,27 @@ impl ToolExecutor for PredictExecutor {
             .probability(0.5) // Base probability
             .confidence(0.5) // Base confidence
             .timeline(timeline_min, timeline_max)
-            .domain(input.domain.clone().unwrap_or_else(|| "general".to_string()))
+            .domain(
+                input
+                    .domain
+                    .clone()
+                    .unwrap_or_else(|| "general".to_string()),
+            )
             .build()
-            .map_err(|e| McpError::ExecutionFailed(format!("Failed to create prediction: {}", e)))?;
+            .map_err(|e| {
+                McpError::ExecutionFailed(format!("Failed to create prediction: {}", e))
+            })?;
 
         // Publish event
-        context.publish_event(NagualEvent::prediction_created(
-            prediction_id.as_str(),
-            prediction.probability(),
-            prediction.confidence(),
-            prediction.domain(),
-            input.evidence_patterns.len(),
-        )).await;
+        context
+            .publish_event(NagualEvent::prediction_created(
+                prediction_id.as_str(),
+                prediction.probability(),
+                prediction.confidence(),
+                prediction.domain(),
+                input.evidence_patterns.len(),
+            ))
+            .await;
 
         let output = PredictOutput {
             success: true,
@@ -1094,7 +1189,8 @@ impl ToolExecutor for PredictExecutor {
                 calibration_adjustment: None,
             }),
             message: if input.evidence_patterns.is_empty() {
-                "Prediction created with base probability (no evidence patterns provided)".to_string()
+                "Prediction created with base probability (no evidence patterns provided)"
+                    .to_string()
             } else {
                 "Prediction created (prediction engine not available)".to_string()
             },
@@ -1185,7 +1281,9 @@ impl McpRegistry {
         request: ToolCallRequest,
         context: &NagualContext,
     ) -> ToolCallResponse {
-        let result = self.execute(&request.name, &request.arguments, context).await;
+        let result = self
+            .execute(&request.name, &request.arguments, context)
+            .await;
 
         match result {
             Ok(tool_result) => {
@@ -1199,7 +1297,9 @@ impl McpRegistry {
                 } else {
                     ToolCallResponse {
                         content: vec![ToolContent::Text {
-                            text: tool_result.error.unwrap_or_else(|| "Unknown error".to_string()),
+                            text: tool_result
+                                .error
+                                .unwrap_or_else(|| "Unknown error".to_string()),
                         }],
                         is_error: true,
                     }
@@ -1243,7 +1343,10 @@ mod tests {
         let response = registry.handle_list();
 
         assert_eq!(response.tools.len(), 5);
-        assert!(response.tools.iter().any(|t| t.name == "nagual_store_pattern"));
+        assert!(response
+            .tools
+            .iter()
+            .any(|t| t.name == "nagual_store_pattern"));
     }
 
     #[test]

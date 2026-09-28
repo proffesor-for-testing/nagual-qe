@@ -229,10 +229,7 @@ impl QueryRouter {
         // Update stats
         if let Ok(mut stats) = self.stats.lock() {
             stats.total_queries += 1;
-            *stats
-                .queries_by_mode
-                .entry(mode.to_string())
-                .or_insert(0) += 1;
+            *stats.queries_by_mode.entry(mode.to_string()).or_insert(0) += 1;
 
             let n = stats.total_queries as f64;
             stats.avg_results = stats.avg_results * (n - 1.0) / n + results.len() as f64 / n;
@@ -250,10 +247,7 @@ impl QueryRouter {
     ) -> crate::error::Result<Vec<SearchResult>> {
         // Use FTS search as the base - semantic would require HNSW index
         // For now, fall back to FTS
-        let patterns = self
-            .storage
-            .fts_search(&params.query, params.limit)
-            .await?;
+        let patterns = self.storage.fts_search(&params.query, params.limit).await?;
 
         Ok(patterns
             .into_iter()
@@ -281,10 +275,7 @@ impl QueryRouter {
         &self,
         params: &QueryParams,
     ) -> crate::error::Result<Vec<SearchResult>> {
-        let patterns = self
-            .storage
-            .fts_search(&params.query, params.limit)
-            .await?;
+        let patterns = self.storage.fts_search(&params.query, params.limit).await?;
 
         Ok(patterns
             .into_iter()
@@ -357,9 +348,7 @@ impl QueryRouter {
                 )
                 .await?
         } else {
-            self.storage
-                .fts_search(&params.query, params.limit)
-                .await?
+            self.storage.fts_search(&params.query, params.limit).await?
         };
 
         Ok(patterns
@@ -448,7 +437,8 @@ impl QueryRouter {
             || query_lower.contains("today")
             || query_lower.contains("last week")
             || query_lower.contains("this morning")
-            || query.contains("202") // Year pattern
+            || query.contains("202")
+        // Year pattern
         {
             return QueryMode::Temporal;
         }

@@ -16,9 +16,9 @@ use clap::{Args, Subcommand};
 
 use crate::error::Result;
 use crate::sync::{
-    BackupConfig, BackupManager, BackupType, DrillReport, DrillResult, RecoveryPlan,
-    RestoreConfig, RestoreDrill, RestoreDrillConfig, RestoreManager, RestoreResult,
-    SyncHealth, SyncScheduler, SyncSchedulerConfig, SyncStatusReport,
+    BackupConfig, BackupManager, BackupType, DrillReport, DrillResult, RecoveryPlan, RestoreConfig,
+    RestoreDrill, RestoreDrillConfig, RestoreManager, RestoreResult, SyncHealth, SyncScheduler,
+    SyncSchedulerConfig, SyncStatusReport,
 };
 
 #[cfg(feature = "brain-sync")]
@@ -345,8 +345,11 @@ impl SyncCommand {
             return Ok(());
         }
 
-        let config = RestoreConfig::new(&args.target, args.target.parent().unwrap_or(&PathBuf::from(".")))
-            .with_backup_before_restore(!args.no_backup);
+        let config = RestoreConfig::new(
+            &args.target,
+            args.target.parent().unwrap_or(&PathBuf::from(".")),
+        )
+        .with_backup_before_restore(!args.no_backup);
 
         let manager = RestoreManager::with_config(config)?;
         let result = manager.restore_from_backup(&args.backup_path).await?;
@@ -479,7 +482,10 @@ impl SyncCommand {
         }
 
         // Execute recovery
-        println!("Executing point-in-time recovery to {}...\n", target_timestamp);
+        println!(
+            "Executing point-in-time recovery to {}...\n",
+            target_timestamp
+        );
         let result = manager.point_in_time_recovery(target_timestamp).await?;
 
         if args.json {
@@ -532,9 +538,19 @@ impl SyncCommand {
 
         // Share with the collective brain
         let client = BrainClient::new();
-        println!("Sharing pattern {} with collective brain...", args.pattern_id);
+        println!(
+            "Sharing pattern {} with collective brain...",
+            args.pattern_id
+        );
         println!("  Endpoint: {}", client.base_url());
-        println!("  Auth: {}", if client.has_api_key() { "API key configured" } else { "No API key" });
+        println!(
+            "  Auth: {}",
+            if client.has_api_key() {
+                "API key configured"
+            } else {
+                "No API key"
+            }
+        );
 
         match client.share(&category, &title, &content, tags).await {
             Ok(memory_id) => {
@@ -614,7 +630,14 @@ impl SyncCommand {
         println!("Brain System Status");
         println!("{:-<50}", "");
         println!("  Endpoint: {}", client.base_url());
-        println!("  Auth:     {}", if client.has_api_key() { "API key configured" } else { "No API key" });
+        println!(
+            "  Auth:     {}",
+            if client.has_api_key() {
+                "API key configured"
+            } else {
+                "No API key"
+            }
+        );
         println!();
 
         match client.status().await {
@@ -644,7 +667,10 @@ impl SyncCommand {
 
         println!("{} Health: {}", health_icon, report.current.sync_health);
         println!("  Pending records: {}", report.current.pending_records);
-        println!("  Consecutive failures: {}", report.current.consecutive_failures);
+        println!(
+            "  Consecutive failures: {}",
+            report.current.consecutive_failures
+        );
 
         if let Some(ref error) = report.current.last_error {
             println!("  Last error: {}", error);
@@ -680,7 +706,11 @@ impl SyncCommand {
 
         println!("\nRestore Result");
         println!("{:-<50}", "");
-        println!("{} Status: {}", status, if result.success { "Success" } else { "Failed" });
+        println!(
+            "{} Status: {}",
+            status,
+            if result.success { "Success" } else { "Failed" }
+        );
         println!("  Backup ID: {}", result.backup_id);
         println!("  Backup Type: {}", result.backup_type);
         println!("  Restored Path: {}", result.restored_path);
@@ -714,7 +744,14 @@ impl SyncCommand {
         println!("  Drill ID: {}", report.drill_id);
         println!("  Duration: {}ms", report.duration_ms);
         println!("  Backup used: {}", report.backup_used.id);
-        println!("  Integrity check: {}", if report.integrity_check_passed { "Passed" } else { "Failed" });
+        println!(
+            "  Integrity check: {}",
+            if report.integrity_check_passed {
+                "Passed"
+            } else {
+                "Failed"
+            }
+        );
         println!("  Production records: {}", report.production_record_count);
         println!("  Restored records: {}", report.restored_record_count);
         println!("  Difference: {}", report.record_count_difference);
@@ -722,7 +759,10 @@ impl SyncCommand {
         if !report.issues.is_empty() {
             println!("\nIssues:");
             for issue in &report.issues {
-                println!("  [{:?}] {}: {}", issue.severity, issue.category, issue.message);
+                println!(
+                    "  [{:?}] {}: {}",
+                    issue.severity, issue.category, issue.message
+                );
             }
         }
 
@@ -786,7 +826,10 @@ impl SyncCommand {
         println!("\nRecovery Plan (Dry Run)");
         println!("{:-<50}", "");
         println!("  Target timestamp: {}", plan.target_timestamp);
-        println!("  Base backup: {} ({})", plan.base_backup.id, plan.base_backup.backup_type);
+        println!(
+            "  Base backup: {} ({})",
+            plan.base_backup.id, plan.base_backup.backup_type
+        );
         println!("  Incremental backups: {}", plan.incrementals.len());
         println!("  Total data size: {} bytes", plan.total_size);
         println!("  Estimated duration: {}ms", plan.estimated_duration_ms);

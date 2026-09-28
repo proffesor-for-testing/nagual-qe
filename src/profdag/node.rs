@@ -178,7 +178,11 @@ impl ProfDAGNode {
     }
 
     /// Set source reference.
-    pub fn with_source(mut self, source_type: impl Into<String>, source_id: impl Into<String>) -> Self {
+    pub fn with_source(
+        mut self,
+        source_type: impl Into<String>,
+        source_id: impl Into<String>,
+    ) -> Self {
         self.source_type = Some(source_type.into());
         self.source_id = Some(source_id.into());
         self
@@ -349,7 +353,10 @@ mod tests {
     fn test_node_factory_methods() {
         assert_eq!(ProfDAGNode::pattern("p").node_type, NodeType::Pattern);
         assert_eq!(ProfDAGNode::trajectory("t").node_type, NodeType::Trajectory);
-        assert_eq!(ProfDAGNode::prediction("pr").node_type, NodeType::Prediction);
+        assert_eq!(
+            ProfDAGNode::prediction("pr").node_type,
+            NodeType::Prediction
+        );
         assert_eq!(ProfDAGNode::decision("d").node_type, NodeType::Decision);
     }
 }

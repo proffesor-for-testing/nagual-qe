@@ -61,7 +61,10 @@ pub async fn run(args: &ImproveArgs) -> Result<()> {
     let patterns = load_patterns_from_db(&args.db_path, args.demo, 10000).await?;
 
     if patterns.is_empty() && !args.json {
-        println!("\nNo patterns found in database at: {}", args.db_path.display());
+        println!(
+            "\nNo patterns found in database at: {}",
+            args.db_path.display()
+        );
         println!("Use 'nagual patterns store' to add patterns, or --demo for sample data.\n");
         return Ok(());
     }
@@ -102,19 +105,14 @@ pub async fn run(args: &ImproveArgs) -> Result<()> {
                     if args.verbose {
                         println!(
                             "  [OK] Applied: {} ({} patterns)",
-                            recommendation.recommendation_type,
-                            count
+                            recommendation.recommendation_type, count
                         );
                     }
                 }
                 Err(e) => {
                     failed_count += 1;
                     if args.verbose {
-                        println!(
-                            "  [FAIL] {}: {}",
-                            recommendation.recommendation_type,
-                            e
-                        );
+                        println!("  [FAIL] {}: {}", recommendation.recommendation_type, e);
                     }
                 }
             }
@@ -139,10 +137,7 @@ fn display_improvement_plan(plan: &ImprovementPlan, verbose: bool) {
     println!("  Total patterns analyzed: {}", plan.summary.total_patterns);
     println!("  High performers: {}", plan.summary.high_performers);
     println!("  Low performers: {}", plan.summary.low_performers);
-    println!(
-        "  Average quality: {:.2}",
-        plan.summary.average_quality
-    );
+    println!("  Average quality: {:.2}", plan.summary.average_quality);
     println!(
         "  Expected impact: {:.2}",
         plan.summary.total_expected_impact
@@ -182,9 +177,7 @@ fn display_improvement_plan(plan: &ImprovementPlan, verbose: bool) {
             };
             println!(
                 "  {} {} [Priority: {}]",
-                icon,
-                rec.recommendation_type,
-                rec.priority
+                icon, rec.recommendation_type, rec.priority
             );
             println!("     {}", rec.rationale);
             if verbose {
@@ -197,5 +190,8 @@ fn display_improvement_plan(plan: &ImprovementPlan, verbose: bool) {
         }
     }
 
-    println!("\nGenerated at: {}", plan.generated_at.format("%Y-%m-%d %H:%M:%S UTC"));
+    println!(
+        "\nGenerated at: {}",
+        plan.generated_at.format("%Y-%m-%d %H:%M:%S UTC")
+    );
 }

@@ -21,7 +21,7 @@ use nagual::learning::{
 use nagual::reasoning_bank::{
     dedup::{scan_duplicates, DedupConfig},
     pattern::{Pattern, PatternCategory, PatternId},
-    pyramid::{generate_summary, generate_title, get_pyramid_stats, generate_missing_pyramids},
+    pyramid::{generate_missing_pyramids, generate_summary, generate_title, get_pyramid_stats},
     storage::{PatternStorage, StorageConfig},
 };
 
@@ -83,7 +83,10 @@ async fn test_satisfaction_metrics_flow() {
         .build();
 
     let pattern_id = pattern.id().clone();
-    storage.store_pattern(&pattern).await.expect("store pattern");
+    storage
+        .store_pattern(&pattern)
+        .await
+        .expect("store pattern");
 
     // Retrieve the pattern
     let retrieved = storage
@@ -113,7 +116,10 @@ async fn test_satisfaction_metrics_flow() {
         .expect("get pattern")
         .expect("pattern exists");
     pat.record_satisfaction(true);
-    storage.update_pattern(&pat).await.expect("update pattern 1");
+    storage
+        .update_pattern(&pat)
+        .await
+        .expect("update pattern 1");
 
     let mut pat = storage
         .get_pattern(&pattern_id)
@@ -121,7 +127,10 @@ async fn test_satisfaction_metrics_flow() {
         .expect("get pattern")
         .expect("pattern exists");
     pat.record_satisfaction(true);
-    storage.update_pattern(&pat).await.expect("update pattern 2");
+    storage
+        .update_pattern(&pat)
+        .await
+        .expect("update pattern 2");
 
     // Record one negative outcome
     let mut pat = storage
@@ -130,7 +139,10 @@ async fn test_satisfaction_metrics_flow() {
         .expect("get pattern")
         .expect("pattern exists");
     pat.record_satisfaction(false);
-    storage.update_pattern(&pat).await.expect("update pattern 3");
+    storage
+        .update_pattern(&pat)
+        .await
+        .expect("update pattern 3");
 
     // Verify updated satisfaction metrics
     let updated = storage
@@ -144,7 +156,8 @@ async fn test_satisfaction_metrics_flow() {
     let expected_min = 0.5; // At minimum, should be above random
     let expected_max = 0.9; // Shouldn't be perfect with 1 failure
     assert!(
-        updated.satisfaction_score() >= expected_min && updated.satisfaction_score() <= expected_max,
+        updated.satisfaction_score() >= expected_min
+            && updated.satisfaction_score() <= expected_max,
         "Satisfaction score should be in [{}, {}], got {}",
         expected_min,
         expected_max,
@@ -176,7 +189,10 @@ async fn test_trajectory_chain_analysis() {
         .session_id("test-session-chain")
         .query("How to optimize database queries?")
         .add_step(TrajectoryStep::pattern_retrieval(
-            vec![PatternId::from_string("pat_1"), PatternId::from_string("pat_2")],
+            vec![
+                PatternId::from_string("pat_1"),
+                PatternId::from_string("pat_2"),
+            ],
             "database optimization",
             0.85,
         ))
@@ -206,7 +222,8 @@ async fn test_trajectory_chain_analysis() {
     );
 
     // Verify step types
-    let retrieval_steps = trajectory.steps_by_type(nagual::learning::trajectory::StepType::PatternRetrieval);
+    let retrieval_steps =
+        trajectory.steps_by_type(nagual::learning::trajectory::StepType::PatternRetrieval);
     assert_eq!(
         retrieval_steps.len(),
         1,
@@ -218,11 +235,7 @@ async fn test_trajectory_chain_analysis() {
 
     let application_steps =
         trajectory.steps_by_type(nagual::learning::trajectory::StepType::PatternApplication);
-    assert_eq!(
-        application_steps.len(),
-        1,
-        "Should have 1 application step"
-    );
+    assert_eq!(application_steps.len(), 1, "Should have 1 application step");
 
     // Verify average confidence
     let avg_confidence = trajectory.average_confidence();
@@ -297,12 +310,12 @@ async fn test_dedup_workflow() {
 
     println!("=== Dedup Workflow Test ===");
     println!("  Total patterns: {}", result.total_patterns);
-    println!("  Exact duplicate groups: {}", result.exact_duplicates.len());
-    println!("  Near-duplicate groups: {}", result.near_duplicates.len());
     println!(
-        "  Total duplicate patterns: {}",
-        result.duplicate_count
+        "  Exact duplicate groups: {}",
+        result.exact_duplicates.len()
     );
+    println!("  Near-duplicate groups: {}", result.near_duplicates.len());
+    println!("  Total duplicate patterns: {}", result.duplicate_count);
     println!("  Duration: {}ms", result.duration_ms);
 }
 
@@ -359,7 +372,11 @@ fn test_pyramid_generation() {
 
     println!("=== Pyramid Generation Test ===");
     println!("  Title ({} words): {}", word_count, title);
-    println!("  Summary ({} words): {}", summary_words, &summary[..50.min(summary.len())]);
+    println!(
+        "  Summary ({} words): {}",
+        summary_words,
+        &summary[..50.min(summary.len())]
+    );
 }
 
 #[tokio::test]
@@ -423,10 +440,7 @@ async fn test_pyramid_stats_and_generation() {
     println!("=== Pyramid Stats & Generation Test ===");
     println!("  Patterns: {}", stats.total_patterns);
     println!("  Generated: {}", result.generated);
-    println!(
-        "  Coverage: {:.1}%",
-        final_stats.coverage_percent()
-    );
+    println!("  Coverage: {:.1}%", final_stats.coverage_percent());
 }
 
 // ============================================================================
@@ -483,10 +497,7 @@ async fn test_session_lifecycle() {
         .expect("record retrieval");
 
     // End session
-    manager
-        .end_session(&session.id)
-        .await
-        .expect("end session");
+    manager.end_session(&session.id).await.expect("end session");
 
     // Verify session state
     let ended = manager
@@ -525,7 +536,10 @@ async fn test_session_lifecycle() {
         stats.total_patterns_learned, 2,
         "Total patterns learned should be 2"
     );
-    assert!(stats.efficiency > 0.0, "Stats efficiency should be positive");
+    assert!(
+        stats.efficiency > 0.0,
+        "Stats efficiency should be positive"
+    );
 
     println!("=== Session Lifecycle Test ===");
     println!("  Session ID: {}", session.id);
@@ -624,15 +638,12 @@ async fn test_scenario_evaluation() {
     );
 
     // Get holdout stats
-    let stats = scenario_storage.get_stats().await.expect("get scenario stats");
-    assert_eq!(
-        stats.holdout_scenarios, 1,
-        "Should have 1 holdout scenario"
-    );
-    assert_eq!(
-        stats.total_evaluations, 1,
-        "Should have 1 total evaluation"
-    );
+    let stats = scenario_storage
+        .get_stats()
+        .await
+        .expect("get scenario stats");
+    assert_eq!(stats.holdout_scenarios, 1, "Should have 1 holdout scenario");
+    assert_eq!(stats.total_evaluations, 1, "Should have 1 total evaluation");
 
     println!("=== Scenario Evaluation Test ===");
     println!("  Scenario: {}", scenario.description);
@@ -649,7 +660,7 @@ async fn test_scenario_evaluation() {
 #[test]
 fn test_gene_transfusion() {
     use nagual::reasoning_bank::transfusion::{
-        RustAsyncDetector, RustErrorHandlingDetector, TransfusionConfig, Transfuser,
+        RustAsyncDetector, RustErrorHandlingDetector, Transfuser, TransfusionConfig,
     };
     use std::fs;
 
@@ -708,7 +719,11 @@ async fn test_async_process() {
     };
 
     // Debug: verify file was created
-    assert!(test_file.exists(), "Test file should exist at {:?}", test_file);
+    assert!(
+        test_file.exists(),
+        "Test file should exist at {:?}",
+        test_file
+    );
     let content = fs::read_to_string(&test_file).expect("read file");
     assert!(!content.is_empty(), "Test file should have content");
 
@@ -756,8 +771,8 @@ async fn test_async_process() {
 
 #[test]
 fn test_rust_error_handling_detector() {
-    use nagual::reasoning_bank::transfusion::RustErrorHandlingDetector;
     use nagual::reasoning_bank::transfusion::PatternDetector;
+    use nagual::reasoning_bank::transfusion::RustErrorHandlingDetector;
 
     let detector = RustErrorHandlingDetector::new();
     let content = r#"
@@ -829,17 +844,20 @@ async fn main() {
 
     let patterns = detector.detect(content, "test.rs");
 
-    assert!(
-        !patterns.is_empty(),
-        "Should detect async patterns"
-    );
+    assert!(!patterns.is_empty(), "Should detect async patterns");
 
     // Check for spawn pattern
-    let has_spawn = patterns.iter().any(|p| p.tags.contains(&"spawn".to_string()));
+    let has_spawn = patterns
+        .iter()
+        .any(|p| p.tags.contains(&"spawn".to_string()));
     // Check for select pattern
-    let has_select = patterns.iter().any(|p| p.tags.contains(&"select".to_string()));
+    let has_select = patterns
+        .iter()
+        .any(|p| p.tags.contains(&"select".to_string()));
     // Check for channel pattern
-    let has_channel = patterns.iter().any(|p| p.tags.contains(&"channel".to_string()));
+    let has_channel = patterns
+        .iter()
+        .any(|p| p.tags.contains(&"channel".to_string()));
 
     println!("=== Async Detector Test ===");
     println!("  Patterns found: {}", patterns.len());
@@ -874,7 +892,10 @@ async fn test_full_learning_workflow() {
         .build();
 
     let pattern_id = pattern.id().clone();
-    storage.store_pattern(&pattern).await.expect("store pattern");
+    storage
+        .store_pattern(&pattern)
+        .await
+        .expect("store pattern");
 
     // 2. Record successful reuse
     let mut updated_pattern = storage
@@ -896,7 +917,10 @@ async fn test_full_learning_workflow() {
         .expect("get pattern")
         .expect("pattern exists");
     pat.record_satisfaction(true);
-    storage.update_pattern(&pat).await.expect("update satisfaction");
+    storage
+        .update_pattern(&pat)
+        .await
+        .expect("update satisfaction");
 
     // 4. Verify final state
     let final_pattern = storage
@@ -905,15 +929,8 @@ async fn test_full_learning_workflow() {
         .expect("get final")
         .expect("exists");
 
-    assert!(
-        final_pattern.reward() > 0.5,
-        "Reward should be elevated"
-    );
-    assert_eq!(
-        final_pattern.reuse_count(),
-        1,
-        "Reuse count should be 1"
-    );
+    assert!(final_pattern.reward() > 0.5, "Reward should be elevated");
+    assert_eq!(final_pattern.reuse_count(), 1, "Reuse count should be 1");
     assert_eq!(
         final_pattern.satisfaction_trials(),
         1,
@@ -925,10 +942,7 @@ async fn test_full_learning_workflow() {
         .fts_search("connection pooling", 10)
         .await
         .expect("fts_search");
-    assert!(
-        !results.is_empty(),
-        "Search should find the pattern"
-    );
+    assert!(!results.is_empty(), "Search should find the pattern");
 
     println!("=== Full Learning Workflow Test ===");
     println!("  Pattern ID: {}", pattern_id);

@@ -185,9 +185,8 @@ impl EncryptedSqliteDb {
         }
 
         // Generate new salt
-        let salt = Salt::generate().map_err(|e| {
-            NagualError::config(format!("Failed to generate salt: {}", e))
-        })?;
+        let salt = Salt::generate()
+            .map_err(|e| NagualError::config(format!("Failed to generate salt: {}", e)))?;
 
         // Save salt to file
         save_salt(&salt, &config.salt_path())?;
@@ -480,17 +479,11 @@ pub async fn migrate_to_encrypted(
         if !rows.is_empty() {
             let col_count = rows[0].len();
             let placeholders: Vec<&str> = (0..col_count).map(|_| "?").collect();
-            let insert_sql = format!(
-                "INSERT INTO {} VALUES ({})",
-                table,
-                placeholders.join(", ")
-            );
+            let insert_sql = format!("INSERT INTO {} VALUES ({})", table, placeholders.join(", "));
 
             for row in rows {
-                let params: Vec<&dyn rusqlite::ToSql> = row
-                    .iter()
-                    .map(|v| v as &dyn rusqlite::ToSql)
-                    .collect();
+                let params: Vec<&dyn rusqlite::ToSql> =
+                    row.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
                 encrypted.execute(&insert_sql, params.as_slice()).await?;
             }
         }
@@ -509,9 +502,8 @@ pub async fn migrate_to_encrypted(
 // Helper functions
 
 fn derive_key_for_db(password: &str, salt: &Salt) -> Result<DerivedKey> {
-    derive_key_from_password(password, salt).map_err(|e: CryptoError| {
-        NagualError::config(format!("Key derivation failed: {}", e))
-    })
+    derive_key_from_password(password, salt)
+        .map_err(|e: CryptoError| NagualError::config(format!("Key derivation failed: {}", e)))
 }
 
 fn load_or_create_salt(config: &SqliteConfig) -> Result<Salt> {
@@ -527,9 +519,8 @@ fn load_or_create_salt(config: &SqliteConfig) -> Result<Salt> {
         )))
     } else {
         // Generate new salt for new database
-        let salt = Salt::generate().map_err(|e| {
-            NagualError::config(format!("Failed to generate salt: {}", e))
-        })?;
+        let salt = Salt::generate()
+            .map_err(|e| NagualError::config(format!("Failed to generate salt: {}", e)))?;
         save_salt(&salt, &salt_path)?;
         Ok(salt)
     }
@@ -537,9 +528,7 @@ fn load_or_create_salt(config: &SqliteConfig) -> Result<Salt> {
 
 fn load_salt(path: &Path) -> Result<Salt> {
     let hex = fs::read_to_string(path).map_err(NagualError::from)?;
-    Salt::from_hex(hex.trim()).map_err(|e| {
-        NagualError::config(format!("Invalid salt file: {}", e))
-    })
+    Salt::from_hex(hex.trim()).map_err(|e| NagualError::config(format!("Invalid salt file: {}", e)))
 }
 
 fn save_salt(salt: &Salt, path: &Path) -> Result<()> {
@@ -568,7 +557,11 @@ fn configure_encryption(conn: &Connection, key: &DerivedKey, config: &SqliteConf
          PRAGMA cipher_memory_security = {};",
         config.cipher_page_size,
         config.kdf_iterations,
-        if config.cipher_memory_security { "ON" } else { "OFF" }
+        if config.cipher_memory_security {
+            "ON"
+        } else {
+            "OFF"
+        }
     ))
     .map_err(DatabaseError::from)?;
 
@@ -715,7 +708,8 @@ mod tests {
         // Unencrypted database
         let unenc_path = temp_dir.path().join("unencrypted.db");
         let conn = Connection::open(&unenc_path).unwrap();
-        conn.execute_batch("CREATE TABLE test (id INTEGER);").unwrap();
+        conn.execute_batch("CREATE TABLE test (id INTEGER);")
+            .unwrap();
         drop(conn);
 
         assert!(!is_database_encrypted(&unenc_path).unwrap());
@@ -746,11 +740,15 @@ mod tests {
         let config = SqliteConfig::new(temp_dir.path().join("encrypted.db"))
             .with_salt_path(temp_dir.path().join("encrypted.salt"));
 
-        let db = migrate_to_encrypted(&unenc_path, &config, "secure_password!").await.unwrap();
+        let db = migrate_to_encrypted(&unenc_path, &config, "secure_password!")
+            .await
+            .unwrap();
 
         // Verify data was migrated
         let names: Vec<String> = db
-            .query("SELECT name FROM users ORDER BY name", &[], |row| row.get(0))
+            .query("SELECT name FROM users ORDER BY name", &[], |row| {
+                row.get(0)
+            })
             .await
             .unwrap();
 

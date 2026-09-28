@@ -91,9 +91,7 @@ pub fn unit_vector(dim: usize, axis: usize) -> Vec<f32> {
 
 /// Generate orthogonal embedding vectors.
 pub fn orthogonal_embeddings(dim: usize, count: usize) -> Vec<Vec<f32>> {
-    (0..count)
-        .map(|i| unit_vector(dim, i % dim))
-        .collect()
+    (0..count).map(|i| unit_vector(dim, i % dim)).collect()
 }
 
 /// Generate similar embeddings (small perturbations).
@@ -561,7 +559,11 @@ mod tests {
         for s in &similar {
             let sim = cosine_similarity(&base, s);
             // With small perturbations, similarity should be high but not necessarily > 0.9
-            assert!(sim > 0.7, "Similar embeddings should have high similarity, got {}", sim);
+            assert!(
+                sim > 0.7,
+                "Similar embeddings should have high similarity, got {}",
+                sim
+            );
         }
     }
 
