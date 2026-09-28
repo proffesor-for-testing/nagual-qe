@@ -203,22 +203,21 @@ pub struct SearchArgs {
     #[arg(short, long)]
     pub verbose: bool,
 
-    /// Use hyperbolic (Poincare ball) distance for hierarchy-aware retrieval.
-    ///
-    /// Re-ranks results using hyperbolic geometry, favoring patterns
-    /// in the same domain hierarchy over those at similar Euclidean distance.
-    #[arg(long)]
+    /// Semantic search: embed the query with the ONNX model and rank patterns by meaning
+    /// (hyperbolic / Poincare-ball distance, favouring the same domain hierarchy), instead of
+    /// matching words with FTS5. Needs `nagual learn embed` to have run. Alias: `--semantic`.
+    #[arg(long, visible_alias = "semantic")]
     pub hyperbolic: bool,
 
     /// Use demo mode with sample data.
     #[arg(long)]
     pub demo: bool,
 
-    /// FTS keyword weight in hybrid search (0.0-1.0, default 0.3).
+    /// Reserved for hybrid FTS + vector ranking; not used yet.
     #[arg(long, default_value = "0.3")]
     pub fts_weight: f32,
 
-    /// Vector similarity weight in hybrid search (0.0-1.0, default 0.7).
+    /// Reserved for hybrid FTS + vector ranking; not used yet.
     #[arg(long, default_value = "0.7")]
     pub vector_weight: f32,
 }
@@ -484,10 +483,18 @@ async fn run_search(args: &SearchArgs) -> Result<()> {
     } else {
         let storage = storage.as_ref().unwrap();
 
-        // Get recent patterns from database (needed for hyperbolic retrieval)
-        let all_patterns = storage.get_recent(args.limit * 10).await?;
+        // Semantic (hyperbolic) retrieval scores every pattern. It used to fetch only the
+        // `limit * 10` most recent rows, so with `--limit 5` a pattern older than the newest 50
+        // could never be found. Plain text search goes through FTS5 below and only needs the full
+        // set for its last-resort substring fallback, which loads it lazily.
+        let all_patterns = if args.hyperbolic {
+            storage.get_recent(storage.count().await?.max(1)).await?
+        } else {
+            Vec::new()
+        };
+        let db_is_empty = storage.count().await? == 0;
 
-        if all_patterns.is_empty() {
+        if db_is_empty {
             tracing::info!("No patterns in database, showing demo data hint");
             if !args.json {
                 println!("\nNo patterns found in database at: {}", args.db_path.display());
@@ -504,10 +511,10 @@ async fn run_search(args: &SearchArgs) -> Result<()> {
         #[cfg(feature = "onnx-embed")]
         {
         // Try embedding-based hyperbolic retrieval
-        let model_path = "models/all-MiniLM-L6-v2.onnx";
-        let tokenizer_path = "models/tokenizer.json";
-        if std::path::Path::new(model_path).exists() {
-            let config = EmbedderConfig::dim_128(model_path, tokenizer_path);
+        let (model_path, tokenizer_path) = crate::ml::resolve_model_paths();
+        let (model_path, tokenizer_path) = (model_path.to_string_lossy().into_owned(), tokenizer_path.to_string_lossy().into_owned());
+        if std::path::Path::new(&model_path).exists() {
+            let config = EmbedderConfig::dim_128(&model_path, &tokenizer_path);
             match Embedder::new(&config) {
                 Ok(embedder) => match embedder.embed(&args.query) {
                     Ok(embed_result) => {
@@ -687,8 +694,12 @@ async fn run_search(args: &SearchArgs) -> Result<()> {
             }
         }
 
-        // Final fallback: naive substring matching on preloaded patterns
+        // Final fallback: naive substring matching over all patterns (loaded only now)
         if results.is_empty() {
+            let patterns = match (&storage, patterns.is_empty()) {
+                (Some(storage), true) => storage.get_recent(storage.count().await?.max(1)).await?,
+                _ => patterns,
+            };
             let query_lower = args.query.to_lowercase();
             let query_words: Vec<&str> = query_lower.split_whitespace().collect();
             results = patterns

@@ -55,6 +55,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   reproduces the trainer. **API:** `ComplexityFeatures::{embedding_norm, pattern_coverage}` →
   `{reasoning_demand, structure}`, `EstimatorConfig::{norm_weight, coverage_weight}` →
   `{reasoning_weight, structure_weight}`; the embedding is validated but no longer scored.
+- **Semantic search only searched the newest patterns.** `knowledge search --hyperbolic` scored just the
+  `limit × 10` most recent rows (50 for `--limit 5`); it now scores every pattern. The text-search
+  substring fallback had the same cap and now loads all rows when FTS5 finds nothing.
+- The ONNX model is found in `$NAGUAL_MODEL_DIR`, `./models` or `~/.nagual/models` (was: only
+  `./models` relative to the current directory) by `learn embed`, `knowledge search` and `patterns`.
+- `--semantic` is a visible alias for `knowledge search --hyperbolic`. `--fts-weight` / `--vector-weight`
+  are documented as reserved (hybrid ranking is not implemented yet).
 - Router: an embedding containing NaN/inf produced complexity NaN and routed to the most expensive tier;
   it is now rejected at feature extraction.
 - Builds without `onnx-embed` no longer warn that `ORT_DYLIB_PATH` is missing on every command.

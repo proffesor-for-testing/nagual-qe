@@ -554,10 +554,10 @@ async fn run_search_pattern(args: &SearchPatternArgs) -> Result<()> {
     let mut results: Vec<_> = if args.hyperbolic && !args.demo {
         #[cfg(feature = "onnx-embed")]
         {
-        let model_path = "models/all-MiniLM-L6-v2.onnx";
-        let tokenizer_path = "models/tokenizer.json";
-        if std::path::Path::new(model_path).exists() {
-            let config = EmbedderConfig::dim_128(model_path, tokenizer_path);
+        let (model_path, tokenizer_path) = crate::ml::resolve_model_paths();
+        let (model_path, tokenizer_path) = (model_path.to_string_lossy().into_owned(), tokenizer_path.to_string_lossy().into_owned());
+        if std::path::Path::new(&model_path).exists() {
+            let config = EmbedderConfig::dim_128(&model_path, &tokenizer_path);
             match Embedder::new(&config) {
                 Ok(embedder) => match embedder.embed(&args.query) {
                     Ok(embed_result) => {

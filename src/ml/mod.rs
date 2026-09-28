@@ -298,6 +298,55 @@ pub fn is_normalized(vector: &ArrayView1<f32>, tolerance: f32) -> bool {
 }
 
 /// Standard embedding dimensions.
+/// Where the ONNX sentence model lives: the first of `$NAGUAL_MODEL_DIR`, `./models` and
+/// `~/.nagual/models` that contains `all-MiniLM-L6-v2.onnx`. Falls back to `./models` (so error
+/// messages name a concrete path). Returns `(model, tokenizer)`.
+pub fn resolve_model_paths() -> (std::path::PathBuf, std::path::PathBuf) {
+    const MODEL: &str = "all-MiniLM-L6-v2.onnx";
+    const TOKENIZER: &str = "tokenizer.json";
+    let mut dirs: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(dir) = std::env::var("NAGUAL_MODEL_DIR") {
+        if !dir.is_empty() {
+            dirs.push(dir.into());
+        }
+    }
+    dirs.push("models".into());
+    if let Some(home) = std::env::var_os("HOME") {
+        dirs.push(std::path::Path::new(&home).join(".nagual").join("models"));
+    }
+    let dir = dirs
+        .iter()
+        .find(|d| d.join(MODEL).is_file())
+        .cloned()
+        .unwrap_or_else(|| "models".into());
+    (dir.join(MODEL), dir.join(TOKENIZER))
+}
+
+#[cfg(test)]
+mod model_path_tests {
+    use super::resolve_model_paths;
+
+    // The only test that touches NAGUAL_MODEL_DIR, so no cross-test env races.
+    #[test]
+    fn test_model_dir_env_takes_precedence_and_tokenizer_follows() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("all-MiniLM-L6-v2.onnx"), b"stub").unwrap();
+
+        std::env::set_var("NAGUAL_MODEL_DIR", dir.path());
+        let (model, tokenizer) = resolve_model_paths();
+        std::env::remove_var("NAGUAL_MODEL_DIR");
+
+        assert_eq!(model, dir.path().join("all-MiniLM-L6-v2.onnx"));
+        assert_eq!(tokenizer, dir.path().join("tokenizer.json"));
+    }
+
+    #[test]
+    fn test_missing_model_falls_back_to_a_concrete_path() {
+        let (model, _) = resolve_model_paths();
+        assert!(model.ends_with("all-MiniLM-L6-v2.onnx"));
+    }
+}
+
 pub mod dimensions {
     /// all-MiniLM-L6-v2 dimension (384)
     pub const MINILM_384: usize = 384;

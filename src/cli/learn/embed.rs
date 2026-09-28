@@ -19,12 +19,14 @@ use crate::reasoning_bank::pattern::Pattern;
 #[derive(Args, Debug)]
 pub struct EmbedArgs {
     /// Path to ONNX model file.
-    #[arg(long, default_value = "models/all-MiniLM-L6-v2.onnx")]
-    pub model_path: String,
+    /// Default: `all-MiniLM-L6-v2.onnx` in `$NAGUAL_MODEL_DIR`, `./models` or `~/.nagual/models`.
+    #[arg(long)]
+    pub model_path: Option<String>,
 
     /// Path to tokenizer JSON file.
-    #[arg(long, default_value = "models/tokenizer.json")]
-    pub tokenizer_path: String,
+    /// Default: `tokenizer.json` next to the resolved model.
+    #[arg(long)]
+    pub tokenizer_path: Option<String>,
 
     /// Batch size for embedding generation.
     #[arg(long, default_value = "32")]
@@ -226,10 +228,25 @@ async fn run_onnx_embed(args: &EmbedArgs) -> Result<()> {
     let to_embed_count = patterns_to_embed.len();
     let already_have = total - to_embed_count;
 
+    let (default_model, default_tokenizer) = crate::ml::resolve_model_paths();
+    let model_path = args
+        .model_path
+        .clone()
+        .unwrap_or_else(|| default_model.to_string_lossy().into_owned());
+    let tokenizer_path = args.tokenizer_path.clone().unwrap_or_else(|| {
+        // Tokenizer defaults to the directory of the (possibly explicit) model.
+        std::path::Path::new(&model_path)
+            .parent()
+            .map(|d| d.join("tokenizer.json"))
+            .unwrap_or(default_tokenizer)
+            .to_string_lossy()
+            .into_owned()
+    });
+
     println!("Total patterns: {}", total);
     println!("Already embedded: {}", already_have);
     println!("To embed: {}", to_embed_count);
-    println!("Model: {}", args.model_path);
+    println!("Model: {}", model_path);
     println!("Batch size: {}", args.batch_size);
     println!();
 
@@ -239,7 +256,7 @@ async fn run_onnx_embed(args: &EmbedArgs) -> Result<()> {
     }
 
     // Load the ONNX embedder
-    let config = EmbedderConfig::dim_128(&args.model_path, &args.tokenizer_path);
+    let config = EmbedderConfig::dim_128(&model_path, &tokenizer_path);
 
     println!("Loading ONNX model...");
     let embedder = match Embedder::new(&config) {
