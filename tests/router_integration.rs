@@ -111,9 +111,9 @@ fn test_complexity_estimator_features() {
 
     // All features should be in [0, 1]
     assert!(f.query_length >= 0.0 && f.query_length <= 1.0);
-    assert!(f.embedding_norm >= 0.0 && f.embedding_norm <= 1.0);
+    assert!(f.reasoning_demand >= 0.0 && f.reasoning_demand <= 1.0);
     assert!(f.domain_specificity >= 0.0 && f.domain_specificity <= 1.0);
-    assert!(f.pattern_coverage >= 0.0 && f.pattern_coverage <= 1.0);
+    assert!(f.structure >= 0.0 && f.structure <= 1.0);
     assert!(f.historical_accuracy >= 0.0 && f.historical_accuracy <= 1.0);
 }
 

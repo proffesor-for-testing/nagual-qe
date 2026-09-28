@@ -6,10 +6,9 @@
 //! statistics, properties and edge cases — against the real `VendorRouter`, `VendorSelector`,
 //! `ComplexityEstimator` and `FastGRNN`.
 //!
-//! What is deliberately NOT asserted here: the *quality* of the pretrained complexity estimate
-//! (e.g. "a short everyday question scores Low"). The shipped weights score almost every query
-//! 0.47–0.53, which does not meet the targets documented on `FastGRNNWeights::pretrained`.
-//! That is tracked as a known issue rather than encoded as a passing test.
+//! Estimator quality is asserted against `models/router_queries.jsonl` (labelled queries, rubric in
+//! models/README.md): the FastGRNN weights are trained on its `train` split only, and
+//! `quality_tests` checks the held-out `test` split against a bar fixed before training.
 
 use std::collections::HashSet;
 
@@ -533,5 +532,126 @@ mod edge_cases {
         for dim in [1, 3, 128, 384, 1536] {
             r.route("q", &normalized_embedding(dim)).unwrap();
         }
+    }
+}
+
+// ─── Estimator quality on held-out labelled queries ────────────────────────────────────
+
+mod quality_tests {
+    use super::*;
+
+    const LEVELS: [ComplexityLevel; 4] = [
+        ComplexityLevel::Low,
+        ComplexityLevel::Medium,
+        ComplexityLevel::High,
+        ComplexityLevel::VeryHigh,
+    ];
+
+    fn label(s: &str) -> ComplexityLevel {
+        match s {
+            "low" => ComplexityLevel::Low,
+            "medium" => ComplexityLevel::Medium,
+            "high" => ComplexityLevel::High,
+            "very_high" => ComplexityLevel::VeryHigh,
+            other => panic!("unknown level {other}"),
+        }
+    }
+
+    fn rank(l: ComplexityLevel) -> i32 {
+        LEVELS.iter().position(|&x| x == l).unwrap() as i32
+    }
+
+    /// (query, labelled level) for one split of models/router_queries.jsonl.
+    fn split(name: &str) -> Vec<(String, ComplexityLevel)> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/models/router_queries.jsonl");
+        std::fs::read_to_string(path)
+            .unwrap()
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
+            .filter(|r| r["split"] == name)
+            .map(|r| (r["query"].as_str().unwrap().to_string(), label(r["level"].as_str().unwrap())))
+            .collect()
+    }
+
+    /// The bar was fixed before training: exact level >= 65%, local-vs-cloud >= 85%, and no
+    /// prediction more than one level off. Measured at training time: 65.0% / 90.0% / 1.
+    #[test]
+    fn test_held_out_queries_meet_the_quality_bar() {
+        let r = router();
+        let test = split("test");
+        assert_eq!(test.len(), 40);
+
+        let (mut exact, mut tier, mut worst) = (0usize, 0usize, 0i32);
+        let mut misses = Vec::new();
+        for (q, want) in &test {
+            let d = r.route(q, &fixed_embedding()).unwrap();
+            if d.level == *want {
+                exact += 1;
+            } else {
+                misses.push(format!("{:?} -> {:?} ({:.2}): {}", want, d.level, d.complexity, q));
+            }
+            let want_cloud = matches!(want, ComplexityLevel::High | ComplexityLevel::VeryHigh);
+            if d.vendor.is_cloud() == want_cloud {
+                tier += 1;
+            }
+            worst = worst.max((rank(d.level) - rank(*want)).abs());
+        }
+        let n = test.len() as f64;
+        let (exact_acc, tier_acc) = (exact as f64 / n, tier as f64 / n);
+        let report = misses.join("\n  ");
+        assert!(exact_acc >= 0.65, "level accuracy {exact_acc:.3} < 0.65\n  {report}");
+        assert!(tier_acc >= 0.85, "local-vs-cloud accuracy {tier_acc:.3} < 0.85\n  {report}");
+        assert!(worst <= 1, "a prediction was {worst} levels off\n  {report}");
+    }
+
+    /// The router must discriminate: the old weights scored everything 0.47–0.53.
+    #[test]
+    fn test_scores_spread_across_levels() {
+        let r = router();
+        let mean = |lvl: ComplexityLevel| {
+            let xs: Vec<f32> = split("test")
+                .iter()
+                .filter(|(_, l)| *l == lvl)
+                .map(|(q, _)| r.route(q, &fixed_embedding()).unwrap().complexity)
+                .collect();
+            xs.iter().sum::<f32>() / xs.len() as f32
+        };
+        let means: Vec<f32> = LEVELS.iter().map(|&l| mean(l)).collect();
+        assert!(means.windows(2).all(|w| w[0] < w[1]), "per-level means not increasing: {means:?}");
+        assert!(means[3] - means[0] > 0.4, "spread too small: {means:?}");
+    }
+
+    /// Anchors from the original spec: everyday questions stay on the cheapest tier, hard
+    /// design/proof work goes to the cloud.
+    #[test]
+    fn test_anchor_queries() {
+        let r = router();
+        for q in ["hello", "What is 2+2?"] {
+            let d = r.route(q, &fixed_embedding()).unwrap();
+            assert_eq!(d.vendor, Vendor::LocalSmall, "{q}: {:.3}", d.complexity);
+        }
+        let hard = "Design a lock-free concurrent hash map in Rust with epoch-based memory reclamation, \
+                    prove linearizability, and analyse ABA hazards under contention";
+        let d = r.route(hard, &fixed_embedding()).unwrap();
+        assert!(d.vendor.is_cloud() && d.level == ComplexityLevel::VeryHigh, "{:.3} {:?}", d.complexity, d.level);
+    }
+
+    /// The Rust forward pass must reproduce what the training script measured on the test split
+    /// (guards against drift between `router_features`, the trainer and `FastGRNN::forward`).
+    #[test]
+    fn test_rust_inference_matches_recorded_training_metrics() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/models/fastgrnn_router.json");
+        let doc: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let recorded = doc["metrics"]["test"]["level_accuracy"].as_f64().unwrap();
+
+        let r = router();
+        let test = split("test");
+        let exact = test
+            .iter()
+            .filter(|(q, want)| r.route(q, &fixed_embedding()).unwrap().level == *want)
+            .count() as f64
+            / test.len() as f64;
+        assert!((exact - recorded).abs() < 1e-9, "rust {exact} vs trainer {recorded}");
     }
 }

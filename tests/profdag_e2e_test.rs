@@ -358,8 +358,8 @@ async fn test_profdag_full_e2e_chain() {
     let config = FastGRNNConfig::default();
     let router = FastGRNN::new(config).expect("FastGRNN construction");
 
-    // Simple query features (5 dimensions: query_length, embedding_norm,
-    // domain_specificity, pattern_coverage, historical_accuracy)
+    // Simple query features (5 dimensions: query_length, reasoning_demand,
+    // domain_specificity, structure, historical_accuracy)
     let features_simple = vec![0.2, 0.3, 0.1, 0.4, 0.5];
     let complexity_simple = router.forward(&features_simple).expect("forward simple");
     assert!(

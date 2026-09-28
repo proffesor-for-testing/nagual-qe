@@ -42,24 +42,37 @@ Trade-off: hash embeddings are ~4× faster but capture no semantic meaning.
 They're fine for exact-match dedup and graph topology work; they're not
 useful for "find similar patterns" queries.
 
-## Optional router model
+## Router model (`fastgrnn_router.json`)
 
-The `fastgrnn_router` is a tiny learned classifier that decides whether an
-incoming query should be routed to FTS (full-text search) or the vector
-index. It's optional — when the ONNX file isn't present, Nagual falls
-back to random Xavier-initialized weights + heuristic routing.
+`fastgrnn_router.json` holds the weights of the FastGRNN that estimates **query complexity** for
+`VendorRouter` (library API, `nagual::router`): below 0.3 → local-small, below 0.5 → local-large,
+0.5 and above → cloud. It is embedded at build time (`include_str!`); no ONNX file is needed.
 
 | File | Committed? | Purpose |
 |------|-----------|---------|
-| `fastgrnn_router.json` | ✅ yes | Router weights metadata (embedded at build via `include_str!`) |
-| `fastgrnn_router.onnx` | ❌ no | Compiled model — `.gitignore`d because ONNX binaries bake source-tree paths into traceback metadata |
-| `train_fastgrnn.py` | ✅ yes | PyTorch training script |
+| `router_queries.jsonl` | ✅ yes | 160 labelled queries (40 per level), each with a fixed `train`/`test` split |
+| `fastgrnn_router.json` | ✅ yes | Trained weights + training config + train/test metrics + data hash |
+| `train_fastgrnn.py` | ✅ yes | Trainer (pure Python; `--export-onnx` needs torch) |
+| `fastgrnn_router.onnx` | ❌ no | Optional ONNX export, `.gitignore`d |
 
-To build your own:
+Labelling rubric for `router_queries.jsonl`:
+
+| Level | Target | What belongs here |
+|---|---|---|
+| `low` | 0.15 | chit-chat, trivial facts, a single command or definition |
+| `medium` | 0.40 | one well-scoped task or explanation |
+| `high` | 0.60 | multi-step task with context or constraints; real debugging; component-level design |
+| `very_high` | 0.85 | architecture, proofs, distributed/concurrent correctness, security threat models, multi-part trade-off analysis |
+
+Retrain (from the repository root) after changing the features or the labelled set:
 
 ```bash
-cd models
-python3 train_fastgrnn.py     # produces fastgrnn_router.onnx + .onnx.data
+cargo run -q --example router_features --no-default-features --features kos -- \
+    models/router_queries.jsonl > /tmp/router_features.jsonl
+python3 models/train_fastgrnn.py --features /tmp/router_features.jsonl --output models/fastgrnn_router.json
+cargo test --test router_tests quality     # held-out bar: level >= 65%, local-vs-cloud >= 85%, max 1 level off
 ```
 
-Nagual will pick it up automatically on next startup.
+The model is selected on training loss only; the `test` split is for measurement. Current held-out
+result: level 65.0%, local-vs-cloud 90.0%, worst error 1 level (the previous weights, trained on
+random synthetic features: 47.5% / 90% / 2 levels, with every score between 0.497 and 0.518).

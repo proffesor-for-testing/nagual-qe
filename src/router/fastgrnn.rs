@@ -86,7 +86,7 @@ pub struct FastGRNNConfig {
 impl Default for FastGRNNConfig {
     fn default() -> Self {
         Self {
-            input_dim: 5, // query_length, embedding_norm, domain_specificity, pattern_coverage, historical_accuracy
+            input_dim: 5, // query_length, reasoning_demand, domain_specificity, structure, historical_accuracy
             hidden_dim: 16, // Small hidden state for fast inference
             output_dim: 1, // Complexity score [0.0, 1.0]
             zeta: 1.0,
@@ -1395,20 +1395,14 @@ mod tests {
         let config = FastGRNNConfig::default();
         let weights = FastGRNNWeights::pretrained(&config);
 
-        // Trained weights should NOT be random - verify against known values
-        // from models/fastgrnn_router.json. The first value of w_z is -0.0517...
-        assert!(
-            (weights.w_z[0] - (-0.05174808306609452)).abs() < 0.001,
-            "pretrained() should load trained weights, got w_z[0] = {}",
-            weights.w_z[0]
-        );
-
-        // Check a few more known values to confirm it's the full trained model
-        assert!(
-            (weights.b_o[0] - 0.007006540950020059).abs() < 0.001,
-            "b_o[0] should match trained value, got {}",
-            weights.b_o[0]
-        );
+        // Trained weights should NOT be random: they must equal the embedded
+        // models/fastgrnn_router.json exactly (checked against the file, so retraining does not
+        // require editing this test).
+        let doc: serde_json::Value = serde_json::from_str(TRAINED_WEIGHTS_JSON).unwrap();
+        let json_f32 = |key: &str, i: usize| doc["weights"][key][i].as_f64().unwrap() as f32;
+        assert_eq!(weights.w_z[0], json_f32("w_z", 0), "pretrained() should load trained weights");
+        assert_eq!(weights.w_h[17], json_f32("w_h", 17));
+        assert_eq!(weights.b_o[0], json_f32("b_o", 0));
         assert!(
             (weights.zeta - 1.0).abs() < 0.001,
             "zeta should be 1.0, got {}",
@@ -1464,7 +1458,7 @@ mod tests {
         let model = FastGRNN::new(config).unwrap();
 
         // Simple short query should get low complexity
-        // Features: [query_length, embedding_norm, domain_specificity, pattern_coverage, historical_accuracy]
+        // Features: [query_length, reasoning_demand, domain_specificity, structure, historical_accuracy]
         let simple_features = vec![0.1, 0.2, 0.1, 0.8, 0.7];
         let simple_score = model.forward(&simple_features).unwrap();
 

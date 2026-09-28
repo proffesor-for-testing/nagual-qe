@@ -1,0 +1,160 @@
+{"query": "hello", "level": "low", "split": "train"}
+{"query": "Explain how to sort an array", "level": "medium", "split": "train"}
+{"query": "Debug why this async Rust test deadlocks under tokio when two tasks lock the same mutex in different order", "level": "high", "split": "train"}
+{"query": "Design a lock-free concurrent hash map in Rust with epoch-based memory reclamation, prove linearizability, and analyse ABA hazards under contention", "level": "very_high", "split": "train"}
+{"query": "What is 2+2?", "level": "low", "split": "train"}
+{"query": "Write a function that reverses a string in Python", "level": "medium", "split": "train"}
+{"query": "Write integration tests for a payment refund flow covering partial refunds, currency rounding and idempotent retries", "level": "high", "split": "train"}
+{"query": "Architect a multi-region active-active payment platform with exactly-once settlement, and explain how you would test partition scenarios", "level": "very_high", "split": "train"}
+{"query": "thanks!", "level": "low", "split": "train"}
+{"query": "What's the difference between let and const in JavaScript?", "level": "medium", "split": "train"}
+{"query": "Refactor this 400-line function into smaller units without changing behaviour, and add characterisation tests first", "level": "high", "split": "train"}
+{"query": "Design a distributed consensus layer for our agent fleet: compare Raft and a CRDT approach, derive failure modes, and specify invariants to test", "level": "very_high", "split": "train"}
+{"query": "What time zone is Budapest in?", "level": "low", "split": "test"}
+{"query": "How do I mock a REST call in Jest?", "level": "medium", "split": "test"}
+{"query": "Our cart total e2e test flakes 3/20 on one CI runner, only after evening deploys. Investigate the likely root cause and propose a fix.", "level": "high", "split": "test"}
+{"query": "Produce a threat model for our LLM agent platform covering prompt injection, data exfiltration through tools and supply-chain risks, with mitigations and verification tests", "level": "very_high", "split": "test"}
+{"query": "Convert 5 km to miles", "level": "low", "split": "train"}
+{"query": "Explain what a foreign key is with an example", "level": "medium", "split": "train"}
+{"query": "Migrate this Express app from callbacks to async/await, keeping error handling consistent and the API unchanged", "level": "high", "split": "train"}
+{"query": "Formally specify the invariants of our double-entry ledger and design property-based and model-based tests that would catch any violation", "level": "very_high", "split": "train"}
+{"query": "What does git status do?", "level": "low", "split": "train"}
+{"query": "Write a SQL query that counts orders per customer", "level": "medium", "split": "train"}
+{"query": "Design a test strategy for a new checkout page: which risks, which levels, and what to automate first?", "level": "high", "split": "train"}
+{"query": "Plan a zero-downtime migration of a 5TB Postgres cluster to a sharded architecture, including rollback strategy, consistency verification and a staged rollout", "level": "very_high", "split": "train"}
+{"query": "list files in a directory", "level": "low", "split": "train"}
+{"query": "How does a hash map handle collisions?", "level": "medium", "split": "train"}
+{"query": "Optimise this SQL query that times out on 10M rows; it joins orders, customers and payments with a LIKE filter", "level": "high", "split": "train"}
+{"query": "Design an evaluation framework for a self-learning memory system: calibration, drift detection, reward hacking resistance, and statistically sound A/B comparisons", "level": "very_high", "split": "train"}
+{"query": "Who wrote Hamlet?", "level": "low", "split": "test"}
+{"query": "Explain the difference between unit and integration tests", "level": "medium", "split": "test"}
+{"query": "Implement rate limiting middleware in Axum with per-API-key buckets and tests for burst behaviour", "level": "high", "split": "test"}
+{"query": "Compare three architectures for real-time fraud detection at 50k events/second, derive latency and cost trade-offs, and design the chaos experiments that would validate the choice", "level": "very_high", "split": "test"}
+{"query": "What is the capital of Serbia?", "level": "low", "split": "train"}
+{"query": "Write a regex that validates an email address", "level": "medium", "split": "train"}
+{"query": "Explain why our React component re-renders on every keystroke and fix it without breaking memoised children", "level": "high", "split": "train"}
+{"query": "Design a test oracle strategy for a machine-learning recommender where correct outputs are unknown: metamorphic relations, invariants and human review loops", "level": "very_high", "split": "train"}
+{"query": "Spell 'necessary'", "level": "low", "split": "train"}
+{"query": "How do I read a CSV file in Rust?", "level": "medium", "split": "train"}
+{"query": "Write a GitHub Actions workflow that caches cargo, runs tests on Linux and macOS, and uploads coverage only on main", "level": "high", "split": "train"}
+{"query": "Architect a quality platform that orchestrates 60 testing agents with verification gates, evidence storage and failure classification, and explain how you would prove it is not reporting false completion", "level": "very_high", "split": "train"}
+{"query": "good morning", "level": "low", "split": "train"}
+{"query": "What is a race condition?", "level": "medium", "split": "train"}
+{"query": "```rust\nfn parse(s: &str) -> Result<Config, Error> { ... }\n```\nThis panics on empty input. Find the bug and add property tests.", "level": "high", "split": "train"}
+{"query": "Derive the complexity bounds of our graph-based pattern consolidation, find the bottleneck at 10M nodes, and redesign it to scale with a proof sketch", "level": "very_high", "split": "train"}
+{"query": "How many days are in a leap year?", "level": "low", "split": "test"}
+{"query": "Summarise what the testing pyramid recommends", "level": "medium", "split": "test"}
+{"query": "Compare Pact and schema-based contract testing for our 12 microservices and recommend one with reasons", "level": "high", "split": "test"}
+{"query": "Design end-to-end encryption for a collaborative editor with offline edits and multi-device sync, and analyse key rotation and conflict resolution", "level": "very_high", "split": "test"}
+{"query": "What does HTTP 404 mean?", "level": "low", "split": "train"}
+{"query": "Convert this callback-based function to async/await", "level": "medium", "split": "train"}
+{"query": "Set up database migration tests that verify both up and down scripts against a Postgres container", "level": "high", "split": "train"}
+{"query": "Build a formal model in TLA+ of our distributed job scheduler, identify the race conditions it reveals, and propose fixes with a verification plan", "level": "very_high", "split": "train"}
+{"query": "Is Rust compiled or interpreted?", "level": "low", "split": "train"}
+{"query": "Explain Big-O notation with a simple example", "level": "medium", "split": "train"}
+{"query": "Analyse this stack trace from a production Java service and suggest where the null comes from and how to guard it", "level": "high", "split": "train"}
+{"query": "Design a safe rollout system for model updates across 10k edge devices with canaries, automatic rollback, signed artifacts and observability, and define the SLOs", "level": "very_high", "split": "train"}
+{"query": "What's the keyboard shortcut to copy on a Mac?", "level": "low", "split": "train"}
+{"query": "How do I write a parameterised test in pytest?", "level": "medium", "split": "train"}
+{"query": "Write a load test in k6 that ramps to 500 users, checks p95 latency under 300ms and fails the build otherwise", "level": "high", "split": "train"}
+{"query": "Explain how to guarantee causal consistency across our microservices without a global clock, compare vector clocks and hybrid logical clocks, and design tests for anomalies", "level": "very_high", "split": "train"}
+{"query": "Translate 'thank you' to Hungarian", "level": "low", "split": "test"}
+{"query": "What does the `?` operator do in Rust?", "level": "medium", "split": "test"}
+{"query": "Our staging tests fail before 10:00 CET because of a nightly DB restore. Design a pipeline gate that waits for it.", "level": "high", "split": "test"}
+{"query": "Create a strategy to make a legacy monolith with 2M lines testable: seams, characterisation tests, contract boundaries, and a three-year migration plan with risks", "level": "very_high", "split": "test"}
+{"query": "What does the ls command do?", "level": "low", "split": "train"}
+{"query": "Explain how HTTP caching headers work", "level": "medium", "split": "train"}
+{"query": "Implement a retry policy with exponential backoff and jitter in Rust, and test it deterministically with a fake clock", "level": "high", "split": "train"}
+{"query": "Design a privacy-preserving analytics pipeline that meets GDPR erasure requirements with cryptographic shredding, and prove deleted users cannot be re-identified", "level": "very_high", "split": "train"}
+{"query": "Define the word 'flaky'", "level": "low", "split": "train"}
+{"query": "Write a Dockerfile for a small Node.js app", "level": "medium", "split": "train"}
+{"query": "Review this PR diff for security issues: it adds file upload handling with user-supplied filenames", "level": "high", "split": "train"}
+{"query": "Architect a benchmarking harness that compares LLM vendors fairly: variance control, contamination checks, statistical significance and cost normalisation", "level": "very_high", "split": "train"}
+{"query": "What is JSON?", "level": "low", "split": "train"}
+{"query": "How do I squash the last three git commits?", "level": "medium", "split": "train"}
+{"query": "Write a Python script that deduplicates bug reports by comparing titles and stack traces, with a similarity threshold", "level": "high", "split": "train"}
+{"query": "Analyse the security of our plugin system: sandboxing, capability tokens, signature verification and update channels, then design red-team scenarios", "level": "very_high", "split": "train"}
+{"query": "Show me today's date format in ISO 8601", "level": "low", "split": "test"}
+{"query": "What is dependency injection and why is it useful?", "level": "medium", "split": "test"}
+{"query": "Diagnose a memory leak in a Node.js service: heap grows 50MB/hour; what data would you collect and in what order?", "level": "high", "split": "test"}
+{"query": "Design a fault-injection framework for a distributed database that explores network partitions, clock skew and disk failures systematically, like Jepsen", "level": "very_high", "split": "test"}
+{"query": "Please could you tell me, in just a few words if that is fine with you, what the abbreviation CI usually stands for in software teams?", "level": "low", "split": "train"}
+{"query": "Explain what a flaky test is and one common cause", "level": "medium", "split": "train"}
+{"query": "Build a test data generator for invoices that respects tax rules for three EU countries and edge-case dates", "level": "high", "split": "train"}
+{"query": "Why do our distributed transactions occasionally double-charge? Reconstruct the failure from logs across four services, derive the invariant that breaks, and design a fix plus proof", "level": "very_high", "split": "train"}
+{"query": "what is npm", "level": "low", "split": "train"}
+{"query": "Write a bash loop that renames all .txt files to .md", "level": "medium", "split": "train"}
+{"query": "Explain the trade-offs between optimistic and pessimistic locking for our inventory service and pick one", "level": "high", "split": "train"}
+{"query": "Design a hierarchical memory for coding agents with operational and meta memory, conflict resolution, forgetting policies, and an evaluation methodology", "level": "very_high", "split": "train"}
+{"query": "Round 3.14159 to two decimals", "level": "low", "split": "train"}
+{"query": "How do I set up a GitHub Actions job that runs cargo test?", "level": "medium", "split": "train"}
+{"query": "Given this failing Cypress test and its video, determine whether it is a product bug or a test bug and justify it", "level": "high", "split": "train"}
+{"query": "Propose an architecture for deterministic replay of production incidents in a microservice system, including data capture, privacy constraints and storage cost trade-offs", "level": "very_high", "split": "train"}
+{"query": "Which port does HTTPS use by default?", "level": "low", "split": "test"}
+{"query": "Explain the difference between a process and a thread", "level": "medium", "split": "test"}
+{"query": "Create a risk-based regression plan for a change in the payment module, using the last three incidents", "level": "high", "split": "test"}
+{"query": "Design a scheduler for 10k CI jobs per hour across heterogeneous runners that minimises cost and latency, with fairness guarantees and a simulation-based evaluation", "level": "very_high", "split": "test"}
+{"query": "What is the plural of 'index'?", "level": "low", "split": "train"}
+{"query": "What is boundary value analysis? Give an example for an age field", "level": "medium", "split": "train"}
+{"query": "Implement pagination with stable cursors for an API sorted by created_at where rows can be inserted concurrently", "level": "high", "split": "train"}
+{"query": "Plan how to verify that an autonomous agent swarm cannot escalate privileges: threat model, capability design, runtime monitors and formal checks", "level": "very_high", "split": "train"}
+{"query": "ok", "level": "low", "split": "train"}
+{"query": "How do I paginate results in a REST API?", "level": "medium", "split": "train"}
+{"query": "Why does this Kubernetes pod restart every few hours with exit code 137, and how do we confirm the cause?", "level": "high", "split": "train"}
+{"query": "Compare event sourcing and state-based persistence for our booking platform, analyse consistency, scalability and audit requirements, and design a migration path", "level": "very_high", "split": "train"}
+{"query": "Can you repeat that?", "level": "low", "split": "train"}
+{"query": "Write a Playwright test that logs in and checks the dashboard title", "level": "medium", "split": "train"}
+{"query": "Write accessibility tests for a modal dialog: focus trap, escape to close, and screen-reader announcements", "level": "high", "split": "train"}
+{"query": "Design an adaptive test selection system that learns from failure history, prove it does not miss regressions beyond a bounded risk, and plan the rollout", "level": "very_high", "split": "train"}
+{"query": "What does CPU stand for?", "level": "low", "split": "test"}
+{"query": "Explain what CORS is", "level": "medium", "split": "test"}
+{"query": "Port this Jest test suite to Vitest, keeping snapshot behaviour and module mocks working", "level": "high", "split": "test"}
+{"query": "Architect a multi-tenant vector search service with per-tenant encryption, HNSW index isolation, noisy-neighbour protection and cost attribution", "level": "very_high", "split": "test"}
+{"query": "How do I exit vim?", "level": "low", "split": "train"}
+{"query": "How does JWT authentication work at a high level?", "level": "medium", "split": "train"}
+{"query": "Add structured logging with correlation IDs across three services and a test that proves the ID propagates", "level": "high", "split": "train"}
+{"query": "Explain the CAP trade-offs for our offline-first mobile app, choose a conflict resolution strategy, and design tests for every merge anomaly", "level": "very_high", "split": "train"}
+{"query": "What is a boolean?", "level": "low", "split": "train"}
+{"query": "Write a unit test for a function that adds two numbers", "level": "medium", "split": "train"}
+{"query": "Design fixtures for testing a multi-tenant app so tenants never see each other's data, and prove it in tests", "level": "high", "split": "train"}
+{"query": "Design a governance framework for AI-generated code in a regulated bank: evidence requirements, review gates, audit trails and measurable quality criteria", "level": "very_high", "split": "train"}
+{"query": "yes please", "level": "low", "split": "train"}
+{"query": "What is the difference between PUT and PATCH?", "level": "medium", "split": "train"}
+{"query": "Our API returns 500 on some Unicode names. Find the likely encoding boundary and write regression tests", "level": "high", "split": "train"}
+{"query": "Model and optimise the end-to-end latency budget of a voice assistant pipeline across ASR, retrieval, LLM and TTS, with trade-offs and load tests", "level": "very_high", "split": "train"}
+{"query": "What is 15% of 200?", "level": "low", "split": "test"}
+{"query": "Explain equivalence partitioning for a discount rule", "level": "medium", "split": "test"}
+{"query": "Estimate the blast radius of changing the shared auth library and choose which downstream test suites to run", "level": "high", "split": "test"}
+{"query": "Design an incident-learning system that turns postmortems into scored, searchable patterns, prevents duplicate knowledge, and measures whether incidents actually decrease", "level": "very_high", "split": "test"}
+{"query": "Name three primary colours", "level": "low", "split": "train"}
+{"query": "How do I profile a slow Python function?", "level": "medium", "split": "train"}
+{"query": "Evaluate whether we should quarantine or fix our 40 flaky tests, with a plan for the next two sprints", "level": "high", "split": "train"}
+{"query": "Develop a strategy to test a compiler optimisation pass: differential testing, translation validation, fuzzing and proving semantic preservation", "level": "very_high", "split": "train"}
+{"query": "What does README stand for in a repository, and is it always uppercase by convention or does it not matter at all?", "level": "low", "split": "train"}
+{"query": "Explain what an index does in a relational database", "level": "medium", "split": "train"}
+{"query": "Write a state-machine based test for an order lifecycle: created, paid, shipped, refunded, cancelled", "level": "high", "split": "train"}
+{"query": "Design a zero-trust architecture for internal tools with short-lived credentials, device posture checks and continuous verification, and plan its phased rollout", "level": "very_high", "split": "train"}
+{"query": "What's the file extension for Python files?", "level": "low", "split": "train"}
+{"query": "Write a function that checks whether a string is a palindrome", "level": "medium", "split": "train"}
+{"query": "Implement a circuit breaker around a flaky third-party API and test the half-open state", "level": "high", "split": "train"}
+{"query": "Derive a statistically sound method to decide when a flaky test is fixed, accounting for base rates, sample sizes and changing infrastructure", "level": "very_high", "split": "train"}
+{"query": "How many bytes in a kilobyte?", "level": "low", "split": "test"}
+{"query": "What is semantic versioning?", "level": "medium", "split": "test"}
+{"query": "Profile this Rust hot loop and propose optimisations with benchmarks before and after", "level": "high", "split": "test"}
+{"query": "Architect a data platform that guarantees exactly-once processing from Kafka to the warehouse with schema evolution and backfills, and design its failure tests", "level": "very_high", "split": "test"}
+{"query": "Is Tuesday a weekday?", "level": "low", "split": "train"}
+{"query": "How do I handle errors in a Rust function that reads a file?", "level": "medium", "split": "train"}
+{"query": "Find why the search index returns stale results after updates and design a consistency check", "level": "high", "split": "train"}
+{"query": "Analyse whether our reward model for agent learning can be gamed, design adversarial evaluations, and propose safeguards with measurable criteria", "level": "very_high", "split": "train"}
+{"query": "What does 'LGTM' mean in a code review?", "level": "low", "split": "train"}
+{"query": "Explain event bubbling in the DOM", "level": "medium", "split": "train"}
+{"query": "Write a Terraform module for a private S3 bucket with encryption and tests using terratest", "level": "high", "split": "train"}
+{"query": "Design a cross-platform mobile release pipeline with device farms, staged rollouts, crash-rate gates and automatic rollback, and justify each gate", "level": "very_high", "split": "train"}
+{"query": "What is localhost?", "level": "low", "split": "train"}
+{"query": "How do I add a column to a Postgres table without downtime for a small table?", "level": "medium", "split": "train"}
+{"query": "Create an exploratory testing charter for a new booking feature, with tours and risk heuristics", "level": "high", "split": "train"}
+{"query": "Build a plan to reduce our 90-minute test suite to 10 minutes without losing defect detection: sharding, selection, flake control and evidence that it works", "level": "very_high", "split": "train"}
+{"query": "What does pwd print?", "level": "low", "split": "test"}
+{"query": "What is mutation testing?", "level": "medium", "split": "test"}
+{"query": "Explain and fix the N+1 query problem in this ORM code, then add a test that fails if it returns", "level": "high", "split": "test"}
+{"query": "Specify, implement and verify a concurrent rate limiter that is correct under clock skew across nodes, with a proof sketch and adversarial tests", "level": "very_high", "split": "test"}

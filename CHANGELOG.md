@@ -45,6 +45,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Router tests tested a mock.** `tests/router_tests.rs` defined its own ~530-line `Router` and tested
   that; two of its tests contradicted the mock. Rewritten against the production `VendorRouter`,
   `VendorSelector`, `ComplexityEstimator` and `FastGRNN` (49 tests incl. property tests).
+- **Router complexity estimator retrained properly.** The shipped FastGRNN had been trained on random
+  synthetic features with incomplete gradients and scored every query 0.497–0.518 (`hello` went to the
+  cloud tier). Two of its five inputs (`embedding_norm`, `pattern_coverage`) carried no information for
+  normalised embeddings; they are replaced by text features `reasoning_demand` and `structure`, and
+  query length is log-scaled. Weights are trained with correct backprop on 120 labelled queries
+  (`models/router_queries.jsonl`) and measured on 40 held-out ones: level accuracy 47.5% → 65%, worst
+  miss 2 → 1 level, score range 0.02 → 0.73. Tests enforce the held-out bar and that Rust inference
+  reproduces the trainer. **API:** `ComplexityFeatures::{embedding_norm, pattern_coverage}` →
+  `{reasoning_demand, structure}`, `EstimatorConfig::{norm_weight, coverage_weight}` →
+  `{reasoning_weight, structure_weight}`; the embedding is validated but no longer scored.
 - Router: an embedding containing NaN/inf produced complexity NaN and routed to the most expensive tier;
   it is now rejected at feature extraction.
 - Builds without `onnx-embed` no longer warn that `ORT_DYLIB_PATH` is missing on every command.
@@ -63,11 +73,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Dependabot no longer auto-proposes majors for `sqlx`, `sha3`, `axum`, and keeps `rand_chacha` on
   the `rand` 0.8 line.
 - README: documented the no-ONNX build path (`--no-default-features --features "kos serve"`).
-
-### Known issues
-- The pretrained router FastGRNN scores almost every query 0.47–0.53, not the documented ~0.2 (short
-  queries) / ~0.8+ (complex reasoning), so `VendorRouter::route` barely discriminates. Library API only;
-  not used by the CLI, `serve` or MCP. `VendorConfig::cloud_threshold` is not used by `select`.
 
 ## [0.1.0] - 2026-04-21
 

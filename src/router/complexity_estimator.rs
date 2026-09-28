@@ -1,23 +1,24 @@
 //! Query Complexity Estimator
 //!
-//! Extracts features from queries for complexity estimation.
-//! Features are designed to capture:
-//! - Query structure (length, tokens)
-//! - Semantic complexity (embedding characteristics)
-//! - Domain specificity (pattern coverage)
-//! - Historical performance (accuracy on similar queries)
+//! Extracts features from queries for complexity estimation. All five features are computed from
+//! the query text (plus recorded accuracy); each is in `[0, 1]`.
 //!
 //! # Features
 //!
-//! 1. **query_length**: Normalized length of the query text
-//! 2. **embedding_norm**: L2 norm of the query embedding (semantic density)
-//! 3. **domain_specificity**: How specific vs general the query is
-//! 4. **pattern_coverage**: How well existing patterns cover the query
-//! 5. **historical_accuracy**: Past accuracy on similar queries
+//! 1. **query_length**: log-scaled length of the query text
+//! 2. **reasoning_demand**: cues that the task needs design, proof, trade-offs, diagnosis or planning
+//! 3. **domain_specificity**: how technical vs general the vocabulary is
+//! 4. **structure**: code blocks, several questions, list items, explicit constraints
+//! 5. **historical_accuracy**: past accuracy recorded for the same query
+//!
+//! Until 0.2.0, features 2 and 4 were `embedding_norm` and `pattern_coverage`, both derived from the
+//! query embedding. For the (normalised) embeddings Nagual produces, the norm is constant and the
+//! variance heuristic nearly so — they carried no information about the query, and the router
+//! scored almost everything 0.47–0.53. The embedding is still validated but no longer scored.
+//! The FastGRNN weights are trained on `models/router_queries.jsonl` (see `models/train_fastgrnn.py`).
 
 use std::collections::HashMap;
 
-use ndarray::Array1;
 use serde::{Deserialize, Serialize};
 
 use super::RouterResult;
@@ -40,14 +41,14 @@ pub struct EstimatorConfig {
     /// Weight for length in complexity calculation.
     pub length_weight: f32,
 
-    /// Weight for embedding norm in complexity calculation.
-    pub norm_weight: f32,
+    /// Weight for reasoning demand.
+    pub reasoning_weight: f32,
 
     /// Weight for domain specificity.
     pub domain_weight: f32,
 
-    /// Weight for pattern coverage (inverse).
-    pub coverage_weight: f32,
+    /// Weight for structural complexity.
+    pub structure_weight: f32,
 
     /// Weight for historical accuracy (inverse).
     pub accuracy_weight: f32,
@@ -64,9 +65,9 @@ impl Default for EstimatorConfig {
             embedding_dim: 128,
             pattern_similarity_threshold: 0.7,
             length_weight: 0.15,
-            norm_weight: 0.15,
+            reasoning_weight: 0.15,
             domain_weight: 0.25,
-            coverage_weight: 0.25,
+            structure_weight: 0.25,
             accuracy_weight: 0.20,
             fast_mode: false,
         }
@@ -82,9 +83,9 @@ impl EstimatorConfig {
             embedding_dim: 128,
             pattern_similarity_threshold: 0.7,
             length_weight: 0.20,
-            norm_weight: 0.20,
+            reasoning_weight: 0.20,
             domain_weight: 0.30,
-            coverage_weight: 0.20,
+            structure_weight: 0.20,
             accuracy_weight: 0.10,
             fast_mode: true,
         }
@@ -93,7 +94,7 @@ impl EstimatorConfig {
     /// Validate that weights sum to 1.0.
     pub fn validate(&self) -> RouterResult<()> {
         let sum =
-            self.length_weight + self.norm_weight + self.domain_weight + self.coverage_weight + self.accuracy_weight;
+            self.length_weight + self.reasoning_weight + self.domain_weight + self.structure_weight + self.accuracy_weight;
         if (sum - 1.0).abs() > 0.01 {
             return Err(super::RouterError::InvalidConfig(format!(
                 "Feature weights must sum to 1.0, got {}",
@@ -106,13 +107,13 @@ impl EstimatorConfig {
     /// Normalize weights to sum to 1.0.
     pub fn normalized(&self) -> Self {
         let sum =
-            self.length_weight + self.norm_weight + self.domain_weight + self.coverage_weight + self.accuracy_weight;
+            self.length_weight + self.reasoning_weight + self.domain_weight + self.structure_weight + self.accuracy_weight;
         if sum > 0.0 {
             Self {
                 length_weight: self.length_weight / sum,
-                norm_weight: self.norm_weight / sum,
+                reasoning_weight: self.reasoning_weight / sum,
                 domain_weight: self.domain_weight / sum,
-                coverage_weight: self.coverage_weight / sum,
+                structure_weight: self.structure_weight / sum,
                 accuracy_weight: self.accuracy_weight / sum,
                 ..self.clone()
             }
@@ -128,16 +129,15 @@ pub struct ComplexityFeatures {
     /// Normalized query length [0.0, 1.0].
     pub query_length: f32,
 
-    /// Normalized embedding norm [0.0, 1.0].
-    pub embedding_norm: f32,
+    /// Reasoning demand [0.0, 1.0]: design, proof, trade-off, diagnosis and planning cues.
+    pub reasoning_demand: f32,
 
     /// Domain specificity score [0.0, 1.0].
     /// Higher = more specialized/technical query.
     pub domain_specificity: f32,
 
-    /// Pattern coverage score [0.0, 1.0].
-    /// Higher = more patterns available for this query.
-    pub pattern_coverage: f32,
+    /// Structural complexity [0.0, 1.0]: code blocks, several questions, list items, constraints.
+    pub structure: f32,
 
     /// Historical accuracy on similar queries [0.0, 1.0].
     /// Higher = better past performance.
@@ -153,9 +153,9 @@ impl ComplexityFeatures {
     pub fn neutral() -> Self {
         Self {
             query_length: 0.5,
-            embedding_norm: 0.5,
+            reasoning_demand: 0.5,
             domain_specificity: 0.5,
-            pattern_coverage: 0.5,
+            structure: 0.5,
             historical_accuracy: 0.5,
             metadata: HashMap::new(),
         }
@@ -165,9 +165,9 @@ impl ComplexityFeatures {
     pub fn to_vector(&self) -> Vec<f32> {
         vec![
             self.query_length,
-            self.embedding_norm,
+            self.reasoning_demand,
             self.domain_specificity,
-            self.pattern_coverage,
+            self.structure,
             self.historical_accuracy,
         ]
     }
@@ -179,9 +179,9 @@ impl ComplexityFeatures {
         }
         Some(Self {
             query_length: v[0],
-            embedding_norm: v[1],
+            reasoning_demand: v[1],
             domain_specificity: v[2],
-            pattern_coverage: v[3],
+            structure: v[3],
             historical_accuracy: v[4],
             metadata: HashMap::new(),
         })
@@ -194,19 +194,19 @@ impl ComplexityFeatures {
         // Higher length -> higher complexity
         let length_contrib = self.query_length * config.length_weight;
 
-        // Higher norm (more semantic content) -> higher complexity
-        let norm_contrib = self.embedding_norm * config.norm_weight;
+        // More reasoning cues -> higher complexity
+        let reasoning_contrib = self.reasoning_demand * config.reasoning_weight;
 
         // Higher domain specificity -> higher complexity
         let domain_contrib = self.domain_specificity * config.domain_weight;
 
-        // Lower pattern coverage -> higher complexity (inverse)
-        let coverage_contrib = (1.0 - self.pattern_coverage) * config.coverage_weight;
+        // More structure (code, several questions, constraints) -> higher complexity
+        let structure_contrib = self.structure * config.structure_weight;
 
         // Lower historical accuracy -> higher complexity (inverse)
         let accuracy_contrib = (1.0 - self.historical_accuracy) * config.accuracy_weight;
 
-        (length_contrib + norm_contrib + domain_contrib + coverage_contrib + accuracy_contrib)
+        (length_contrib + reasoning_contrib + domain_contrib + structure_contrib + accuracy_contrib)
             .clamp(0.0, 1.0)
     }
 }
@@ -351,45 +351,22 @@ impl ComplexityEstimator {
     }
 
     /// Extract features from a query.
+    ///
+    /// The embedding is validated (non-empty, finite) but not scored: see the module docs.
     pub fn extract_features(&self, query: &str, embedding: &[f32]) -> RouterResult<ComplexityFeatures> {
-        // Query length feature
-        let query_length = self.compute_length_feature(query);
-
-        // Embedding norm feature
-        let embedding_norm = self.compute_embedding_norm(embedding)?;
-
-        // Domain specificity feature
-        let domain_specificity = self.compute_domain_specificity(query);
-
-        // Pattern coverage (default for now, can be enhanced with actual pattern lookup)
-        let pattern_coverage = if self.config.fast_mode {
-            0.5 // Neutral default in fast mode
-        } else {
-            self.estimate_pattern_coverage(embedding)
-        };
-
-        // Historical accuracy
-        let historical_accuracy = self.get_historical_accuracy(query);
+        Self::validate_embedding(embedding)?;
 
         Ok(ComplexityFeatures {
-            query_length,
-            embedding_norm,
-            domain_specificity,
-            pattern_coverage,
-            historical_accuracy,
+            query_length: self.compute_length_feature(query),
+            reasoning_demand: Self::compute_reasoning_demand(query),
+            domain_specificity: self.compute_domain_specificity(query),
+            structure: Self::compute_structure(query),
+            historical_accuracy: self.get_historical_accuracy(query),
             metadata: HashMap::new(),
         })
     }
 
-    /// Compute normalized query length feature.
-    fn compute_length_feature(&self, query: &str) -> f32 {
-        let len = query.chars().count();
-        let normalized = len as f32 / self.config.max_query_length as f32;
-        normalized.clamp(0.0, 1.0)
-    }
-
-    /// Compute normalized embedding norm feature.
-    fn compute_embedding_norm(&self, embedding: &[f32]) -> RouterResult<f32> {
+    fn validate_embedding(embedding: &[f32]) -> RouterResult<()> {
         if embedding.is_empty() {
             return Err(super::RouterError::FeatureExtraction(
                 "Empty embedding".to_string(),
@@ -402,13 +379,69 @@ impl ComplexityEstimator {
                 "Embedding contains NaN or infinite values".to_string(),
             ));
         }
+        Ok(())
+    }
 
-        let arr = Array1::from_vec(embedding.to_vec());
-        let norm = arr.dot(&arr).sqrt();
+    /// Log-scaled query length: a 12-character question scores ~0.34, 200 characters ~0.70,
+    /// `max_query_length` and above 1.0. Linear scaling put every normal question below 0.05.
+    fn compute_length_feature(&self, query: &str) -> f32 {
+        let len = query.chars().count() as f32;
+        let max = self.config.max_query_length.max(1) as f32;
+        ((1.0 + len).ln() / (1.0 + max).ln()).clamp(0.0, 1.0)
+    }
 
-        // Normalize to [0, 1] assuming max norm of ~1.5 for normalized embeddings
-        let normalized = (norm / 1.5).clamp(0.0, 1.0);
-        Ok(normalized)
+    /// Reasoning demand from lexical cues: design, proof, trade-offs, diagnosis, planning,
+    /// optimisation and hard constraints. Saturating in the number of distinct cues.
+    fn compute_reasoning_demand(query: &str) -> f32 {
+        const CUES: &[&str] = &[
+            "design", "architect", "prove", "proof", "derive", "trade-off", "tradeoff",
+            "compare", "evaluate", "optimi", "analy", "refactor", "migrat", "debug", "diagnos",
+            "investigat", "root cause", "why ", "strategy", "plan ", "step by step", "scal",
+            "guarantee", "ensure", "without ", "must ", "constraint", "edge case", "benchmark",
+            "threat model", "consisten", "fault", "concurren", "race condition", "deadlock",
+            "distributed", "invariant", "formal", "complexity", "bottleneck", "rollout",
+        ];
+        let q = format!(" {} ", query.to_lowercase());
+        let hits = CUES.iter().filter(|c| q.contains(*c)).count() as f32;
+        1.0 - (-0.45 * hits).exp()
+    }
+
+    /// Structural complexity: code blocks, inline code / syntax, several questions or sentences,
+    /// list items and explicit multi-part asks.
+    fn compute_structure(query: &str) -> f32 {
+        let code_blocks = (query.matches("```").count() / 2) as f32;
+        let inline_code = (query.matches('`').count() as f32 - 6.0 * code_blocks).max(0.0) / 2.0;
+        let syntax = ["::", "->", "()", "=>", "{", "};"]
+            .iter()
+            .filter(|t| query.contains(*t))
+            .count() as f32;
+        let questions = query.matches('?').count() as f32;
+        let sentences = query
+            .split(|c| c == '.' || c == '?' || c == '!' || c == ';' || c == '\n')
+            .filter(|p| p.split_whitespace().count() >= 3)
+            .count() as f32;
+        let list_items = query
+            .lines()
+            .filter(|l| {
+                let t = l.trim_start();
+                t.starts_with("- ")
+                    || t.starts_with("* ")
+                    || (t.chars().next().is_some_and(|c| c.is_ascii_digit()) && t.contains(". "))
+            })
+            .count() as f32;
+        let multi_part = [" and then ", " then ", " also ", " as well as ", " both ", " each "]
+            .iter()
+            .filter(|t| query.to_lowercase().contains(*t))
+            .count() as f32;
+
+        let raw = 0.8 * code_blocks
+            + 0.3 * inline_code.min(3.0)
+            + 0.25 * syntax
+            + 0.25 * (questions - 1.0).max(0.0)
+            + 0.2 * (sentences - 1.0).max(0.0)
+            + 0.3 * list_items
+            + 0.3 * multi_part;
+        1.0 - (-raw).exp()
     }
 
     /// Compute domain specificity based on keyword analysis.
@@ -446,23 +479,6 @@ impl ComplexityEstimator {
         }
 
         (total_specificity / matched_count as f32).clamp(0.0, 1.0)
-    }
-
-    /// Estimate pattern coverage based on embedding similarity.
-    ///
-    /// In a full implementation, this would query the pattern store.
-    /// For now, we use a heuristic based on embedding characteristics.
-    fn estimate_pattern_coverage(&self, embedding: &[f32]) -> f32 {
-        // Heuristic: embeddings with moderate variance tend to have better coverage
-        let arr = Array1::from_vec(embedding.to_vec());
-        let mean = arr.mean().unwrap_or(0.0);
-        let variance = arr.mapv(|x| (x - mean).powi(2)).mean().unwrap_or(0.0);
-
-        // Normalize variance (typical range 0.001 - 0.1 for normalized embeddings)
-        let normalized_var = (variance / 0.05).clamp(0.0, 1.0);
-
-        // Higher variance = more unique = potentially lower coverage
-        1.0 - (normalized_var * 0.5)
     }
 
     /// Get historical accuracy for similar queries.
@@ -510,7 +526,7 @@ impl ComplexityEstimator {
     fn compute_confidence(&self, features: &ComplexityFeatures) -> f32 {
         // Confidence is higher when:
         // 1. Historical accuracy is available (not 0.5 default)
-        // 2. Pattern coverage is clear (not near 0.5)
+        // 2. There is a clear reasoning/structure signal
         // 3. Features are not all neutral
 
         let history_conf = if (features.historical_accuracy - 0.5).abs() > 0.1 {
@@ -519,7 +535,8 @@ impl ComplexityEstimator {
             0.1
         };
 
-        let coverage_conf = if (features.pattern_coverage - 0.5).abs() > 0.2 {
+        // A clear lexical/structural signal (either way) makes the estimate more trustworthy.
+        let signal_conf = if features.reasoning_demand > 0.3 || features.structure > 0.3 {
             0.3
         } else {
             0.15
@@ -533,7 +550,7 @@ impl ComplexityEstimator {
         };
         let variance_conf = (feature_variance * 2.0).clamp(0.0, 0.4);
 
-        (history_conf + coverage_conf + variance_conf).clamp(0.3, 1.0)
+        (history_conf + signal_conf + variance_conf).clamp(0.3, 1.0)
     }
 
     /// Get the configuration.
@@ -587,9 +604,9 @@ mod tests {
     fn test_complexity_features_to_vector() {
         let features = ComplexityFeatures {
             query_length: 0.1,
-            embedding_norm: 0.2,
+            reasoning_demand: 0.2,
             domain_specificity: 0.3,
-            pattern_coverage: 0.4,
+            structure: 0.4,
             historical_accuracy: 0.5,
             metadata: HashMap::new(),
         };
@@ -635,7 +652,12 @@ mod tests {
 
         let f = features.unwrap();
         assert!(f.query_length > 0.0);
-        assert!(f.embedding_norm > 0.0);
+        assert_eq!(f.reasoning_demand, 0.0, "no design/proof/diagnosis cue");
+
+        let hard = estimator
+            .extract_features("Design a distributed cache and prove it stays consistent under partitions", &embedding)
+            .unwrap();
+        assert!(hard.reasoning_demand > 0.5, "{}", hard.reasoning_demand);
     }
 
     #[test]
