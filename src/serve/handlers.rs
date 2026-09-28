@@ -37,6 +37,17 @@ fn has_tier_column(conn: &Connection) -> bool {
         .is_ok()
 }
 
+/// Creation-time column: `created_at` in migrated/server databases, `timestamp` in databases
+/// created by the CLI's `PatternStorage` schema (every fresh local install). Hard-coding
+/// `created_at` made /api/patterns, /api/graph/3d and /api/pulse fail with 500 on those.
+pub(crate) fn created_column(conn: &Connection) -> &'static str {
+    if conn.prepare("SELECT created_at FROM reasoning_patterns LIMIT 0").is_ok() {
+        "created_at"
+    } else {
+        "timestamp"
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Response types
 // ---------------------------------------------------------------------------
@@ -186,9 +197,10 @@ pub async fn api_status(
         )
         .unwrap_or(0.0);
 
+    let ccol = created_column(&conn);
     let oldest_pattern: Option<String> = conn
         .query_row(
-            "SELECT MIN(created_at) FROM reasoning_patterns",
+            &format!("SELECT MIN({ccol}) FROM reasoning_patterns"),
             [],
             |row| row.get(0),
         )
@@ -196,7 +208,7 @@ pub async fn api_status(
 
     let newest_pattern: Option<String> = conn
         .query_row(
-            "SELECT MAX(created_at) FROM reasoning_patterns",
+            &format!("SELECT MAX({ccol}) FROM reasoning_patterns"),
             [],
             |row| row.get(0),
         )
@@ -273,12 +285,13 @@ pub async fn api_patterns(
     };
 
     // Sorting
+    let sort_created = created_column(&conn);
     let sort_col = match params.sort_by.as_deref() {
         Some("reward") => "reward",
         Some("tier") => "tier",
         Some("domain") | Some("category") => dcol,
         Some("problem") => "problem",
-        _ => "created_at",
+        _ => sort_created,
     };
     let sort_dir = match params.sort_order.as_deref() {
         Some("asc") => "ASC",
@@ -304,7 +317,7 @@ pub async fn api_patterns(
     let sql = format!(
         "SELECT id, COALESCE(problem, ''), COALESCE(solution, ''), \
          COALESCE({dcol}, ''), COALESCE(reward, 0.0), {tier_expr}, \
-         COALESCE(created_at, '') \
+         COALESCE({sort_created}, '') \
          FROM reasoning_patterns {where_clause} \
          ORDER BY {sort_col} {sort_dir} LIMIT {limit} OFFSET {offset}"
     );
@@ -476,13 +489,15 @@ pub async fn api_pulse(
 ) -> Result<Json<Vec<PulseEntry>>, (StatusCode, String)> {
     let conn = open_db(&state)?;
 
+    let ccol = created_column(&conn);
+    let pulse_sql = format!(
+        "SELECT DATE({ccol}) as day, COUNT(*) as cnt \
+         FROM reasoning_patterns \
+         WHERE {ccol} >= DATE('now', '-364 days') \
+         GROUP BY DATE({ccol}) ORDER BY day"
+    );
     let mut stmt = conn
-        .prepare(
-            "SELECT DATE(created_at) as day, COUNT(*) as cnt \
-             FROM reasoning_patterns \
-             WHERE created_at >= DATE('now', '-364 days') \
-             GROUP BY DATE(created_at) ORDER BY day",
-        )
+        .prepare(&pulse_sql)
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -674,11 +689,12 @@ pub async fn api_graph_3d(
 
     // Default 5000, hard ceiling 20000 to protect the browser from runaway payloads.
     let limit = params.limit.unwrap_or(5000).clamp(1, 20000);
+    let ccol = created_column(&conn);
 
     let sql = format!(
         "SELECT id, COALESCE(problem, ''), COALESCE({dcol}, 'unknown'), \
          {tier_expr}, COALESCE(reward, 0.0), \
-         {reuse_expr}, COALESCE(created_at, '') \
+         {reuse_expr}, COALESCE({ccol}, '') \
          FROM reasoning_patterns ORDER BY reward DESC LIMIT {limit}"
     );
 
@@ -976,6 +992,52 @@ mod tests {
         )
         .unwrap();
         (tmp, path)
+    }
+
+    /// A database created exactly the way the CLI creates one (`PatternStorage` schema, which
+    /// uses `timestamp`, not `created_at`) — i.e. every fresh `nagual knowledge store` install.
+    async fn create_cli_schema_db() -> (tempfile::TempDir, PathBuf) {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("cli.db");
+        let storage = crate::cli::common::init_storage_sqlite_only(&path).await.unwrap();
+        for (i, domain) in ["qe.flaky", "qe.regression"].iter().enumerate() {
+            let p = crate::reasoning_bank::pattern::Pattern::builder()
+                .problem(format!("problem {i}"))
+                .solution(format!("solution {i}"))
+                .category(crate::reasoning_bank::pattern::PatternCategory::from(*domain))
+                .build();
+            storage.store_pattern(&p).await.unwrap();
+        }
+        (dir, path)
+    }
+
+    // Regression: the dashboard queries hard-coded `created_at` and returned 500
+    // ("no such column: created_at") against CLI-created databases.
+    #[tokio::test]
+    async fn test_dashboard_endpoints_work_on_cli_schema() {
+        let (_dir, path) = create_cli_schema_db().await;
+
+        let list = api_patterns(
+            State(test_state(path.clone())),
+            test_auth(),
+            Query(PatternsQuery {
+                limit: Some(10), offset: None, domain: None, tier: None,
+                search: None, sort_by: None, sort_order: None,
+            }),
+        )
+        .await;
+        assert!(list.is_ok(), "/api/patterns failed: {:?}", list.err());
+        assert_eq!(list.unwrap().0.patterns.len(), 2);
+
+        let graph = api_graph_3d(State(test_state(path.clone())), test_auth(), Query(Graph3DQuery::default())).await;
+        assert!(graph.is_ok(), "/api/graph/3d failed: {:?}", graph.err());
+        assert_eq!(graph.unwrap().0.nodes.len(), 2);
+
+        let pulse = api_pulse(State(test_state(path.clone())), test_auth()).await;
+        assert!(pulse.is_ok(), "/api/pulse failed: {:?}", pulse.err());
+
+        let status = api_status(State(test_state(path)), test_auth()).await.unwrap().0;
+        assert!(status.oldest_pattern.is_some(), "oldest_pattern should come from `timestamp`");
     }
 
     #[test]

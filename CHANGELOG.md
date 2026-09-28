@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Local-only mode never engaged**: `serve` always opens an API-key store, so a fresh install with no
   token, no keys and no dashboard users answered 401 to its own dashboard. Local-only now means: no master
   token, no dashboard users, zero active keys (checked per request; fails closed on DB errors).
+- Dashboard endpoints (`/api/patterns`, `/api/graph/3d`, `/api/pulse`, domain stats, surprise, recent
+  events, health) hard-coded a `created_at` column; CLI-created databases use `timestamp`, so they
+  returned 500 on every fresh local install. The column is now detected.
 - `learn record` printed `Reward: 0.20` (the outcome's target), which read as the pattern's new reward. It
   now prints `Pattern reward: 0.500 -> 0.470 (moved toward 0.20 …)`; JSON adds `pattern_reward_before/after`.
 - Builds without `onnx-embed` no longer warn that `ORT_DYLIB_PATH` is missing on every command.

@@ -667,12 +667,13 @@ pub async fn api_insights(
 
     // Recent activity trend (last 30 days)
     let trend = {
+        let ccol = super::handlers::created_column(&conn);
         let sql = format!(
-            "SELECT DATE(created_at) AS day, COUNT(*) AS cnt, \
+            "SELECT DATE({ccol}) AS day, COUNT(*) AS cnt, \
              COALESCE(AVG(reward), 0.0) AS ar \
              FROM reasoning_patterns \
-             WHERE created_at >= DATE('now', '-30 days') \
-             GROUP BY DATE(created_at) ORDER BY day"
+             WHERE {ccol} >= DATE('now', '-30 days') \
+             GROUP BY DATE({ccol}) ORDER BY day"
         );
         let mut stmt = conn.prepare(&sql).map_err(|e| {
             (StatusCode::INTERNAL_SERVER_ERROR, format!("Query error: {}", e))
@@ -2884,10 +2885,11 @@ pub async fn api_surprise_patterns(
             .into_response();
     }
 
+    let ccol = super::handlers::created_column(&conn);
     let sql = format!(
         "SELECT id, SUBSTR(problem,1,120) as problem, COALESCE({dcol},'') as domain, \
          COALESCE(reward,0.0) as reward, COALESCE(surprise_score,0.0) as surprise_score, \
-         COALESCE(created_at,'') as created_at \
+         COALESCE({ccol},'') as created_at \
          FROM reasoning_patterns \
          WHERE surprise_score > 0.5 \
          ORDER BY surprise_score DESC LIMIT 50"
@@ -3328,18 +3330,19 @@ pub async fn api_events_recent(
             .prepare("SELECT updated_at FROM reasoning_patterns LIMIT 0")
             .is_ok();
 
+        let ccol = super::handlers::created_column(&conn);
         let timestamp_col = if has_updated_at {
-            "COALESCE(updated_at, created_at)"
+            format!("COALESCE(updated_at, {ccol})")
         } else {
-            "created_at"
+            ccol.to_string()
         };
 
         let sql = format!(
             "SELECT id, SUBSTR(COALESCE(problem,''),1,120), COALESCE({dcol},''), \
              COALESCE(reward,0.0), {timestamp_col} \
              FROM reasoning_patterns \
-             WHERE created_at IS NOT NULL \
-             ORDER BY created_at DESC LIMIT 50"
+             WHERE {ccol} IS NOT NULL \
+             ORDER BY {ccol} DESC LIMIT 50"
         );
 
         if let Ok(mut stmt) = conn.prepare(&sql) {
@@ -3558,10 +3561,13 @@ pub async fn api_health_detailed(
         0.0
     };
 
+    let stale_ccol = super::handlers::created_column(&conn);
     let stale_patterns: u64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM reasoning_patterns \
-             WHERE created_at < datetime('now', '-90 days') AND reward < 0.3",
+            &format!(
+                "SELECT COUNT(*) FROM reasoning_patterns \
+                 WHERE {stale_ccol} < datetime('now', '-90 days') AND reward < 0.3"
+            ),
             [],
             |row| row.get(0),
         )
