@@ -7,7 +7,8 @@ production / cloud deployment see [gcloud-deploy.md](gcloud-deploy.md).
 
 - **Rust** 1.75+ (install via [rustup](https://rustup.rs))
 - **SQLite** 3.35+ (bundled via `rusqlite` but the CLI is useful)
-- **ONNX Runtime** 1.17+ — *optional*, needed only for the `onnx-embed`
+- **ONNX Runtime** — *optional* (tested with 1.24.1; the `ort 2.0.0-rc.11` binding needs a recent
+  release, older ones such as 1.17 are not tested), needed only for the `onnx-embed`
   feature. Without it, Nagual falls back to a deterministic hash embedder.
 - **Docker** 24+ — *optional*, only needed if you want to run the
   PostgreSQL dual-write backend locally.
@@ -17,8 +18,8 @@ production / cloud deployment see [gcloud-deploy.md](gcloud-deploy.md).
 | Platform | Command |
 |----------|---------|
 | macOS    | `brew install onnxruntime` |
-| Debian/Ubuntu (arm64) | Download `onnxruntime-linux-aarch64-1.17.0.tgz` from the [releases page](https://github.com/microsoft/onnxruntime/releases), then `sudo cp libonnxruntime.so* /usr/lib && sudo ldconfig` |
-| Debian/Ubuntu (x86_64) | Same but use `onnxruntime-linux-x64-1.17.0.tgz` |
+| Debian/Ubuntu (arm64) | Download `onnxruntime-linux-aarch64-1.24.1.tgz` from the [releases page](https://github.com/microsoft/onnxruntime/releases), then `sudo cp libonnxruntime.so* /usr/lib && sudo ldconfig` |
+| Debian/Ubuntu (x86_64) | Same but use `onnxruntime-linux-x64-1.24.1.tgz` |
 
 Tell Nagual where it lives:
 
@@ -76,8 +77,8 @@ cargo build --release --features full,mincut
 
 ## Download ONNX model
 
-The default embedder uses `all-MiniLM-L6-v2` (128-dim). The model file is
-~86MB and is **not** committed to the repo.
+The default embedder uses `all-MiniLM-L6-v2` (384-dim, projected to 128). The model file is
+~90MB and is **not** committed to the repo.
 
 ```bash
 mkdir -p ~/.nagual/models
@@ -90,11 +91,18 @@ curl -L -o tokenizer.json \
   https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json
 ```
 
-Nagual searches for the model in:
+`learn embed`, `knowledge search --semantic` and `patterns` look for the model in:
 
-1. `./models/` (project-local)
-2. `../models/`
+1. `$NAGUAL_MODEL_DIR`, if set
+2. `./models/` (project-local)
 3. `~/.nagual/models/` (recommended for system-wide installs)
+
+Then embed your patterns once (new ones incrementally later) and search by meaning:
+
+```bash
+nagual learn embed --db-path ./nagual.db
+nagual knowledge search "unstable shopping basket test" --semantic --db-path ./nagual.db
+```
 
 ## Configuration
 

@@ -61,7 +61,7 @@ nagual learn record <pattern-id> failure \
   --feedback "This was a different kind of hang — unrelated to blocking calls"
 ```
 
-Success raises the pattern's reward by 0.1 (capped at 1.0). Failure drops it by 0.15 (floored at 0.0) and forces you to classify *why* it failed using one of five MAST modes: `specification`, `misalignment`, `verification`, `resource`, `unknown`. That classification is how Nagual learns which of your beliefs are unreliable and under what conditions.
+Success raises the pattern's reward by 0.1 (capped at 1.0); a partial success by 0.05. Failure drops it by 0.15 (floored at 0.0) — or by 0.30 for a `security` failure — and asks you to classify *why* it failed: one of the five MAST modes `specification`, `misalignment`, `verification`, `resource`, `unknown`, or `security`. That classification is how Nagual learns which of your beliefs are unreliable and under what conditions.
 
 **What just happened.** You wrote down something you'd normally forget, got it back when you needed it, and updated your own confidence in it based on reality. That is the entire loop. Everything else in this document is scaffolding around this motion. If you stop after Layer 1 and do nothing else, you will still extract more value from Nagual than most users extract from most knowledge systems. The rest is acceleration.
 
@@ -79,7 +79,7 @@ Now that you have felt the loop, let's name the machinery.
 
 **SQLite at rest.** By default Nagual-QE uses plain SQLite. If your deployment needs encryption-at-rest, build with the SQLCipher feature path and store the passphrase in `~/.nagual/config.toml` or a secret manager — *never* in the repo. Back up the database file somewhere safe regardless; the pattern history is user data.
 
-**Full-text search (FTS5).** When you run `nagual knowledge search`, Nagual tokenizes the query and the stored `problem` + `solution` + `domain` fields into an FTS5 index, then returns matches ranked by BM25 score. It does not semantically match — "connection pooling" does not find "database sessions." For semantic search you want the embeddings path (Layer 3's consolidation uses it), and for fuzzy structured filters you want `nagual knowledge list --domain rust --sort-by reward`.
+**Full-text search (FTS5).** When you run `nagual knowledge search`, Nagual tokenizes the query and the stored `problem` + `solution` + `domain` fields into an FTS5 index, then returns matches ranked by BM25 score. It does not semantically match — "connection pooling" does not find "database sessions." For semantic search, run `nagual learn embed` once (ONNX build) and then `nagual knowledge search "..." --semantic`; consolidation uses the same embeddings. For structured filters you want `nagual knowledge list --domain rust --sort reward`.
 
 **Tiers.** Every pattern is classified into one of four tiers:
 
@@ -90,15 +90,16 @@ Now that you have felt the loop, let's name the machinery.
 
 Tier is not a filing cabinet; it is a confidence signal. When you search, you can sort by tier to see your most-proven patterns first.
 
-**The reward equation.** Success adds 0.1. Failure subtracts 0.15. The asymmetry is deliberate: Nagual is slightly pessimistic because wrong-confident beliefs cost more than uncertain beliefs, and because most patterns will be applied more times than they are corrected. If you ever want symmetric reward, it's one configuration flag, but I don't recommend it.
+**The reward equation.** Success adds 0.1, partial success 0.05. Failure subtracts 0.15; a security failure subtracts 0.30. The asymmetry is deliberate: Nagual is slightly pessimistic because wrong-confident beliefs cost more than uncertain beliefs, and because most patterns will be applied more times than they are corrected. The same rule applies whether the outcome arrives from the CLI, the HTTP API or MCP (`learning::reward_step`).
 
-**MAST failure classification.** When you record a failure, Nagual forces you to pick one of five modes:
+**Failure classification.** When you record a failure, you pick one of the five MAST modes — or `security`:
 
 - **specification** — the problem was not what the pattern thought it was.
 - **misalignment** — the solution solved the wrong thing, or something adjacent.
 - **verification** — you can't tell whether it worked.
 - **resource** — something ran out (time, memory, budget, team capacity).
 - **unknown** — you genuinely don't know; record this honestly rather than guessing.
+- **security** — not a MAST mode: the pattern leaked data, weakened a control or introduced a vulnerability. It costs twice an ordinary failure.
 
 Layer 4 will use these classifications to tell you where your whole *class* of patterns tends to fail. Guessing here corrupts that analysis. If you don't know, say `unknown`.
 
