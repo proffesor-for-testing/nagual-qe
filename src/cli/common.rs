@@ -241,7 +241,11 @@ mod tests {
         let result = init_storage(&db_path, None).await;
         assert!(result.is_err(), "Should reject encrypted database");
         match result {
-            Err(e) => assert!(e.to_string().contains("encrypted"), "Error should mention encryption: {}", e),
+            Err(e) => assert!(
+                e.to_string().contains("encrypted"),
+                "Error should mention encryption: {}",
+                e
+            ),
             Ok(_) => panic!("Expected error for encrypted database"),
         }
     }
@@ -257,7 +261,11 @@ mod tests {
         let result = init_storage_sqlite_only(&db_path).await;
         assert!(result.is_err(), "Should reject encrypted database");
         match result {
-            Err(e) => assert!(e.to_string().contains("encrypted"), "Error should mention encryption: {}", e),
+            Err(e) => assert!(
+                e.to_string().contains("encrypted"),
+                "Error should mention encryption: {}",
+                e
+            ),
             Ok(_) => panic!("Expected error for encrypted database"),
         }
     }
@@ -265,7 +273,11 @@ mod tests {
     #[tokio::test]
     async fn test_init_storage_creates_parent_dirs() {
         let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("subdir").join("nested").join("test.db");
+        let db_path = temp_dir
+            .path()
+            .join("subdir")
+            .join("nested")
+            .join("test.db");
 
         // Parent dirs don't exist yet
         assert!(!db_path.parent().unwrap().exists());

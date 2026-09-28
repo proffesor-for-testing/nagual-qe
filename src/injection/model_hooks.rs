@@ -148,7 +148,10 @@ impl AttentionState {
 
     /// Set the attention scores from a 2D array (num_heads x seq_len).
     pub fn set_attention_scores_2d(&mut self, scores_2d: &[Vec<f32>]) {
-        let flat: Vec<f32> = scores_2d.iter().flat_map(|row| row.iter().copied()).collect();
+        let flat: Vec<f32> = scores_2d
+            .iter()
+            .flat_map(|row| row.iter().copied())
+            .collect();
         self.num_heads = scores_2d.len();
         if let Some(first) = scores_2d.first() {
             self.seq_len = first.len();
@@ -170,20 +173,12 @@ pub trait ModelHook: Send + Sync {
     ///
     /// The hook may modify the Q/K/V tensors or the pre-computed attention
     /// scores in `state`.
-    fn on_pre_attention(
-        &self,
-        layer: usize,
-        state: &mut AttentionState,
-    ) -> Result<(), String>;
+    fn on_pre_attention(&self, layer: usize, state: &mut AttentionState) -> Result<(), String>;
 
     /// Called after the attention computation for a given layer.
     ///
     /// The hook may modify the layer output.
-    fn on_post_attention(
-        &self,
-        layer: usize,
-        output: &mut Vec<f32>,
-    ) -> Result<(), String>;
+    fn on_post_attention(&self, layer: usize, output: &mut Vec<f32>) -> Result<(), String>;
 
     /// Called after a token is generated.
     ///
@@ -304,11 +299,7 @@ impl ENagualHook {
 }
 
 impl ModelHook for ENagualHook {
-    fn on_pre_attention(
-        &self,
-        layer: usize,
-        state: &mut AttentionState,
-    ) -> Result<(), String> {
+    fn on_pre_attention(&self, layer: usize, state: &mut AttentionState) -> Result<(), String> {
         // Skip if still in warmup phase.
         if !self.past_warmup() {
             return Ok(());
@@ -323,7 +314,9 @@ impl ModelHook for ENagualHook {
 
         // If attention scores are available, apply bias directly.
         if let Some(mut scores_2d) = state.attention_scores_2d() {
-            let applied = self.surgery.apply_to_layer(layer, &mut scores_2d, &self.biases);
+            let applied = self
+                .surgery
+                .apply_to_layer(layer, &mut scores_2d, &self.biases);
 
             if applied {
                 state.set_attention_scores_2d(&scores_2d);
@@ -344,11 +337,7 @@ impl ModelHook for ENagualHook {
         Ok(())
     }
 
-    fn on_post_attention(
-        &self,
-        _layer: usize,
-        _output: &mut Vec<f32>,
-    ) -> Result<(), String> {
+    fn on_post_attention(&self, _layer: usize, _output: &mut Vec<f32>) -> Result<(), String> {
         // ENagualHook only modifies pre-attention scores.
         Ok(())
     }
@@ -484,20 +473,12 @@ impl LoggingHook {
 }
 
 impl ModelHook for LoggingHook {
-    fn on_pre_attention(
-        &self,
-        layer: usize,
-        _state: &mut AttentionState,
-    ) -> Result<(), String> {
+    fn on_pre_attention(&self, layer: usize, _state: &mut AttentionState) -> Result<(), String> {
         self.seen_layers.lock().push(layer);
         Ok(())
     }
 
-    fn on_post_attention(
-        &self,
-        _layer: usize,
-        _output: &mut Vec<f32>,
-    ) -> Result<(), String> {
+    fn on_post_attention(&self, _layer: usize, _output: &mut Vec<f32>) -> Result<(), String> {
         Ok(())
     }
 
@@ -526,13 +507,7 @@ mod tests {
 
     #[test]
     fn test_attention_state_basic() {
-        let state = AttentionState::new(
-            vec![1.0, 2.0],
-            vec![3.0, 4.0],
-            vec![5.0, 6.0],
-            5,
-            0,
-        );
+        let state = AttentionState::new(vec![1.0, 2.0], vec![3.0, 4.0], vec![5.0, 6.0], 5, 0);
 
         assert_eq!(state.layer, 5);
         assert_eq!(state.head, 0);

@@ -35,11 +35,8 @@ impl IntrospectionEngine {
         let pattern_health = self.analyze_pattern_health().await?;
         let domain_coverage = self.analyze_domain_coverage().await?;
         let temporal_trends = self.analyze_trends().await?;
-        let vulnerabilities = self.detect_vulnerabilities(
-            &pattern_health,
-            &domain_coverage,
-            &temporal_trends,
-        );
+        let vulnerabilities =
+            self.detect_vulnerabilities(&pattern_health, &domain_coverage, &temporal_trends);
         let recommendations = self.generate_recommendations(&vulnerabilities);
 
         let model = SelfModel {
@@ -66,17 +63,25 @@ impl IntrospectionEngine {
         let pattern_health = self.analyze_pattern_health().await?;
         let domain_coverage = self.analyze_domain_coverage().await?;
         let temporal_trends = self.analyze_trends().await?;
-        let vulnerabilities = self.detect_vulnerabilities(
-            &pattern_health,
-            &domain_coverage,
-            &temporal_trends,
-        );
+        let vulnerabilities =
+            self.detect_vulnerabilities(&pattern_health, &domain_coverage, &temporal_trends);
 
-        let status = if vulnerabilities.iter().any(|v| matches!(v.severity, Severity::Critical)) {
+        let status = if vulnerabilities
+            .iter()
+            .any(|v| matches!(v.severity, Severity::Critical))
+        {
             HealthStatus::Critical
-        } else if vulnerabilities.iter().filter(|v| matches!(v.severity, Severity::High)).count() > 1 {
+        } else if vulnerabilities
+            .iter()
+            .filter(|v| matches!(v.severity, Severity::High))
+            .count()
+            > 1
+        {
             HealthStatus::Degraded
-        } else if vulnerabilities.iter().any(|v| matches!(v.severity, Severity::High | Severity::Medium)) {
+        } else if vulnerabilities
+            .iter()
+            .any(|v| matches!(v.severity, Severity::High | Severity::Medium))
+        {
             HealthStatus::Warning
         } else {
             HealthStatus::Healthy
@@ -106,10 +111,9 @@ impl IntrospectionEngine {
         let high_threshold = self.config.high_reward_threshold;
         let low_threshold = self.config.low_reward_threshold;
 
-        let result = self.db.query_one(
-            sql,
-            &[&high_threshold, &low_threshold],
-            |row| {
+        let result = self
+            .db
+            .query_one(sql, &[&high_threshold, &low_threshold], |row| {
                 Ok(PatternHealth {
                     total_patterns: row.get::<_, i64>(0)? as usize,
                     average_reward: row.get(1)?,
@@ -123,8 +127,8 @@ impl IntrospectionEngine {
                     stale_count: 0,         // calculated below
                     orphan_count: 0,        // TODO: graph connectivity
                 })
-            },
-        ).await?;
+            })
+            .await?;
 
         let mut health = match result {
             Some(h) => h,
@@ -132,7 +136,8 @@ impl IntrospectionEngine {
         };
 
         // Calculate medium reward count
-        health.medium_reward_count = health.total_patterns
+        health.medium_reward_count = health
+            .total_patterns
             .saturating_sub(health.high_reward_count)
             .saturating_sub(health.low_reward_count);
 
@@ -143,11 +148,11 @@ impl IntrospectionEngine {
             AND reuse_count < 5
         "#;
         let stale_threshold = self.config.stale_threshold_days as f64;
-        let stale_count = self.db.query_one(
-            stale_sql,
-            &[&stale_threshold],
-            |row| row.get::<_, i64>(0),
-        ).await?.unwrap_or(0);
+        let stale_count = self
+            .db
+            .query_one(stale_sql, &[&stale_threshold], |row| row.get::<_, i64>(0))
+            .await?
+            .unwrap_or(0);
         health.stale_count = stale_count as usize;
 
         Ok(health)
@@ -171,10 +176,9 @@ impl IntrospectionEngine {
             ORDER BY pattern_count DESC
         "#;
 
-        let domains = self.db.query(
-            sql,
-            &[],
-            |row| {
+        let domains = self
+            .db
+            .query(sql, &[], |row| {
                 let domain: String = row.get(0)?;
                 let pattern_count: i64 = row.get(1)?;
                 let avg_reward: f64 = row.get(2)?;
@@ -190,8 +194,8 @@ impl IntrospectionEngine {
 
                 // Estimate coverage score based on pattern count and quality
                 // More patterns with higher rewards = better coverage
-                let coverage_score = (pattern_count as f64 / 100.0).min(1.0)
-                    * (0.5 + avg_reward * 0.5);
+                let coverage_score =
+                    (pattern_count as f64 / 100.0).min(1.0) * (0.5 + avg_reward * 0.5);
 
                 Ok(DomainMetrics {
                     domain: domain.clone(),
@@ -203,8 +207,8 @@ impl IntrospectionEngine {
                     gap_areas: vec![], // TODO: detect gaps
                     total_reuse_count: total_reuse as usize,
                 })
-            },
-        ).await?;
+            })
+            .await?;
 
         let mut map = HashMap::new();
         for metrics in domains {
@@ -227,11 +231,13 @@ impl IntrospectionEngine {
             FROM reasoning_patterns
             WHERE julianday('now') - julianday(timestamp) <= 7
         "#;
-        let (count_7d, avg_7d) = self.db.query_one(
-            sql_7d,
-            &[],
-            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, f64>(1)?)),
-        ).await?.unwrap_or((0, 0.0));
+        let (count_7d, avg_7d) = self
+            .db
+            .query_one(sql_7d, &[], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, f64>(1)?))
+            })
+            .await?
+            .unwrap_or((0, 0.0));
 
         // Patterns created in last 30 days
         let sql_30d = r#"
@@ -241,19 +247,21 @@ impl IntrospectionEngine {
             FROM reasoning_patterns
             WHERE julianday('now') - julianday(timestamp) <= 30
         "#;
-        let (count_30d, avg_30d) = self.db.query_one(
-            sql_30d,
-            &[],
-            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, f64>(1)?)),
-        ).await?.unwrap_or((0, 0.0));
+        let (count_30d, avg_30d) = self
+            .db
+            .query_one(sql_30d, &[], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, f64>(1)?))
+            })
+            .await?
+            .unwrap_or((0, 0.0));
 
         // Overall average reward for comparison
         let sql_overall = "SELECT COALESCE(AVG(reward), 0.0) FROM reasoning_patterns";
-        let overall_avg = self.db.query_one(
-            sql_overall,
-            &[],
-            |row| row.get::<_, f64>(0),
-        ).await?.unwrap_or(0.0);
+        let overall_avg = self
+            .db
+            .query_one(sql_overall, &[], |row| row.get::<_, f64>(0))
+            .await?
+            .unwrap_or(0.0);
 
         // Determine trends
         let reward_trend_7d = if avg_7d > overall_avg + 0.05 {
@@ -281,11 +289,11 @@ impl IntrospectionEngine {
             WHERE julianday('now') - julianday(updated_at) BETWEEN 30 AND 37
             AND reuse_count < 5
         "#;
-        let decay_count = self.db.query_one(
-            sql_decay,
-            &[],
-            |row| row.get::<_, i64>(0),
-        ).await?.unwrap_or(0);
+        let decay_count = self
+            .db
+            .query_one(sql_decay, &[], |row| row.get::<_, i64>(0))
+            .await?
+            .unwrap_or(0);
         let decay_rate = decay_count as f64;
 
         Ok(TemporalTrends {
@@ -317,7 +325,11 @@ impl IntrospectionEngine {
                 vulnerabilities.push(Vulnerability {
                     id: uuid::Uuid::new_v4().to_string(),
                     category: VulnerabilityCategory::KnowledgeDecay,
-                    severity: if stale_ratio > 0.5 { Severity::Critical } else { Severity::High },
+                    severity: if stale_ratio > 0.5 {
+                        Severity::Critical
+                    } else {
+                        Severity::High
+                    },
                     description: format!(
                         "{} patterns ({:.0}%) are stale and need refresh",
                         health.stale_count,
@@ -350,7 +362,11 @@ impl IntrospectionEngine {
                 vulnerabilities.push(Vulnerability {
                     id: uuid::Uuid::new_v4().to_string(),
                     category: VulnerabilityCategory::LowEmbeddingCoverage,
-                    severity: if embedding_ratio < 0.5 { Severity::High } else { Severity::Medium },
+                    severity: if embedding_ratio < 0.5 {
+                        Severity::High
+                    } else {
+                        Severity::Medium
+                    },
                     description: format!(
                         "{} patterns ({:.0}%) missing embeddings for semantic search",
                         missing,
@@ -364,11 +380,16 @@ impl IntrospectionEngine {
 
         // Coverage gap detection
         for (domain, metrics) in coverage {
-            if metrics.coverage_score < self.config.min_coverage_score && metrics.pattern_count > 5 {
+            if metrics.coverage_score < self.config.min_coverage_score && metrics.pattern_count > 5
+            {
                 vulnerabilities.push(Vulnerability {
                     id: uuid::Uuid::new_v4().to_string(),
                     category: VulnerabilityCategory::CoverageGap,
-                    severity: if metrics.coverage_score < 0.3 { Severity::High } else { Severity::Medium },
+                    severity: if metrics.coverage_score < 0.3 {
+                        Severity::High
+                    } else {
+                        Severity::Medium
+                    },
                     description: format!(
                         "Domain '{}' has low coverage score ({:.1}%)",
                         domain,
@@ -439,7 +460,11 @@ impl IntrospectionEngine {
                 vulnerabilities.push(Vulnerability {
                     id: uuid::Uuid::new_v4().to_string(),
                     category: VulnerabilityCategory::QualityDegradation,
-                    severity: if low_quality_ratio > 0.5 { Severity::High } else { Severity::Medium },
+                    severity: if low_quality_ratio > 0.5 {
+                        Severity::High
+                    } else {
+                        Severity::Medium
+                    },
                     description: format!(
                         "{} patterns ({:.0}%) have low reward scores",
                         health.low_reward_count,
@@ -501,9 +526,7 @@ impl IntrospectionEngine {
                 VulnerabilityCategory::QualityDegradation => {
                     recommendations.push(Recommendation {
                         id: uuid::Uuid::new_v4().to_string(),
-                        action: RecommendedAction::ArchiveLowQuality {
-                            count: 20,
-                        },
+                        action: RecommendedAction::ArchiveLowQuality { count: 20 },
                         priority: match vuln.severity {
                             Severity::Critical => 9,
                             Severity::High => 7,
@@ -519,9 +542,7 @@ impl IntrospectionEngine {
                 VulnerabilityCategory::LowEmbeddingCoverage => {
                     recommendations.push(Recommendation {
                         id: uuid::Uuid::new_v4().to_string(),
-                        action: RecommendedAction::GenerateEmbeddings {
-                            count: 100,
-                        },
+                        action: RecommendedAction::GenerateEmbeddings { count: 100 },
                         priority: match vuln.severity {
                             Severity::Critical => 9,
                             Severity::High => 7,
@@ -593,7 +614,9 @@ mod tests {
         let trends = TemporalTrends::default();
 
         let vulns = engine.detect_vulnerabilities(&health, &coverage, &trends);
-        assert!(vulns.iter().any(|v| matches!(v.category, VulnerabilityCategory::KnowledgeDecay)));
+        assert!(vulns
+            .iter()
+            .any(|v| matches!(v.category, VulnerabilityCategory::KnowledgeDecay)));
     }
 
     #[test]

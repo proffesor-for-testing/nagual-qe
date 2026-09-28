@@ -30,10 +30,7 @@ pub enum AuthIdentity {
         scopes: Vec<String>,
     },
     /// Browser session via signed cookie.
-    Session {
-        username: String,
-        role: String,
-    },
+    Session { username: String, role: String },
     /// No authentication configured (local-only mode).
     LocalOnly,
 }
@@ -43,9 +40,7 @@ impl AuthIdentity {
     pub fn has_scope(&self, scope: &str) -> bool {
         match self {
             AuthIdentity::Master | AuthIdentity::LocalOnly => true,
-            AuthIdentity::Key { scopes, .. } => {
-                scopes.iter().any(|s| s == scope || s == "admin")
-            }
+            AuthIdentity::Key { scopes, .. } => scopes.iter().any(|s| s == scope || s == "admin"),
             AuthIdentity::Session { role, .. } => {
                 // admin sessions have all scopes; viewer sessions have read only
                 role == "admin" || scope == "read"
@@ -93,9 +88,7 @@ impl IntoResponse for AuthError {
                 "Missing Authorization header. Use: Authorization: Bearer <token>",
             )
                 .into_response(),
-            AuthError::Invalid => {
-                (StatusCode::FORBIDDEN, "Invalid bearer token").into_response()
-            }
+            AuthError::Invalid => (StatusCode::FORBIDDEN, "Invalid bearer token").into_response(),
             AuthError::Forbidden => (
                 StatusCode::FORBIDDEN,
                 "Insufficient scope for this operation",
@@ -135,11 +128,7 @@ impl FromRequestParts<AppState> for RequireAuth {
         }
 
         // 1. Check session cookie first (browser auth — no Authorization header needed)
-        if let Some(cookie_header) = parts
-            .headers
-            .get("cookie")
-            .and_then(|v| v.to_str().ok())
-        {
+        if let Some(cookie_header) = parts.headers.get("cookie").and_then(|v| v.to_str().ok()) {
             if let Some(cookie_val) = session::extract_from_cookie_header(cookie_header) {
                 if let Some((username, role)) =
                     session::verify_cookie(cookie_val, &state.session_secret)
@@ -170,11 +159,7 @@ impl FromRequestParts<AppState> for RequireAuth {
 
         // 3. Check master token (constant-time comparison via ring)
         if let Some(ref expected) = state.auth_token {
-            if constant_time::verify_slices_are_equal(
-                token.as_bytes(),
-                expected.as_bytes(),
-            )
-            .is_ok()
+            if constant_time::verify_slices_are_equal(token.as_bytes(), expected.as_bytes()).is_ok()
             {
                 return Ok(RequireAuth(AuthIdentity::Master));
             }
@@ -199,9 +184,7 @@ impl FromRequestParts<AppState> for RequireAuth {
         }
 
         // 5. Check if Bearer token is a session token (from POST /api/auth/login)
-        if let Some((username, role)) =
-            session::verify_cookie(&token, &state.session_secret)
-        {
+        if let Some((username, role)) = session::verify_cookie(&token, &state.session_secret) {
             return Ok(RequireAuth(AuthIdentity::Session { username, role }));
         }
 
@@ -234,11 +217,11 @@ impl FromRequestParts<AppState> for RequireWrite {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::EventBus;
     use crate::security::ApiKeyStore;
     use axum::http::Request;
     use std::path::PathBuf;
     use std::sync::Arc;
-    use crate::events::EventBus;
 
     fn test_state(token: Option<String>) -> AppState {
         AppState {
@@ -280,14 +263,19 @@ mod tests {
         state.key_store = Some(store);
         let (mut parts, _) = Request::builder().body(()).unwrap().into_parts();
 
-        let RequireAuth(identity) = RequireAuth::from_request_parts(&mut parts, &state).await.unwrap();
+        let RequireAuth(identity) = RequireAuth::from_request_parts(&mut parts, &state)
+            .await
+            .unwrap();
         assert!(matches!(identity, AuthIdentity::LocalOnly));
     }
 
     #[tokio::test]
     async fn test_first_key_closes_local_only_mode() {
         let (_dir, store) = empty_key_store().await;
-        store.create_key("agent", &["read".into()], None).await.unwrap();
+        store
+            .create_key("agent", &["read".into()], None)
+            .await
+            .unwrap();
         let mut state = test_state(None);
         state.key_store = Some(store);
         let (mut parts, _) = Request::builder().body(()).unwrap().into_parts();

@@ -31,7 +31,9 @@ use serde::Serialize;
 use crate::db::{DualWriteAdapter, DualWriteConfig, PostgresDb, SqliteDb};
 use crate::error::Result;
 use crate::reasoning_bank::storage::{PatternStorage, StorageConfig};
-use crate::reasoning_bank::transfusion::{ExtractedPattern, Transfuser, TransfusionConfig, TransfusionResult};
+use crate::reasoning_bank::transfusion::{
+    ExtractedPattern, Transfuser, TransfusionConfig, TransfusionResult,
+};
 
 /// Extract patterns from existing codebases (Gene Transfusion).
 ///
@@ -163,7 +165,8 @@ impl TransfuseCommand {
         };
 
         let config = DualWriteConfig {
-            dlq_path: self.db_path
+            dlq_path: self
+                .db_path
                 .with_extension("dlq.db")
                 .to_string_lossy()
                 .to_string(),
@@ -265,7 +268,10 @@ impl TransfuseCommand {
 
                 println!("\n  {}. {}", i + 1, truncate(&pattern.problem, 50));
                 println!("     Domain: {}", pattern.domain);
-                println!("     Source: {}:{}", pattern.source_file, pattern.line_number);
+                println!(
+                    "     Source: {}:{}",
+                    pattern.source_file, pattern.line_number
+                );
                 println!("     Confidence: {:.0}%", pattern.confidence * 100.0);
                 println!("     Tags: {}", pattern.tags.join(", "));
 

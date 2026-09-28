@@ -201,10 +201,7 @@ async fn run_speakers_merge(args: &SpeakersMergeArgs) -> Result<()> {
     }
 
     client.speakers_merge(args.keep_id, args.merge_id).await?;
-    println!(
-        "Merged speaker #{} into #{}",
-        args.merge_id, args.keep_id
-    );
+    println!("Merged speaker #{} into #{}", args.merge_id, args.keep_id);
 
     Ok(())
 }

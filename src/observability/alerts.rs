@@ -7,9 +7,9 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
-use notify_rust::{Notification, Timeout};
 #[cfg(target_os = "linux")]
 use notify_rust::Urgency;
+use notify_rust::{Notification, Timeout};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
@@ -59,8 +59,8 @@ impl AlertLevel {
     /// Get a color for the alert (for terminal output).
     pub fn color(self) -> &'static str {
         match self {
-            AlertLevel::Info => "\x1b[34m",    // Blue
-            AlertLevel::Warning => "\x1b[33m", // Yellow
+            AlertLevel::Info => "\x1b[34m",     // Blue
+            AlertLevel::Warning => "\x1b[33m",  // Yellow
             AlertLevel::Critical => "\x1b[31m", // Red
         }
     }
@@ -161,11 +161,7 @@ pub struct AlertRule {
 
 impl AlertRule {
     /// Create a new alert rule.
-    pub fn new(
-        name: impl Into<String>,
-        level: AlertLevel,
-        condition: AlertCondition,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, level: AlertLevel, condition: AlertCondition) -> Self {
         Self {
             name: name.into(),
             description: String::new(),
@@ -199,35 +195,31 @@ impl AlertRule {
 #[derive(Debug, Clone)]
 pub enum AlertCondition {
     /// Trigger when a metric exceeds a threshold.
-    MetricAbove {
-        metric_name: String,
-        threshold: f64,
-    },
+    MetricAbove { metric_name: String, threshold: f64 },
     /// Trigger when a metric falls below a threshold.
-    MetricBelow {
-        metric_name: String,
-        threshold: f64,
-    },
+    MetricBelow { metric_name: String, threshold: f64 },
     /// Trigger when error rate exceeds threshold.
-    ErrorRateAbove {
-        threshold: f64,
-    },
+    ErrorRateAbove { threshold: f64 },
     /// Trigger on any error.
     OnError,
     /// Custom condition with a name.
-    Custom {
-        name: String,
-    },
+    Custom { name: String },
 }
 
 impl AlertCondition {
     /// Get a description of the condition.
     pub fn description(&self) -> String {
         match self {
-            AlertCondition::MetricAbove { metric_name, threshold } => {
+            AlertCondition::MetricAbove {
+                metric_name,
+                threshold,
+            } => {
                 format!("{} > {}", metric_name, threshold)
             }
-            AlertCondition::MetricBelow { metric_name, threshold } => {
+            AlertCondition::MetricBelow {
+                metric_name,
+                threshold,
+            } => {
                 format!("{} < {}", metric_name, threshold)
             }
             AlertCondition::ErrorRateAbove { threshold } => {
@@ -463,11 +455,7 @@ impl AlertManager {
 
         eprintln!(
             "{}[{}]{} {}: {}",
-            color,
-            alert.level,
-            reset,
-            alert.title,
-            alert.body
+            color, alert.level, reset, alert.title, alert.body
         );
 
         if let Some(ref source) = alert.source {
@@ -507,18 +495,28 @@ impl AlertManager {
             }
 
             let should_trigger = match &rule.condition {
-                AlertCondition::MetricAbove { metric_name, threshold } => {
-                    metrics.get(metric_name).map(|v| *v > *threshold).unwrap_or(false)
-                }
-                AlertCondition::MetricBelow { metric_name, threshold } => {
-                    metrics.get(metric_name).map(|v| *v < *threshold).unwrap_or(false)
-                }
-                AlertCondition::ErrorRateAbove { threshold } => {
-                    metrics.get("error_rate").map(|v| *v > *threshold).unwrap_or(false)
-                }
-                AlertCondition::OnError => {
-                    metrics.get("error_count").map(|v| *v > 0.0).unwrap_or(false)
-                }
+                AlertCondition::MetricAbove {
+                    metric_name,
+                    threshold,
+                } => metrics
+                    .get(metric_name)
+                    .map(|v| *v > *threshold)
+                    .unwrap_or(false),
+                AlertCondition::MetricBelow {
+                    metric_name,
+                    threshold,
+                } => metrics
+                    .get(metric_name)
+                    .map(|v| *v < *threshold)
+                    .unwrap_or(false),
+                AlertCondition::ErrorRateAbove { threshold } => metrics
+                    .get("error_rate")
+                    .map(|v| *v > *threshold)
+                    .unwrap_or(false),
+                AlertCondition::OnError => metrics
+                    .get("error_count")
+                    .map(|v| *v > 0.0)
+                    .unwrap_or(false),
                 AlertCondition::Custom { .. } => false, // Custom conditions need explicit triggering
             };
 
@@ -534,7 +532,9 @@ impl AlertManager {
                 triggered.push(alert);
 
                 // Update last triggered
-                self.rule_last_triggered.write().insert(rule.name.clone(), now);
+                self.rule_last_triggered
+                    .write()
+                    .insert(rule.name.clone(), now);
             }
         }
 
@@ -561,7 +561,9 @@ impl AlertManager {
                 .with_source("AlertManager")
                 .with_metadata("rule", &rule.name);
 
-            self.rule_last_triggered.write().insert(rule.name.clone(), now);
+            self.rule_last_triggered
+                .write()
+                .insert(rule.name.clone(), now);
 
             Some(alert)
         } else {
@@ -583,7 +585,11 @@ impl AlertManager {
     /// Get alerts by level.
     pub fn alerts_by_level(&self, level: AlertLevel) -> Vec<Alert> {
         let history = self.history.read();
-        history.iter().filter(|a| a.level == level).cloned().collect()
+        history
+            .iter()
+            .filter(|a| a.level == level)
+            .cloned()
+            .collect()
     }
 
     /// Get alert statistics.
@@ -594,9 +600,18 @@ impl AlertManager {
             total_sent: *self.alerts_sent.read(),
             total_suppressed: *self.alerts_suppressed.read(),
             history_size: history.len(),
-            info_count: history.iter().filter(|a| a.level == AlertLevel::Info).count(),
-            warning_count: history.iter().filter(|a| a.level == AlertLevel::Warning).count(),
-            critical_count: history.iter().filter(|a| a.level == AlertLevel::Critical).count(),
+            info_count: history
+                .iter()
+                .filter(|a| a.level == AlertLevel::Info)
+                .count(),
+            warning_count: history
+                .iter()
+                .filter(|a| a.level == AlertLevel::Warning)
+                .count(),
+            critical_count: history
+                .iter()
+                .filter(|a| a.level == AlertLevel::Critical)
+                .count(),
             rules_count: self.rules.read().len(),
         }
     }
@@ -743,14 +758,17 @@ mod tests {
     fn test_alert_rule_check() {
         let manager = AlertManager::with_config(test_config());
 
-        manager.register_rule(AlertRule::new(
-            "high_cpu",
-            AlertLevel::Warning,
-            AlertCondition::MetricAbove {
-                metric_name: "cpu_usage".to_string(),
-                threshold: 80.0,
-            },
-        ).with_cooldown(Duration::from_millis(0))); // No cooldown for test
+        manager.register_rule(
+            AlertRule::new(
+                "high_cpu",
+                AlertLevel::Warning,
+                AlertCondition::MetricAbove {
+                    metric_name: "cpu_usage".to_string(),
+                    threshold: 80.0,
+                },
+            )
+            .with_cooldown(Duration::from_millis(0)),
+        ); // No cooldown for test
 
         // Should not trigger
         let mut metrics = HashMap::new();
@@ -771,14 +789,17 @@ mod tests {
     fn test_alert_rule_cooldown() {
         let manager = AlertManager::with_config(test_config());
 
-        manager.register_rule(AlertRule::new(
-            "test_rule",
-            AlertLevel::Info,
-            AlertCondition::MetricAbove {
-                metric_name: "test".to_string(),
-                threshold: 0.0,
-            },
-        ).with_cooldown(Duration::from_secs(60)));
+        manager.register_rule(
+            AlertRule::new(
+                "test_rule",
+                AlertLevel::Info,
+                AlertCondition::MetricAbove {
+                    metric_name: "test".to_string(),
+                    threshold: 0.0,
+                },
+            )
+            .with_cooldown(Duration::from_secs(60)),
+        );
 
         let mut metrics = HashMap::new();
         metrics.insert("test".to_string(), 1.0);
@@ -796,9 +817,15 @@ mod tests {
     fn test_alert_history() {
         let manager = AlertManager::with_config(test_config());
 
-        manager.send_alert(Alert::info("Alert 1", "Body 1")).unwrap();
-        manager.send_alert(Alert::warning("Alert 2", "Body 2")).unwrap();
-        manager.send_alert(Alert::critical("Alert 3", "Body 3")).unwrap();
+        manager
+            .send_alert(Alert::info("Alert 1", "Body 1"))
+            .unwrap();
+        manager
+            .send_alert(Alert::warning("Alert 2", "Body 2"))
+            .unwrap();
+        manager
+            .send_alert(Alert::critical("Alert 3", "Body 3"))
+            .unwrap();
 
         let history = manager.history();
         assert_eq!(history.len(), 3);

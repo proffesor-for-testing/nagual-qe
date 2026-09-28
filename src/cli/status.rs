@@ -134,7 +134,10 @@ impl StatusCommand {
         }
 
         println!("========================================");
-        println!("Last updated: {}", Utc::now().format("%Y-%m-%d %H:%M:%S UTC"));
+        println!(
+            "Last updated: {}",
+            Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+        );
         println!();
 
         Ok(())
@@ -176,7 +179,7 @@ impl StatusCommand {
             principle_count: Principle::ALL.len(),
             rule_count: constitution.rule_count(),
             enforcement_mode: constitution.mode().to_string(),
-            violations_24h: 0, // Future: track from audit log
+            violations_24h: 0,      // Future: track from audit log
             rule_violations_24h: 0, // Future: track from audit log
             random_principle: RandomPrincipleDisplay {
                 number: random_principle.number(),
@@ -196,32 +199,27 @@ impl StatusCommand {
         // Check SQLite connectivity
         let start = std::time::Instant::now();
         match Connection::open(&self.db_path) {
-            Ok(conn) => {
-                match conn.execute_batch("SELECT 1") {
-                    Ok(_) => {
-                        let latency = start.elapsed().as_secs_f64() * 1000.0;
-                        components.push(ComponentHealth {
-                            name: "sqlite".to_string(),
-                            status: HealthStatusDisplay::Healthy,
-                            message: format!(
-                                "Database operational ({})",
-                                self.db_path.display()
-                            ),
-                            latency_ms: Some(latency),
-                        });
-                        healthy += 1;
-                    }
-                    Err(e) => {
-                        components.push(ComponentHealth {
-                            name: "sqlite".to_string(),
-                            status: HealthStatusDisplay::Unhealthy,
-                            message: format!("Query failed: {}", e),
-                            latency_ms: None,
-                        });
-                        unhealthy += 1;
-                    }
+            Ok(conn) => match conn.execute_batch("SELECT 1") {
+                Ok(_) => {
+                    let latency = start.elapsed().as_secs_f64() * 1000.0;
+                    components.push(ComponentHealth {
+                        name: "sqlite".to_string(),
+                        status: HealthStatusDisplay::Healthy,
+                        message: format!("Database operational ({})", self.db_path.display()),
+                        latency_ms: Some(latency),
+                    });
+                    healthy += 1;
                 }
-            }
+                Err(e) => {
+                    components.push(ComponentHealth {
+                        name: "sqlite".to_string(),
+                        status: HealthStatusDisplay::Unhealthy,
+                        message: format!("Query failed: {}", e),
+                        latency_ms: None,
+                    });
+                    unhealthy += 1;
+                }
+            },
             Err(e) => {
                 components.push(ComponentHealth {
                     name: "sqlite".to_string(),
@@ -289,11 +287,9 @@ impl StatusCommand {
 
         // Total patterns
         let total_patterns: usize = conn
-            .query_row(
-                "SELECT COUNT(*) FROM reasoning_patterns",
-                [],
-                |row| row.get::<_, i64>(0),
-            )
+            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+                row.get::<_, i64>(0)
+            })
             .map(|v| v as usize)
             .unwrap_or(0);
 
@@ -430,10 +426,7 @@ impl StatusCommand {
 
         println!(
             "  Overall: {}{} {}{}",
-            overall_color,
-            overall_icon,
-            health.overall,
-            reset
+            overall_color, overall_icon, health.overall, reset
         );
         println!(
             "  Components: {} healthy, {} degraded, {} unhealthy",
@@ -471,7 +464,10 @@ impl StatusCommand {
         println!("  New (24h): {}", learning.patterns_last_24h);
         println!("  Success Rate: {:.1}%", learning.success_rate * 100.0);
         println!("  Avg Reward: {:.2}", learning.avg_reward);
-        println!("  Pending Consolidation: {}", learning.consolidation_pending);
+        println!(
+            "  Pending Consolidation: {}",
+            learning.consolidation_pending
+        );
 
         if let Some(last) = learning.last_consolidation {
             let ago = Utc::now().signed_duration_since(last);
@@ -511,7 +507,11 @@ impl StatusCommand {
                     DriftTrend::Decreasing => "decreasing",
                     DriftTrend::Insufficient => "insufficient data",
                 };
-                let warning = if report.is_drifting { " \x1b[33m!!\x1b[0m" } else { "" };
+                let warning = if report.is_drifting {
+                    " \x1b[33m!!\x1b[0m"
+                } else {
+                    ""
+                };
                 println!(
                     "  {:<20} | CV: {:.3} | {}{}",
                     report.domain, report.coefficient_of_variation, trend_label, warning
@@ -527,8 +527,7 @@ impl StatusCommand {
         println!("META-COGNITIVE (Strange Loop)");
         println!("----------------------------------------");
 
-        let (avg_quality, health_rate, count) =
-            crate::learning::get_meta_cognitive_stats();
+        let (avg_quality, health_rate, count) = crate::learning::get_meta_cognitive_stats();
 
         if count == 0 {
             println!("  No evaluations yet.");
@@ -612,8 +611,15 @@ impl StatusCommand {
         };
 
         println!("  SQLite: {} Connected", sqlite_icon);
-        println!("  PostgreSQL: {} {}", postgres_icon,
-            if sync.postgres_connected { "Connected" } else { "Not configured" });
+        println!(
+            "  PostgreSQL: {} {}",
+            postgres_icon,
+            if sync.postgres_connected {
+                "Connected"
+            } else {
+                "Not configured"
+            }
+        );
         println!("  Mode: {}", sync.sync_mode);
         println!("  Pending Items: {}", sync.pending_sync_items);
         println!("  Conflicts: {}", sync.conflicts_count);
@@ -680,7 +686,10 @@ impl StatusCommand {
         }
         println!("  CPU: {:.1}%", metrics.cpu_usage_percent);
         println!("  DB Size: {:.1} MB", metrics.db_size_mb);
-        println!("  Requests: {} total ({:.1}/s)", metrics.requests_total, metrics.requests_per_second);
+        println!(
+            "  Requests: {} total ({:.1}/s)",
+            metrics.requests_total, metrics.requests_per_second
+        );
         println!(
             "  Errors: {} ({:.3}% error rate)",
             metrics.errors_total,
@@ -894,7 +903,10 @@ fn render_health_panel(
                 format!("{} ", component.status.icon()),
                 Style::default().fg(color),
             ),
-            Span::raw(format!("{}: {}{}", component.name, component.message, latency)),
+            Span::raw(format!(
+                "{}: {}{}",
+                component.name, component.message, latency
+            )),
         ]));
     }
 
@@ -1228,9 +1240,7 @@ fn get_process_uptime_secs() -> u64 {
             .and_then(|s| s.split_whitespace().next().and_then(|v| v.parse().ok()));
         let start_ticks: Option<f64> = std::fs::read_to_string("/proc/self/stat")
             .ok()
-            .and_then(|s| {
-                s.split_whitespace().nth(21).and_then(|v| v.parse().ok())
-            });
+            .and_then(|s| s.split_whitespace().nth(21).and_then(|v| v.parse().ok()));
         if let (Some(up), Some(st)) = (uptime, start_ticks) {
             let start_secs = st / clock_ticks;
             let process_up = up - start_secs;
@@ -1268,7 +1278,12 @@ fn format_uptime(secs: u64) -> String {
     } else if secs < 86400 {
         format!("{}h {}m", secs / 3600, (secs % 3600) / 60)
     } else {
-        format!("{}d {}h {}m", secs / 86400, (secs % 86400) / 3600, (secs % 3600) / 60)
+        format!(
+            "{}d {}h {}m",
+            secs / 86400,
+            (secs % 86400) / 3600,
+            (secs % 3600) / 60
+        )
     }
 }
 

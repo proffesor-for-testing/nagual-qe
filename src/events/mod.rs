@@ -255,7 +255,8 @@ impl EventBus {
 
     /// Record that a subscriber lagged (missed events).
     pub fn record_lag(&self, missed_events: u64) {
-        self.lagged_count.fetch_add(missed_events, Ordering::Relaxed);
+        self.lagged_count
+            .fetch_add(missed_events, Ordering::Relaxed);
 
         let mut stats = self.stats.write();
         stats.lagged_events += missed_events;
@@ -536,9 +537,15 @@ mod tests {
         let _receiver = bus.subscribe();
 
         // Publish several events
-        bus.publish(NagualEvent::pattern_stored("1", "d1")).await.unwrap();
-        bus.publish(NagualEvent::pattern_stored("2", "d2")).await.unwrap();
-        bus.publish(NagualEvent::pattern_deleted("1")).await.unwrap();
+        bus.publish(NagualEvent::pattern_stored("1", "d1"))
+            .await
+            .unwrap();
+        bus.publish(NagualEvent::pattern_stored("2", "d2"))
+            .await
+            .unwrap();
+        bus.publish(NagualEvent::pattern_deleted("1"))
+            .await
+            .unwrap();
 
         let stats = bus.stats();
         assert_eq!(stats.events_published, 3);
@@ -650,8 +657,12 @@ mod tests {
         let _task = processor.start();
 
         // Publish events
-        bus.publish(NagualEvent::pattern_stored("1", "d")).await.unwrap();
-        bus.publish(NagualEvent::pattern_stored("2", "d")).await.unwrap();
+        bus.publish(NagualEvent::pattern_stored("1", "d"))
+            .await
+            .unwrap();
+        bus.publish(NagualEvent::pattern_stored("2", "d"))
+            .await
+            .unwrap();
 
         // Give processor time to handle
         tokio::time::sleep(Duration::from_millis(50)).await;

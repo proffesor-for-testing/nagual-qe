@@ -65,7 +65,10 @@ impl IntrospectCommand {
         let model = engine.introspect().await?;
 
         if json_output {
-            println!("{}", serde_json::to_string_pretty(&model).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&model).unwrap_or_default()
+            );
             return Ok(());
         }
 
@@ -94,7 +97,10 @@ impl IntrospectCommand {
                 "avg_reward": health.average_reward,
                 "stale_count": health.stale_count,
             });
-            println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&output).unwrap_or_default()
+            );
         } else {
             let icon = match status {
                 HealthStatus::Healthy => "●",
@@ -126,7 +132,10 @@ impl IntrospectCommand {
     fn print_full_report(&self, model: &SelfModel) {
         println!("Strange Loop Introspection Report");
         println!("==================================");
-        println!("Snapshot: {}", model.snapshot_at.format("%Y-%m-%d %H:%M:%S UTC"));
+        println!(
+            "Snapshot: {}",
+            model.snapshot_at.format("%Y-%m-%d %H:%M:%S UTC")
+        );
         println!();
 
         // Health status
@@ -149,25 +158,38 @@ impl IntrospectCommand {
             model.pattern_health.medium_reward_count,
             model.pattern_health.low_reward_count
         );
-        println!("  Average Reward: {:.3}", model.pattern_health.average_reward);
-        println!("  Average Effectiveness: {:.3}", model.pattern_health.average_effectiveness);
-        println!("  Average Age: {:.1} days", model.pattern_health.average_age_days);
+        println!(
+            "  Average Reward: {:.3}",
+            model.pattern_health.average_reward
+        );
+        println!(
+            "  Average Effectiveness: {:.3}",
+            model.pattern_health.average_effectiveness
+        );
+        println!(
+            "  Average Age: {:.1} days",
+            model.pattern_health.average_age_days
+        );
         println!("  Stale Patterns: {}", model.pattern_health.stale_count);
-        println!("  With Embeddings: {}", model.pattern_health.with_embeddings);
-        println!("  Total Reuse Count: {}", model.pattern_health.total_reuse_count);
+        println!(
+            "  With Embeddings: {}",
+            model.pattern_health.with_embeddings
+        );
+        println!(
+            "  Total Reuse Count: {}",
+            model.pattern_health.total_reuse_count
+        );
         println!();
 
         // Temporal trends
         println!("Temporal Trends:");
         println!(
             "  7-day Reward Trend: {} (avg: {:.3})",
-            model.temporal_trends.reward_trend_7d,
-            model.temporal_trends.avg_reward_7d
+            model.temporal_trends.reward_trend_7d, model.temporal_trends.avg_reward_7d
         );
         println!(
             "  30-day Reward Trend: {} (avg: {:.3})",
-            model.temporal_trends.reward_trend_30d,
-            model.temporal_trends.avg_reward_30d
+            model.temporal_trends.reward_trend_30d, model.temporal_trends.avg_reward_30d
         );
         println!(
             "  Pattern Growth Rate: {:.1}/week",
@@ -175,8 +197,7 @@ impl IntrospectCommand {
         );
         println!(
             "  Patterns Created: {} (7d), {} (30d)",
-            model.temporal_trends.patterns_created_7d,
-            model.temporal_trends.patterns_created_30d
+            model.temporal_trends.patterns_created_7d, model.temporal_trends.patterns_created_30d
         );
         println!();
 

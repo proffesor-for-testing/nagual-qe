@@ -334,8 +334,7 @@ impl PatternFts {
             self.config.fts_table
         );
 
-        conn.execute_batch(&drop_sql)
-            .map_err(DatabaseError::from)?;
+        conn.execute_batch(&drop_sql).map_err(DatabaseError::from)?;
 
         info!(
             fts_table = %self.config.fts_table,
@@ -419,8 +418,19 @@ impl FtsSearchOptions {
 
 /// Allowed column names for FTS5 search (prevents injection via search_columns).
 const ALLOWED_FTS_COLUMNS: &[&str] = &[
-    "problem", "solution", "domain", "context", "title", "content",
-    "description", "tags", "category", "name", "text", "body", "summary",
+    "problem",
+    "solution",
+    "domain",
+    "context",
+    "title",
+    "content",
+    "description",
+    "tags",
+    "category",
+    "name",
+    "text",
+    "body",
+    "summary",
 ];
 
 /// Validate that all search columns are in the allowlist.
@@ -460,11 +470,7 @@ pub fn fts_search(
         query.to_string()
     } else {
         // Search in specific columns: {col1 col2}: query
-        format!(
-            "{{{}}}: {}",
-            options.search_columns.join(" "),
-            query
-        )
+        format!("{{{}}}: {}", options.search_columns.join(" "), query)
     };
 
     let sql = if options.with_snippets {
@@ -513,11 +519,7 @@ pub fn fts_search(
     } else {
         let rows = stmt
             .query_map(
-                rusqlite::params![
-                    &search_query,
-                    options.limit as i64,
-                    options.offset as i64,
-                ],
+                rusqlite::params![&search_query, options.limit as i64, options.offset as i64,],
                 |row| {
                     Ok((
                         row.get::<_, i64>(0)?,
@@ -534,7 +536,10 @@ pub fn fts_search(
 
     // Apply min rank filter if set
     let results = if let Some(min_rank) = options.min_rank {
-        results.into_iter().filter(|(_, rank, _)| *rank <= min_rank).collect()
+        results
+            .into_iter()
+            .filter(|(_, rank, _)| *rank <= min_rank)
+            .collect()
     } else {
         results
     };
@@ -613,7 +618,11 @@ where
 
     // Sort by rank (lower is better in BM25)
     // Use Ordering::Equal as fallback for NaN comparisons (which shouldn't happen with valid BM25 scores)
-    results.sort_by(|a, b| a.rank.partial_cmp(&b.rank).unwrap_or(std::cmp::Ordering::Equal));
+    results.sort_by(|a, b| {
+        a.rank
+            .partial_cmp(&b.rank)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     Ok(results)
 }
@@ -756,9 +765,7 @@ mod tests {
             "infrastructure",
         );
 
-        let options = FtsSearchOptions::default()
-            .with_snippets()
-            .with_limit(10);
+        let options = FtsSearchOptions::default().with_snippets().with_limit(10);
 
         let results = fts_search(&conn, "patterns_fts", "timeout", &options).unwrap();
 
@@ -770,8 +777,20 @@ mod tests {
     fn test_fts_search_column_specific() {
         let conn = setup_test_db();
 
-        insert_test_pattern(&conn, "p1", "API error handling", "Return proper error codes", "api");
-        insert_test_pattern(&conn, "p2", "Fix login error", "Check credentials", "authentication");
+        insert_test_pattern(
+            &conn,
+            "p1",
+            "API error handling",
+            "Return proper error codes",
+            "api",
+        );
+        insert_test_pattern(
+            &conn,
+            "p2",
+            "Fix login error",
+            "Check credentials",
+            "authentication",
+        );
 
         // Search only in "problem" column
         let options = FtsSearchOptions::default().with_columns(vec!["problem".to_string()]);
@@ -804,7 +823,13 @@ mod tests {
         let conn = setup_test_db();
 
         // Use unique text that only appears in the problem field
-        insert_test_pattern(&conn, "p1", "Zebra unicorn problem", "Generic solution text", "test");
+        insert_test_pattern(
+            &conn,
+            "p1",
+            "Zebra unicorn problem",
+            "Generic solution text",
+            "test",
+        );
 
         // Verify original text is indexed
         let results = fts_search(
@@ -831,7 +856,11 @@ mod tests {
             &FtsSearchOptions::default(),
         )
         .unwrap();
-        assert_eq!(results.len(), 0, "Original text should be removed from index");
+        assert_eq!(
+            results.len(),
+            0,
+            "Original text should be removed from index"
+        );
 
         // Updated text should match
         let results = fts_search(
@@ -848,11 +877,22 @@ mod tests {
     fn test_fts_trigger_delete() {
         let conn = setup_test_db();
 
-        insert_test_pattern(&conn, "p1", "Delete me problem", "Delete me solution", "test");
+        insert_test_pattern(
+            &conn,
+            "p1",
+            "Delete me problem",
+            "Delete me solution",
+            "test",
+        );
 
         // Verify it's indexed
-        let results = fts_search(&conn, "patterns_fts", "Delete", &FtsSearchOptions::default())
-            .unwrap();
+        let results = fts_search(
+            &conn,
+            "patterns_fts",
+            "Delete",
+            &FtsSearchOptions::default(),
+        )
+        .unwrap();
         assert_eq!(results.len(), 1);
 
         // Delete the row
@@ -860,8 +900,13 @@ mod tests {
             .unwrap();
 
         // Should no longer be found
-        let results = fts_search(&conn, "patterns_fts", "Delete", &FtsSearchOptions::default())
-            .unwrap();
+        let results = fts_search(
+            &conn,
+            "patterns_fts",
+            "Delete",
+            &FtsSearchOptions::default(),
+        )
+        .unwrap();
         assert_eq!(results.len(), 0);
     }
 
@@ -875,8 +920,13 @@ mod tests {
         fts.rebuild_index(&conn).unwrap();
 
         // Verify search still works
-        let results = fts_search(&conn, "patterns_fts", "pattern", &FtsSearchOptions::default())
-            .unwrap();
+        let results = fts_search(
+            &conn,
+            "patterns_fts",
+            "pattern",
+            &FtsSearchOptions::default(),
+        )
+        .unwrap();
         assert_eq!(results.len(), 1);
     }
 
@@ -890,8 +940,13 @@ mod tests {
         fts.optimize_index(&conn).unwrap();
 
         // Verify search still works
-        let results = fts_search(&conn, "patterns_fts", "pattern", &FtsSearchOptions::default())
-            .unwrap();
+        let results = fts_search(
+            &conn,
+            "patterns_fts",
+            "pattern",
+            &FtsSearchOptions::default(),
+        )
+        .unwrap();
         assert_eq!(results.len(), 1);
     }
 
@@ -967,8 +1022,8 @@ mod tests {
         );
 
         // Porter stemmer should match "run" to "running"
-        let results = fts_search(&conn, "patterns_fts", "run", &FtsSearchOptions::default())
-            .unwrap();
+        let results =
+            fts_search(&conn, "patterns_fts", "run", &FtsSearchOptions::default()).unwrap();
 
         assert_eq!(results.len(), 1);
     }
@@ -1008,7 +1063,13 @@ mod tests {
     fn test_fts_boolean_operators() {
         let conn = setup_test_db();
 
-        insert_test_pattern(&conn, "p1", "Database performance", "Add indexes", "database");
+        insert_test_pattern(
+            &conn,
+            "p1",
+            "Database performance",
+            "Add indexes",
+            "database",
+        );
         insert_test_pattern(&conn, "p2", "API performance", "Use caching", "api");
         insert_test_pattern(&conn, "p3", "Database security", "Encrypt data", "database");
 

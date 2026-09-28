@@ -41,7 +41,10 @@ fn has_tier_column(conn: &Connection) -> bool {
 /// created by the CLI's `PatternStorage` schema (every fresh local install). Hard-coding
 /// `created_at` made /api/patterns, /api/graph/3d and /api/pulse fail with 500 on those.
 pub(crate) fn created_column(conn: &Connection) -> &'static str {
-    if conn.prepare("SELECT created_at FROM reasoning_patterns LIMIT 0").is_ok() {
+    if conn
+        .prepare("SELECT created_at FROM reasoning_patterns LIMIT 0")
+        .is_ok()
+    {
         "created_at"
     } else {
         "timestamp"
@@ -173,11 +176,9 @@ pub async fn api_status(
     let conn = open_db(&state)?;
 
     let pattern_count: u64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM reasoning_patterns",
-            [],
-            |row| row.get(0),
-        )
+        .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+            row.get(0)
+        })
         .unwrap_or(0);
 
     let dcol = domain_column(&conn);
@@ -302,15 +303,25 @@ pub async fn api_patterns(
     let count_sql = format!("SELECT COUNT(*) FROM reasoning_patterns {where_clause}");
     let total: u64 = {
         let mut stmt = conn.prepare(&count_sql).map_err(|e| {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Count error: {}", e))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Count error: {}", e),
+            )
         })?;
         match bind_values.len() {
             0 => stmt.query_row([], |r| r.get(0)),
             1 => stmt.query_row([&bind_values[0]], |r| r.get(0)),
             2 => stmt.query_row([&bind_values[0], &bind_values[1]], |r| r.get(0)),
-            _ => stmt.query_row([&bind_values[0], &bind_values[1], &bind_values[2]], |r| r.get(0)),
+            _ => stmt.query_row([&bind_values[0], &bind_values[1], &bind_values[2]], |r| {
+                r.get(0)
+            }),
         }
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Count error: {}", e)))?
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Count error: {}", e),
+            )
+        })?
     };
 
     // Fetch patterns
@@ -323,7 +334,10 @@ pub async fn api_patterns(
     );
 
     let mut stmt = conn.prepare(&sql).map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Query error: {}", e))
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Query error: {}", e),
+        )
     })?;
 
     fn extract_pattern(row: &rusqlite::Row) -> rusqlite::Result<PatternEntry> {
@@ -344,23 +358,48 @@ pub async fn api_patterns(
 
     let patterns: Vec<PatternEntry> = match bind_values.len() {
         0 => {
-            let rows = stmt.query_map([], extract_pattern)
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Query error: {}", e)))?;
+            let rows = stmt.query_map([], extract_pattern).map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Query error: {}", e),
+                )
+            })?;
             rows.filter_map(|r| r.ok()).collect()
         }
         1 => {
-            let rows = stmt.query_map([&bind_values[0]], extract_pattern)
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Query error: {}", e)))?;
+            let rows = stmt
+                .query_map([&bind_values[0]], extract_pattern)
+                .map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Query error: {}", e),
+                    )
+                })?;
             rows.filter_map(|r| r.ok()).collect()
         }
         2 => {
-            let rows = stmt.query_map([&bind_values[0], &bind_values[1]], extract_pattern)
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Query error: {}", e)))?;
+            let rows = stmt
+                .query_map([&bind_values[0], &bind_values[1]], extract_pattern)
+                .map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Query error: {}", e),
+                    )
+                })?;
             rows.filter_map(|r| r.ok()).collect()
         }
         _ => {
-            let rows = stmt.query_map([&bind_values[0], &bind_values[1], &bind_values[2]], extract_pattern)
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Query error: {}", e)))?;
+            let rows = stmt
+                .query_map(
+                    [&bind_values[0], &bind_values[1], &bind_values[2]],
+                    extract_pattern,
+                )
+                .map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Query error: {}", e),
+                    )
+                })?;
             rows.filter_map(|r| r.ok()).collect()
         }
     };
@@ -427,7 +466,9 @@ pub async fn api_tiers(
     if !has_tier_column(&conn) {
         // No tier column — all patterns are effectively "booster"
         let total: u64 = conn
-            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+                row.get(0)
+            })
             .unwrap_or(0);
         return Ok(Json(TierResponse {
             booster: total,
@@ -496,14 +537,12 @@ pub async fn api_pulse(
          WHERE {ccol} >= DATE('now', '-364 days') \
          GROUP BY DATE({ccol}) ORDER BY day"
     );
-    let mut stmt = conn
-        .prepare(&pulse_sql)
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Query error: {}", e),
-            )
-        })?;
+    let mut stmt = conn.prepare(&pulse_sql).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Query error: {}", e),
+        )
+    })?;
 
     let rows = stmt
         .query_map([], |row| {
@@ -551,10 +590,7 @@ pub async fn api_graph(
         .query_map([], |row| {
             Ok(GraphNode {
                 id: row.get(0)?,
-                label: row.get::<_, String>(1)?
-                    .chars()
-                    .take(60)
-                    .collect(),
+                label: row.get::<_, String>(1)?.chars().take(60).collect(),
                 domain: row.get(2)?,
                 reward: row.get(3)?,
             })
@@ -597,7 +633,9 @@ pub async fn api_graph(
             }
         }
         for (_domain, members) in &domain_groups {
-            if members.len() < 2 || members.len() > 30 { continue; }
+            if members.len() < 2 || members.len() > 30 {
+                continue;
+            }
             // Connect each node to the next within the domain (chain)
             for w in members.windows(2) {
                 edges.push(GraphEdge {
@@ -684,8 +722,16 @@ pub async fn api_graph_3d(
         .prepare("SELECT reuse_count FROM reasoning_patterns LIMIT 0")
         .is_ok();
 
-    let tier_expr = if has_tier { "COALESCE(tier, 'booster')" } else { "'booster'" };
-    let reuse_expr = if has_reuse_count { "COALESCE(reuse_count, 0)" } else { "0" };
+    let tier_expr = if has_tier {
+        "COALESCE(tier, 'booster')"
+    } else {
+        "'booster'"
+    };
+    let reuse_expr = if has_reuse_count {
+        "COALESCE(reuse_count, 0)"
+    } else {
+        "0"
+    };
 
     // Default 5000, hard ceiling 20000 to protect the browser from runaway payloads.
     let limit = params.limit.unwrap_or(5000).clamp(1, 20000);
@@ -779,54 +825,56 @@ pub async fn api_graph_3d(
 
     let nodes: Vec<Graph3DNode> = raw
         .iter()
-        .map(|(id, problem, domain, tier, reward, reuse_count, created_at)| {
-            let zone = if *reward >= 0.7 && *reuse_count >= 5 {
-                "core"
-            } else if created_at.as_str() >= cutoff_7d.as_str() && *reuse_count < 3 {
-                "future"
-            } else {
-                "history"
-            };
+        .map(
+            |(id, problem, domain, tier, reward, reuse_count, created_at)| {
+                let zone = if *reward >= 0.7 && *reuse_count >= 5 {
+                    "core"
+                } else if created_at.as_str() >= cutoff_7d.as_str() && *reuse_count < 3 {
+                    "future"
+                } else {
+                    "history"
+                };
 
-            match zone {
-                "core" => core_count += 1,
-                "future" => future_count += 1,
-                _ => history_count += 1,
-            }
+                match zone {
+                    "core" => core_count += 1,
+                    "future" => future_count += 1,
+                    _ => history_count += 1,
+                }
 
-            // Initial positions hint for force-graph (it will re-layout)
-            let y_base = match zone {
-                "history" => -0.65,
-                "core" => 0.0,
-                "future" => 0.65,
-                _ => 0.0,
-            };
-            let jitter = id_hash(id) * 0.3;
-            let y = (y_base + jitter * 0.15) * 100.0;
+                // Initial positions hint for force-graph (it will re-layout)
+                let y_base = match zone {
+                    "history" => -0.65,
+                    "core" => 0.0,
+                    "future" => 0.65,
+                    _ => 0.0,
+                };
+                let jitter = id_hash(id) * 0.3;
+                let y = (y_base + jitter * 0.15) * 100.0;
 
-            let dh = domain_hash(domain);
-            let ih = id_hash(id);
-            let x = (dh * 0.6 + ih * 0.4) * 100.0;
-            let z = domain_hash(&format!("{}{}", domain, id)) * 70.0;
+                let dh = domain_hash(domain);
+                let ih = id_hash(id);
+                let x = (dh * 0.6 + ih * 0.4) * 100.0;
+                let z = domain_hash(&format!("{}{}", domain, id)) * 70.0;
 
-            let rc = (*reuse_count).max(1) as f64;
-            let size = reward * (1.0 + rc.ln()) * 4.0 + 2.0;
+                let rc = (*reuse_count).max(1) as f64;
+                let size = reward * (1.0 + rc.ln()) * 4.0 + 2.0;
 
-            Graph3DNode {
-                id: id.clone(),
-                label: problem.chars().take(80).collect(),
-                domain: domain.clone(),
-                tier: tier.clone(),
-                reward: *reward,
-                reuse_count: *reuse_count,
-                x,
-                y,
-                z,
-                zone: zone.to_string(),
-                size,
-                color: zone_color(zone).to_string(),
-            }
-        })
+                Graph3DNode {
+                    id: id.clone(),
+                    label: problem.chars().take(80).collect(),
+                    domain: domain.clone(),
+                    tier: tier.clone(),
+                    reward: *reward,
+                    reuse_count: *reuse_count,
+                    x,
+                    y,
+                    z,
+                    zone: zone.to_string(),
+                    size,
+                    color: zone_color(zone).to_string(),
+                }
+            },
+        )
         .collect();
 
     let unique_domains: std::collections::HashSet<&str> =
@@ -848,9 +896,10 @@ pub async fn api_graph_3d(
                 edge_type: row.get(3)?,
             })
         }) {
-            edges.extend(rows.filter_map(|r| r.ok()).filter(|e| {
-                node_ids.contains(&e.source) && node_ids.contains(&e.target)
-            }));
+            edges.extend(
+                rows.filter_map(|r| r.ok())
+                    .filter(|e| node_ids.contains(&e.source) && node_ids.contains(&e.target)),
+            );
         }
     }
 
@@ -869,9 +918,10 @@ pub async fn api_graph_3d(
         }) {
             // profdag_edges reference profdag_nodes, not reasoning_patterns directly.
             // Include them if both endpoints are in our node set.
-            edges.extend(rows.filter_map(|r| r.ok()).filter(|e| {
-                node_ids.contains(&e.source) && node_ids.contains(&e.target)
-            }));
+            edges.extend(
+                rows.filter_map(|r| r.ok())
+                    .filter(|e| node_ids.contains(&e.source) && node_ids.contains(&e.target)),
+            );
         }
     }
 
@@ -888,9 +938,11 @@ pub async fn api_graph_3d(
                 edge_type: "wormhole".to_string(),
             })
         }) {
-            edges.extend(wh_rows.filter_map(|r| r.ok()).filter(|e| {
-                node_ids.contains(&e.source) && node_ids.contains(&e.target)
-            }));
+            edges.extend(
+                wh_rows
+                    .filter_map(|r| r.ok())
+                    .filter(|e| node_ids.contains(&e.source) && node_ids.contains(&e.target)),
+            );
         }
     }
 
@@ -904,7 +956,9 @@ pub async fn api_graph_3d(
             }
         }
         for (_domain, members) in &domain_groups {
-            if members.len() < 2 { continue; }
+            if members.len() < 2 {
+                continue;
+            }
             // For large domains, only connect nearest neighbors (max 30 edges per domain)
             let max_edges = 30.min(members.len() - 1);
             for w in members.windows(2).take(max_edges) {
@@ -927,7 +981,11 @@ pub async fn api_graph_3d(
         history_count,
     };
 
-    Ok(Json(Graph3DResponse { nodes, edges, stats }))
+    Ok(Json(Graph3DResponse {
+        nodes,
+        edges,
+        stats,
+    }))
 }
 
 /// Convert days since Unix epoch to (year, month, day).
@@ -999,12 +1057,16 @@ mod tests {
     async fn create_cli_schema_db() -> (tempfile::TempDir, PathBuf) {
         let dir = tempfile::TempDir::new().unwrap();
         let path = dir.path().join("cli.db");
-        let storage = crate::cli::common::init_storage_sqlite_only(&path).await.unwrap();
+        let storage = crate::cli::common::init_storage_sqlite_only(&path)
+            .await
+            .unwrap();
         for (i, domain) in ["qe.flaky", "qe.regression"].iter().enumerate() {
             let p = crate::reasoning_bank::pattern::Pattern::builder()
                 .problem(format!("problem {i}"))
                 .solution(format!("solution {i}"))
-                .category(crate::reasoning_bank::pattern::PatternCategory::from(*domain))
+                .category(crate::reasoning_bank::pattern::PatternCategory::from(
+                    *domain,
+                ))
                 .build();
             storage.store_pattern(&p).await.unwrap();
         }
@@ -1021,23 +1083,39 @@ mod tests {
             State(test_state(path.clone())),
             test_auth(),
             Query(PatternsQuery {
-                limit: Some(10), offset: None, domain: None, tier: None,
-                search: None, sort_by: None, sort_order: None,
+                limit: Some(10),
+                offset: None,
+                domain: None,
+                tier: None,
+                search: None,
+                sort_by: None,
+                sort_order: None,
             }),
         )
         .await;
         assert!(list.is_ok(), "/api/patterns failed: {:?}", list.err());
         assert_eq!(list.unwrap().0.patterns.len(), 2);
 
-        let graph = api_graph_3d(State(test_state(path.clone())), test_auth(), Query(Graph3DQuery::default())).await;
+        let graph = api_graph_3d(
+            State(test_state(path.clone())),
+            test_auth(),
+            Query(Graph3DQuery::default()),
+        )
+        .await;
         assert!(graph.is_ok(), "/api/graph/3d failed: {:?}", graph.err());
         assert_eq!(graph.unwrap().0.nodes.len(), 2);
 
         let pulse = api_pulse(State(test_state(path.clone())), test_auth()).await;
         assert!(pulse.is_ok(), "/api/pulse failed: {:?}", pulse.err());
 
-        let status = api_status(State(test_state(path)), test_auth()).await.unwrap().0;
-        assert!(status.oldest_pattern.is_some(), "oldest_pattern should come from `timestamp`");
+        let status = api_status(State(test_state(path)), test_auth())
+            .await
+            .unwrap()
+            .0;
+        assert!(
+            status.oldest_pattern.is_some(),
+            "oldest_pattern should come from `timestamp`"
+        );
     }
 
     #[test]

@@ -23,14 +23,12 @@ pub use hyperbolic::{
     euclidean_to_poincare, exponential_map, logarithmic_map, poincare_distance,
     poincare_distance_f32, project_to_ball, HyperbolicConfig, HyperbolicEmbedder, HyperbolicPoint,
 };
-pub use poincare::{PoincareBall, PoincareKNN, PoincareModel};
-pub use quality::{
-    QualityConfig, QualityGate, QualityMetrics, QualityResult, ValidationSample,
-};
 pub use lora::{
-    LoraAdapter, LoraConfig, LoraStorage, LoraTrainer, StoredAdapter, TrainingConfig,
-    TrainingPair, TrainingResult,
+    LoraAdapter, LoraConfig, LoraStorage, LoraTrainer, StoredAdapter, TrainingConfig, TrainingPair,
+    TrainingResult,
 };
+pub use poincare::{PoincareBall, PoincareKNN, PoincareModel};
+pub use quality::{QualityConfig, QualityGate, QualityMetrics, QualityResult, ValidationSample};
 
 // ONNX-specific modules (optional, behind onnx-embed feature)
 #[cfg(feature = "onnx-embed")]

@@ -126,10 +126,7 @@ impl ScreenpipeClient {
             ));
         }
         if let Some(end) = params.end {
-            url.push_str(&format!(
-                "&end_time={}",
-                end.format("%Y-%m-%dT%H:%M:%SZ")
-            ));
+            url.push_str(&format!("&end_time={}", end.format("%Y-%m-%dT%H:%M:%SZ")));
         }
         if params.content_type != "all" {
             url.push_str(&format!("&content_type={}", params.content_type));
@@ -169,12 +166,7 @@ impl ScreenpipeClient {
     // ----- Tags -----
 
     /// Add tags to a screenpipe content item.
-    pub async fn add_tags(
-        &self,
-        content_type: &str,
-        id: i64,
-        tags: Vec<String>,
-    ) -> Result<()> {
+    pub async fn add_tags(&self, content_type: &str, id: i64, tags: Vec<String>) -> Result<()> {
         let url = format!("{}/tags/{}/{}", self.base_url, content_type, id);
         let body = serde_json::json!({ "tags": tags });
         let resp = self
@@ -194,12 +186,7 @@ impl ScreenpipeClient {
     }
 
     /// Remove tags from a screenpipe content item.
-    pub async fn remove_tags(
-        &self,
-        content_type: &str,
-        id: i64,
-        tags: Vec<String>,
-    ) -> Result<()> {
+    pub async fn remove_tags(&self, content_type: &str, id: i64, tags: Vec<String>) -> Result<()> {
         let url = format!("{}/tags/{}/{}", self.base_url, content_type, id);
         let body = serde_json::json!({ "tags": tags });
         let resp = self
@@ -244,11 +231,7 @@ impl ScreenpipeClient {
     }
 
     /// List unnamed speakers.
-    pub async fn speakers_unnamed(
-        &self,
-        limit: usize,
-        offset: usize,
-    ) -> Result<Vec<Speaker>> {
+    pub async fn speakers_unnamed(&self, limit: usize, offset: usize) -> Result<Vec<Speaker>> {
         let url = format!(
             "{}/speakers/unnamed?limit={}&offset={}",
             self.base_url, limit, offset
@@ -313,8 +296,7 @@ impl ScreenpipeClient {
     /// Merge two speakers (keep one, absorb the other).
     pub async fn speakers_merge(&self, keep_id: i64, merge_id: i64) -> Result<()> {
         let url = format!("{}/speakers/merge", self.base_url);
-        let body =
-            serde_json::json!({ "speaker_to_keep": keep_id, "speaker_to_merge": merge_id });
+        let body = serde_json::json!({ "speaker_to_keep": keep_id, "speaker_to_merge": merge_id });
         let resp = self
             .http
             .post(&url)
@@ -332,11 +314,7 @@ impl ScreenpipeClient {
     }
 
     /// Find speakers similar to a given speaker.
-    pub async fn speakers_similar(
-        &self,
-        speaker_id: i64,
-        limit: usize,
-    ) -> Result<Vec<Speaker>> {
+    pub async fn speakers_similar(&self, speaker_id: i64, limit: usize) -> Result<Vec<Speaker>> {
         let url = format!(
             "{}/speakers/similar?speaker_id={}&limit={}",
             self.base_url, speaker_id, limit
@@ -400,11 +378,7 @@ impl ScreenpipeClient {
     }
 
     /// Get UI event statistics grouped by event type.
-    pub async fn ui_events_stats(
-        &self,
-        start: &str,
-        end: &str,
-    ) -> Result<Vec<UiEventStat>> {
+    pub async fn ui_events_stats(&self, start: &str, end: &str) -> Result<Vec<UiEventStat>> {
         let url = format!(
             "{}/ui-events/stats?start_time={}&end_time={}",
             self.base_url, start, end
@@ -482,16 +456,10 @@ impl ScreenpipeClient {
             url.push_str(&format!("&content_type={}", ct));
         }
         if let Some(s) = start {
-            url.push_str(&format!(
-                "&start_time={}",
-                s.format("%Y-%m-%dT%H:%M:%SZ")
-            ));
+            url.push_str(&format!("&start_time={}", s.format("%Y-%m-%dT%H:%M:%SZ")));
         }
         if let Some(e) = end {
-            url.push_str(&format!(
-                "&end_time={}",
-                e.format("%Y-%m-%dT%H:%M:%SZ")
-            ));
+            url.push_str(&format!("&end_time={}", e.format("%Y-%m-%dT%H:%M:%SZ")));
         }
         let resp = self
             .http

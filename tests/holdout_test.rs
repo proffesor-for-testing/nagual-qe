@@ -81,7 +81,11 @@ pub struct TestPattern {
 
 impl TestPattern {
     /// Create a new test pattern.
-    pub fn new(id: impl Into<String>, problem: impl Into<String>, solution: impl Into<String>) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        problem: impl Into<String>,
+        solution: impl Into<String>,
+    ) -> Self {
         Self {
             id: id.into(),
             problem: problem.into(),
@@ -466,10 +470,14 @@ impl HoldoutValidator {
         let mut test_domain_counts = HashMap::new();
 
         for pattern in &train_patterns {
-            *train_domain_counts.entry(pattern.domain.clone()).or_insert(0) += 1;
+            *train_domain_counts
+                .entry(pattern.domain.clone())
+                .or_insert(0) += 1;
         }
         for pattern in &test_patterns {
-            *test_domain_counts.entry(pattern.domain.clone()).or_insert(0) += 1;
+            *test_domain_counts
+                .entry(pattern.domain.clone())
+                .or_insert(0) += 1;
         }
 
         HoldoutSplit {
@@ -571,13 +579,19 @@ impl KFoldValidator {
     /// Get training patterns for a specific fold.
     pub fn training_patterns(&self, fold: usize) -> Vec<TestPattern> {
         let (train_indices, _) = self.get_fold(fold);
-        train_indices.iter().map(|&i| self.patterns[i].clone()).collect()
+        train_indices
+            .iter()
+            .map(|&i| self.patterns[i].clone())
+            .collect()
     }
 
     /// Get test patterns for a specific fold.
     pub fn test_patterns(&self, fold: usize) -> Vec<TestPattern> {
         let (_, test_indices) = self.get_fold(fold);
-        test_indices.iter().map(|&i| self.patterns[i].clone()).collect()
+        test_indices
+            .iter()
+            .map(|&i| self.patterns[i].clone())
+            .collect()
     }
 
     /// Record metrics for a fold.
@@ -607,8 +621,16 @@ impl KFoldValidator {
             mrr: self.fold_metrics.iter().map(|m| m.mrr).sum::<f64>() / n,
             ndcg: self.fold_metrics.iter().map(|m| m.ndcg).sum::<f64>() / n,
             num_predictions: self.fold_metrics.iter().map(|m| m.num_predictions).sum(),
-            num_positive_predictions: self.fold_metrics.iter().map(|m| m.num_positive_predictions).sum(),
-            num_actual_positives: self.fold_metrics.iter().map(|m| m.num_actual_positives).sum(),
+            num_positive_predictions: self
+                .fold_metrics
+                .iter()
+                .map(|m| m.num_positive_predictions)
+                .sum(),
+            num_actual_positives: self
+                .fold_metrics
+                .iter()
+                .map(|m| m.num_actual_positives)
+                .sum(),
         }
     }
 

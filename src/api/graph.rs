@@ -24,15 +24,14 @@
 //! }
 //! ```
 
-
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, instrument};
 
 use super::NagualState;
 use crate::error::{NagualError, Result};
 use crate::graph::{
-    propagate_pressure, Direction, EdgeType, GraphPath, InMemoryGraph,
-    PressureConfig, GraphProvider,
+    propagate_pressure, Direction, EdgeType, GraphPath, GraphProvider, InMemoryGraph,
+    PressureConfig,
 };
 
 /// Result of a graph query operation.
@@ -458,7 +457,11 @@ impl GraphApi {
             .map(|(id, score)| PressureScore { node_id: id, score })
             .collect();
 
-        scores.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        scores.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         info!(
             start_node = %start_node,
@@ -516,7 +519,8 @@ impl GraphApi {
         // In a full implementation, edges would be loaded from the database
         let finder = PathFinder::new();
 
-        let paths = finder.find_paths(source, target, max_depth)
+        let paths = finder
+            .find_paths(source, target, max_depth)
             .map_err(|e| NagualError::internal(e.to_string()))?;
 
         debug!(
@@ -536,7 +540,10 @@ impl GraphApi {
     /// * `edge_id` - Edge ID to delete
     #[instrument(skip(self))]
     pub async fn unlink(&self, edge_id: &str) -> Result<bool> {
-        let deleted = self.state.graph_storage.delete_edge(edge_id)
+        let deleted = self
+            .state
+            .graph_storage
+            .delete_edge(edge_id)
             .await
             .map_err(|e| NagualError::internal(e.to_string()))?;
 
@@ -553,7 +560,10 @@ impl GraphApi {
     ///
     /// Graph statistics including node and edge counts.
     pub async fn stats(&self) -> Result<GraphStats> {
-        let storage_stats = self.state.graph_storage.stats()
+        let storage_stats = self
+            .state
+            .graph_storage
+            .stats()
             .await
             .map_err(|e| NagualError::internal(e.to_string()))?;
 
@@ -654,9 +664,18 @@ mod tests {
         let result = GraphPressureResult {
             source: "A".to_string(),
             scores: vec![
-                PressureScore { node_id: "A".to_string(), score: 0.5 },
-                PressureScore { node_id: "B".to_string(), score: 0.3 },
-                PressureScore { node_id: "C".to_string(), score: 0.2 },
+                PressureScore {
+                    node_id: "A".to_string(),
+                    score: 0.5,
+                },
+                PressureScore {
+                    node_id: "B".to_string(),
+                    score: 0.3,
+                },
+                PressureScore {
+                    node_id: "C".to_string(),
+                    score: 0.2,
+                },
             ],
             iterations: 3,
             converged: true,
@@ -673,9 +692,10 @@ mod tests {
     fn test_pressure_result_get() {
         let result = GraphPressureResult {
             source: "A".to_string(),
-            scores: vec![
-                PressureScore { node_id: "A".to_string(), score: 0.5 },
-            ],
+            scores: vec![PressureScore {
+                node_id: "A".to_string(),
+                score: 0.5,
+            }],
             iterations: 1,
             converged: true,
             execution_time_us: 50,

@@ -107,9 +107,7 @@ async fn run_create(args: &CreateArgs) -> Result<()> {
     let db = Arc::new(SqliteDb::open(&args.db_path)?);
     let store = ApiKeyStore::new(db).await?;
 
-    let (plaintext, record) = store
-        .create_key(&args.name, &args.scopes, None)
-        .await?;
+    let (plaintext, record) = store.create_key(&args.name, &args.scopes, None).await?;
 
     if args.json {
         let out = serde_json::json!({
@@ -155,8 +153,10 @@ async fn run_list(args: &ListArgs) -> Result<()> {
     }
 
     println!();
-    println!("  {:<20} {:<12} {:<20} {:<20} {}",
-        "NAME", "PREFIX", "SCOPES", "LAST USED", "STATUS");
+    println!(
+        "  {:<20} {:<12} {:<20} {:<20} {}",
+        "NAME", "PREFIX", "SCOPES", "LAST USED", "STATUS"
+    );
     println!("  {}", "-".repeat(84));
 
     for key in &keys {
@@ -164,9 +164,19 @@ async fn run_list(args: &ListArgs) -> Result<()> {
             .last_used_at
             .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
             .unwrap_or_else(|| "never".to_string());
-        let status = if key.revoked_at.is_some() { "revoked" } else { "active" };
-        println!("  {:<20} {:<12} {:<20} {:<20} {}",
-            key.name, key.key_prefix, key.scopes.join(","), last_used, status);
+        let status = if key.revoked_at.is_some() {
+            "revoked"
+        } else {
+            "active"
+        };
+        println!(
+            "  {:<20} {:<12} {:<20} {:<20} {}",
+            key.name,
+            key.key_prefix,
+            key.scopes.join(","),
+            last_used,
+            status
+        );
     }
     println!();
 
@@ -227,7 +237,14 @@ mod tests {
 
     #[test]
     fn test_parse_create_with_scopes() {
-        let args = vec!["test", "apikey", "create", "admin-bot", "--scopes", "read,write,admin"];
+        let args = vec![
+            "test",
+            "apikey",
+            "create",
+            "admin-bot",
+            "--scopes",
+            "read,write,admin",
+        ];
         let cli = TestCli::try_parse_from(args).unwrap();
         match cli.cmd {
             TestCmd::Apikey(cmd) => match cmd.subcommand {

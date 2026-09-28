@@ -52,9 +52,7 @@ fn test_dedup_integration() {
     let mut dedup = SlidingWindowDedup::new(Duration::from_secs(300), 0.9);
 
     // Create a normalized embedding
-    let embedding: Vec<f32> = (0..128)
-        .map(|i| (i as f32 / 128.0).sin())
-        .collect();
+    let embedding: Vec<f32> = (0..128).map(|i| (i as f32 / 128.0).sin()).collect();
     let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
     let embedding: Vec<f32> = embedding.iter().map(|x| x / norm).collect();
 
@@ -219,10 +217,7 @@ mod process_item_tests {
             .process_item(content, "EmailApp", Utc::now(), None)
             .await;
 
-        assert!(
-            result.pattern_id.is_some(),
-            "Should store after redaction"
-        );
+        assert!(result.pattern_id.is_some(), "Should store after redaction");
         assert!(result.was_redacted, "Content should be redacted");
         assert!(!result.was_rejected);
         // Redacted content should be shorter or same (email replaced with [EMAIL])
@@ -263,9 +258,7 @@ mod process_item_tests {
 
         for app in &apps {
             let content = format!("Activity from {} application", app);
-            let result = pipeline
-                .process_item(&content, app, now, None)
-                .await;
+            let result = pipeline.process_item(&content, app, now, None).await;
 
             assert!(result.pattern_id.is_some(), "Failed for app: {}", app);
             pattern_ids.push(result.pattern_id.unwrap());
@@ -280,9 +273,7 @@ mod process_item_tests {
     async fn test_process_item_empty_content() {
         let (mut pipeline, _temp) = create_test_pipeline().await;
 
-        let result = pipeline
-            .process_item("", "TestApp", Utc::now(), None)
-            .await;
+        let result = pipeline.process_item("", "TestApp", Utc::now(), None).await;
 
         // Empty content should still be processed (stored with empty content)
         // This is a valid case for activity logging
@@ -323,7 +314,11 @@ mod query_router_tests {
                 .problem("Database connection pooling")
                 .solution("Use sqlx connection pool with max_connections=10")
                 .category(PatternCategory::Custom("database".into()))
-                .tags(vec!["database".into(), "postgresql".into(), "pooling".into()])
+                .tags(vec![
+                    "database".into(),
+                    "postgresql".into(),
+                    "pooling".into(),
+                ])
                 .effectiveness(0.85)
                 .confidence(0.88)
                 .build(),
@@ -356,7 +351,10 @@ mod query_router_tests {
         let results = router.route(&params).await.unwrap();
 
         // Should find the Rust async pattern via keyword search
-        assert!(!results.is_empty(), "Should find patterns via keyword search");
+        assert!(
+            !results.is_empty(),
+            "Should find patterns via keyword search"
+        );
         assert!(
             results.iter().any(|r| r.problem.contains("async")),
             "Should find async-related patterns"

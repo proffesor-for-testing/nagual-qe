@@ -2,8 +2,8 @@
 
 use tracing::debug;
 
-use super::types::*;
 use super::planner::PlanningError;
+use super::types::*;
 
 /// Parser for natural language goals
 pub struct GoalParser;
@@ -12,7 +12,9 @@ impl GoalParser {
     /// Parse a natural language goal description into a Goal struct
     pub fn parse(description: &str) -> Result<Goal, PlanningError> {
         if description.trim().is_empty() {
-            return Err(PlanningError::GoalParseError("Empty goal description".into()));
+            return Err(PlanningError::GoalParseError(
+                "Empty goal description".into(),
+            ));
         }
 
         let description_lower = description.to_lowercase();
@@ -41,56 +43,83 @@ impl GoalParser {
         let mut conditions = Vec::new();
 
         // Research-related goals
-        if description.contains("research") || description.contains("learn about") ||
-           description.contains("understand") || description.contains("find out") {
+        if description.contains("research")
+            || description.contains("learn about")
+            || description.contains("understand")
+            || description.contains("find out")
+        {
             conditions.push(Condition::is_true("has_research_results"));
         }
 
         // Knowledge storage goals
-        if description.contains("store") || description.contains("save") ||
-           description.contains("remember") || description.contains("document") {
+        if description.contains("store")
+            || description.contains("save")
+            || description.contains("remember")
+            || description.contains("document")
+        {
             conditions.push(Condition::is_true("pattern_stored"));
         }
 
         // Coverage/improvement goals
-        if description.contains("coverage") || description.contains("improve") ||
-           description.contains("increase") || description.contains("better") {
+        if description.contains("coverage")
+            || description.contains("improve")
+            || description.contains("increase")
+            || description.contains("better")
+        {
             conditions.push(Condition::is_true("domain_improved"));
         }
 
         // Gap detection goals
-        if description.contains("gap") || description.contains("missing") ||
-           description.contains("find what") || description.contains("identify") {
+        if description.contains("gap")
+            || description.contains("missing")
+            || description.contains("find what")
+            || description.contains("identify")
+        {
             conditions.push(Condition::is_true("gaps_identified"));
         }
 
         // Consolidation goals
-        if description.contains("consolidate") || description.contains("merge") ||
-           description.contains("deduplicate") || description.contains("clean") {
+        if description.contains("consolidate")
+            || description.contains("merge")
+            || description.contains("deduplicate")
+            || description.contains("clean")
+        {
             conditions.push(Condition::is_true("patterns_consolidated"));
         }
 
         // Quality goals
-        if description.contains("quality") || description.contains("review") ||
-           description.contains("assess") || description.contains("evaluate") {
+        if description.contains("quality")
+            || description.contains("review")
+            || description.contains("assess")
+            || description.contains("evaluate")
+        {
             conditions.push(Condition::is_true("quality_analyzed"));
         }
 
         // Testing goals
-        if description.contains("test") || description.contains("verify") ||
-           description.contains("validate") || description.contains("check") {
+        if description.contains("test")
+            || description.contains("verify")
+            || description.contains("validate")
+            || description.contains("check")
+        {
             conditions.push(Condition::is_true("tests_executed"));
         }
 
         // Analysis goals
-        if description.contains("analyze") || description.contains("examine") ||
-           description.contains("inspect") || description.contains("investigate") {
+        if description.contains("analyze")
+            || description.contains("examine")
+            || description.contains("inspect")
+            || description.contains("investigate")
+        {
             conditions.push(Condition::is_true("codebase_analyzed"));
         }
 
         // Introspection goals
-        if description.contains("health") || description.contains("status") ||
-           description.contains("introspect") || description.contains("self") {
+        if description.contains("health")
+            || description.contains("status")
+            || description.contains("introspect")
+            || description.contains("self")
+        {
             conditions.push(Condition::is_true("introspection_complete"));
         }
 
@@ -105,18 +134,25 @@ impl GoalParser {
 
     /// Infer priority from urgency words
     fn infer_priority(description: &str) -> u8 {
-        if description.contains("urgent") || description.contains("critical") ||
-           description.contains("asap") || description.contains("immediately") {
+        if description.contains("urgent")
+            || description.contains("critical")
+            || description.contains("asap")
+            || description.contains("immediately")
+        {
             return 10;
         }
 
-        if description.contains("important") || description.contains("high priority") ||
-           description.contains("soon") {
+        if description.contains("important")
+            || description.contains("high priority")
+            || description.contains("soon")
+        {
             return 8;
         }
 
-        if description.contains("when possible") || description.contains("eventually") ||
-           description.contains("low priority") {
+        if description.contains("when possible")
+            || description.contains("eventually")
+            || description.contains("low priority")
+        {
             return 3;
         }
 
@@ -168,7 +204,10 @@ mod tests {
         let goal = GoalParser::parse("Research best practices for error handling").unwrap();
 
         assert!(!goal.conditions.is_empty());
-        assert!(goal.conditions.iter().any(|c| c.proposition == "has_research_results"));
+        assert!(goal
+            .conditions
+            .iter()
+            .any(|c| c.proposition == "has_research_results"));
     }
 
     #[test]
@@ -197,10 +236,7 @@ mod tests {
             Some("database".to_string())
         );
 
-        assert_eq!(
-            GoalParser::extract_domain("Generic improvement"),
-            None
-        );
+        assert_eq!(GoalParser::extract_domain("Generic improvement"), None);
     }
 
     #[test]

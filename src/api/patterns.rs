@@ -26,7 +26,6 @@
 //! let stats = nagual.patterns.stats().await?;
 //! ```
 
-
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, instrument};
@@ -528,7 +527,11 @@ impl PatternsApi {
         // Use FTS5 search for efficient O(log n) text search with BM25 ranking
         // Request more results than needed to allow for post-filtering
         let fts_limit = limit * 5;
-        let mut patterns = self.state.pattern_storage.fts_search(&query_str, fts_limit).await?;
+        let mut patterns = self
+            .state
+            .pattern_storage
+            .fts_search(&query_str, fts_limit)
+            .await?;
 
         // Apply additional filters from options
         if let Some(ref category) = options.category {
@@ -702,7 +705,10 @@ impl PatternsApi {
     #[instrument(skip(self))]
     pub async fn delete(&self, id: &str) -> Result<()> {
         let pattern_id = PatternId::from_string(id);
-        self.state.pattern_storage.delete_pattern(&pattern_id).await?;
+        self.state
+            .pattern_storage
+            .delete_pattern(&pattern_id)
+            .await?;
 
         info!(id = %id, "Pattern deleted");
         Ok(())
@@ -729,7 +735,11 @@ impl PatternsApi {
             .problem(pattern.problem())
             .solution(pattern.solution())
             .category(pattern.category().clone())
-            .context(updates.context.unwrap_or_else(|| pattern.context().to_string()))
+            .context(
+                updates
+                    .context
+                    .unwrap_or_else(|| pattern.context().to_string()),
+            )
             .confidence(updates.confidence.unwrap_or(pattern.confidence()))
             .reward(updates.reward.unwrap_or(pattern.reward()))
             .effectiveness(pattern.effectiveness())
@@ -890,9 +900,7 @@ mod tests {
 
     #[test]
     fn test_value_clamping() {
-        let options = PatternStoreOptions::new()
-            .confidence(1.5)
-            .reward(-0.5);
+        let options = PatternStoreOptions::new().confidence(1.5).reward(-0.5);
 
         assert_eq!(options.confidence, Some(1.0));
         assert_eq!(options.reward, Some(0.0));

@@ -23,9 +23,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 mod common;
-use common::{
-    normalized_embedding, random_embedding, random_pattern_id, TestFixture,
-};
+use common::{normalized_embedding, random_embedding, random_pattern_id, TestFixture};
 
 // ============================================================================
 // ProfDAG Node Types and Structures
@@ -125,7 +123,10 @@ impl ProfDagEdgeType {
 
     /// Check if this edge type is symmetric.
     pub fn is_symmetric(&self) -> bool {
-        matches!(self, ProfDagEdgeType::SimilarTo | ProfDagEdgeType::TemporalLink)
+        matches!(
+            self,
+            ProfDagEdgeType::SimilarTo | ProfDagEdgeType::TemporalLink
+        )
     }
 }
 
@@ -261,8 +262,16 @@ impl TestProfDagStorage {
         self.nodes.get(id)
     }
 
-    pub fn update_node(&mut self, id: &str, content: Option<String>, metadata: Option<serde_json::Value>) -> Result<(), String> {
-        let node = self.nodes.get_mut(id).ok_or_else(|| format!("Node not found: {}", id))?;
+    pub fn update_node(
+        &mut self,
+        id: &str,
+        content: Option<String>,
+        metadata: Option<serde_json::Value>,
+    ) -> Result<(), String> {
+        let node = self
+            .nodes
+            .get_mut(id)
+            .ok_or_else(|| format!("Node not found: {}", id))?;
         if let Some(c) = content {
             node.content = c;
         }
@@ -275,7 +284,8 @@ impl TestProfDagStorage {
 
     pub fn delete_node(&mut self, id: &str) -> Result<ProfDagNode, String> {
         // Remove associated edges first
-        let edges_to_remove: Vec<String> = self.edges
+        let edges_to_remove: Vec<String> = self
+            .edges
             .iter()
             .filter(|(_, e)| e.source_id == id || e.target_id == id)
             .map(|(k, _)| k.clone())
@@ -283,7 +293,9 @@ impl TestProfDagStorage {
         for edge_id in edges_to_remove {
             self.edges.remove(&edge_id);
         }
-        self.nodes.remove(id).ok_or_else(|| format!("Node not found: {}", id))
+        self.nodes
+            .remove(id)
+            .ok_or_else(|| format!("Node not found: {}", id))
     }
 
     pub fn list_nodes(&self, node_type: Option<ProfDagNodeType>) -> Vec<&ProfDagNode> {
@@ -303,7 +315,8 @@ impl TestProfDagStorage {
             return Err(format!("Target node not found: {}", edge.target_id));
         }
         // Check for self-loop
-        if edge.source_id == edge.target_id && !matches!(edge.edge_type, ProfDagEdgeType::Wormhole) {
+        if edge.source_id == edge.target_id && !matches!(edge.edge_type, ProfDagEdgeType::Wormhole)
+        {
             return Err("Self-loops are only allowed for wormhole edges".to_string());
         }
         let id = edge.id.clone();
@@ -316,7 +329,9 @@ impl TestProfDagStorage {
     }
 
     pub fn delete_edge(&mut self, id: &str) -> Result<ProfDagEdge, String> {
-        self.edges.remove(id).ok_or_else(|| format!("Edge not found: {}", id))
+        self.edges
+            .remove(id)
+            .ok_or_else(|| format!("Edge not found: {}", id))
     }
 
     pub fn list_edges(&self, edge_type: Option<ProfDagEdgeType>) -> Vec<&ProfDagEdge> {
@@ -386,8 +401,7 @@ mod node_crud_tests {
     fn test_create_node_with_embedding() {
         let mut storage = TestProfDagStorage::new();
         let embedding = normalized_embedding(128);
-        let node = ProfDagNode::pattern("Pattern with embedding")
-            .with_embedding(embedding.clone());
+        let node = ProfDagNode::pattern("Pattern with embedding").with_embedding(embedding.clone());
 
         let id = storage.create_node(node).unwrap();
         let retrieved = storage.get_node(&id).unwrap();
@@ -404,8 +418,7 @@ mod node_crud_tests {
             "confidence": 0.95,
             "tags": ["resilience", "timeout"]
         });
-        let node = ProfDagNode::pattern("Pattern with metadata")
-            .with_metadata(metadata.clone());
+        let node = ProfDagNode::pattern("Pattern with metadata").with_metadata(metadata.clone());
 
         let id = storage.create_node(node).unwrap();
         let retrieved = storage.get_node(&id).unwrap();
@@ -441,7 +454,9 @@ mod node_crud_tests {
         let node = ProfDagNode::pattern("Original content");
         let id = storage.create_node(node).unwrap();
 
-        storage.update_node(&id, Some("Updated content".to_string()), None).unwrap();
+        storage
+            .update_node(&id, Some("Updated content".to_string()), None)
+            .unwrap();
         let retrieved = storage.get_node(&id).unwrap();
 
         assert_eq!(retrieved.content, "Updated content");
@@ -450,11 +465,16 @@ mod node_crud_tests {
     #[test]
     fn test_update_node_metadata() {
         let mut storage = TestProfDagStorage::new();
-        let node = ProfDagNode::pattern("Content")
-            .with_metadata(serde_json::json!({"version": 1}));
+        let node = ProfDagNode::pattern("Content").with_metadata(serde_json::json!({"version": 1}));
         let id = storage.create_node(node).unwrap();
 
-        storage.update_node(&id, None, Some(serde_json::json!({"version": 2, "updated": true}))).unwrap();
+        storage
+            .update_node(
+                &id,
+                None,
+                Some(serde_json::json!({"version": 2, "updated": true})),
+            )
+            .unwrap();
         let retrieved = storage.get_node(&id).unwrap();
 
         assert_eq!(retrieved.metadata["version"], 2);
@@ -506,9 +526,15 @@ mod node_crud_tests {
     #[test]
     fn test_list_nodes_all() {
         let mut storage = TestProfDagStorage::new();
-        storage.create_node(ProfDagNode::pattern("Pattern 1")).unwrap();
-        storage.create_node(ProfDagNode::trajectory("Trajectory 1")).unwrap();
-        storage.create_node(ProfDagNode::prediction("Prediction 1")).unwrap();
+        storage
+            .create_node(ProfDagNode::pattern("Pattern 1"))
+            .unwrap();
+        storage
+            .create_node(ProfDagNode::trajectory("Trajectory 1"))
+            .unwrap();
+        storage
+            .create_node(ProfDagNode::prediction("Prediction 1"))
+            .unwrap();
 
         let all_nodes = storage.list_nodes(None);
         assert_eq!(all_nodes.len(), 3);
@@ -517,13 +543,21 @@ mod node_crud_tests {
     #[test]
     fn test_list_nodes_by_type() {
         let mut storage = TestProfDagStorage::new();
-        storage.create_node(ProfDagNode::pattern("Pattern 1")).unwrap();
-        storage.create_node(ProfDagNode::pattern("Pattern 2")).unwrap();
-        storage.create_node(ProfDagNode::trajectory("Trajectory 1")).unwrap();
+        storage
+            .create_node(ProfDagNode::pattern("Pattern 1"))
+            .unwrap();
+        storage
+            .create_node(ProfDagNode::pattern("Pattern 2"))
+            .unwrap();
+        storage
+            .create_node(ProfDagNode::trajectory("Trajectory 1"))
+            .unwrap();
 
         let patterns = storage.list_nodes(Some(ProfDagNodeType::Pattern));
         assert_eq!(patterns.len(), 2);
-        assert!(patterns.iter().all(|n| n.node_type == ProfDagNodeType::Pattern));
+        assert!(patterns
+            .iter()
+            .all(|n| n.node_type == ProfDagNodeType::Pattern));
 
         let trajectories = storage.list_nodes(Some(ProfDagNodeType::Trajectory));
         assert_eq!(trajectories.len(), 1);
@@ -677,9 +711,15 @@ mod edge_crud_tests {
         let id2 = storage.create_node(ProfDagNode::pattern("Node 2")).unwrap();
         let id3 = storage.create_node(ProfDagNode::pattern("Node 3")).unwrap();
 
-        storage.create_edge(ProfDagEdge::leads_to(&id1, &id2, 0.8)).unwrap();
-        storage.create_edge(ProfDagEdge::similar_to(&id2, &id3, 0.7)).unwrap();
-        storage.create_edge(ProfDagEdge::derived_from(&id3, &id1, 0.6)).unwrap();
+        storage
+            .create_edge(ProfDagEdge::leads_to(&id1, &id2, 0.8))
+            .unwrap();
+        storage
+            .create_edge(ProfDagEdge::similar_to(&id2, &id3, 0.7))
+            .unwrap();
+        storage
+            .create_edge(ProfDagEdge::derived_from(&id3, &id1, 0.6))
+            .unwrap();
 
         let all_edges = storage.list_edges(None);
         assert_eq!(all_edges.len(), 3);
@@ -692,9 +732,15 @@ mod edge_crud_tests {
         let id2 = storage.create_node(ProfDagNode::pattern("Node 2")).unwrap();
         let id3 = storage.create_node(ProfDagNode::pattern("Node 3")).unwrap();
 
-        storage.create_edge(ProfDagEdge::leads_to(&id1, &id2, 0.8)).unwrap();
-        storage.create_edge(ProfDagEdge::leads_to(&id2, &id3, 0.7)).unwrap();
-        storage.create_edge(ProfDagEdge::similar_to(&id1, &id3, 0.6)).unwrap();
+        storage
+            .create_edge(ProfDagEdge::leads_to(&id1, &id2, 0.8))
+            .unwrap();
+        storage
+            .create_edge(ProfDagEdge::leads_to(&id2, &id3, 0.7))
+            .unwrap();
+        storage
+            .create_edge(ProfDagEdge::similar_to(&id1, &id3, 0.6))
+            .unwrap();
 
         let leads_to_edges = storage.list_edges(Some(ProfDagEdgeType::LeadsTo));
         assert_eq!(leads_to_edges.len(), 2);
@@ -710,9 +756,15 @@ mod edge_crud_tests {
         let id2 = storage.create_node(ProfDagNode::pattern("Node 2")).unwrap();
         let id3 = storage.create_node(ProfDagNode::pattern("Node 3")).unwrap();
 
-        storage.create_edge(ProfDagEdge::leads_to(&id1, &id2, 0.8)).unwrap();
-        storage.create_edge(ProfDagEdge::leads_to(&id1, &id3, 0.7)).unwrap();
-        storage.create_edge(ProfDagEdge::leads_to(&id2, &id3, 0.6)).unwrap();
+        storage
+            .create_edge(ProfDagEdge::leads_to(&id1, &id2, 0.8))
+            .unwrap();
+        storage
+            .create_edge(ProfDagEdge::leads_to(&id1, &id3, 0.7))
+            .unwrap();
+        storage
+            .create_edge(ProfDagEdge::leads_to(&id2, &id3, 0.6))
+            .unwrap();
 
         let outgoing = storage.get_outgoing_edges(&id1);
         assert_eq!(outgoing.len(), 2);
@@ -726,8 +778,12 @@ mod edge_crud_tests {
         let id2 = storage.create_node(ProfDagNode::pattern("Node 2")).unwrap();
         let id3 = storage.create_node(ProfDagNode::pattern("Node 3")).unwrap();
 
-        storage.create_edge(ProfDagEdge::leads_to(&id1, &id3, 0.8)).unwrap();
-        storage.create_edge(ProfDagEdge::leads_to(&id2, &id3, 0.7)).unwrap();
+        storage
+            .create_edge(ProfDagEdge::leads_to(&id1, &id3, 0.8))
+            .unwrap();
+        storage
+            .create_edge(ProfDagEdge::leads_to(&id2, &id3, 0.7))
+            .unwrap();
 
         let incoming = storage.get_incoming_edges(&id3);
         assert_eq!(incoming.len(), 2);
@@ -744,11 +800,26 @@ mod type_validation_tests {
 
     #[test]
     fn test_node_type_from_str() {
-        assert_eq!(ProfDagNodeType::from_str("pattern"), Some(ProfDagNodeType::Pattern));
-        assert_eq!(ProfDagNodeType::from_str("PATTERN"), Some(ProfDagNodeType::Pattern));
-        assert_eq!(ProfDagNodeType::from_str("trajectory"), Some(ProfDagNodeType::Trajectory));
-        assert_eq!(ProfDagNodeType::from_str("prediction"), Some(ProfDagNodeType::Prediction));
-        assert_eq!(ProfDagNodeType::from_str("decision"), Some(ProfDagNodeType::Decision));
+        assert_eq!(
+            ProfDagNodeType::from_str("pattern"),
+            Some(ProfDagNodeType::Pattern)
+        );
+        assert_eq!(
+            ProfDagNodeType::from_str("PATTERN"),
+            Some(ProfDagNodeType::Pattern)
+        );
+        assert_eq!(
+            ProfDagNodeType::from_str("trajectory"),
+            Some(ProfDagNodeType::Trajectory)
+        );
+        assert_eq!(
+            ProfDagNodeType::from_str("prediction"),
+            Some(ProfDagNodeType::Prediction)
+        );
+        assert_eq!(
+            ProfDagNodeType::from_str("decision"),
+            Some(ProfDagNodeType::Decision)
+        );
         assert_eq!(ProfDagNodeType::from_str("invalid"), None);
     }
 
@@ -771,11 +842,26 @@ mod type_validation_tests {
 
     #[test]
     fn test_edge_type_from_str() {
-        assert_eq!(ProfDagEdgeType::from_str("leads_to"), Some(ProfDagEdgeType::LeadsTo));
-        assert_eq!(ProfDagEdgeType::from_str("SIMILAR_TO"), Some(ProfDagEdgeType::SimilarTo));
-        assert_eq!(ProfDagEdgeType::from_str("derived_from"), Some(ProfDagEdgeType::DerivedFrom));
-        assert_eq!(ProfDagEdgeType::from_str("wormhole"), Some(ProfDagEdgeType::Wormhole));
-        assert_eq!(ProfDagEdgeType::from_str("temporal_link"), Some(ProfDagEdgeType::TemporalLink));
+        assert_eq!(
+            ProfDagEdgeType::from_str("leads_to"),
+            Some(ProfDagEdgeType::LeadsTo)
+        );
+        assert_eq!(
+            ProfDagEdgeType::from_str("SIMILAR_TO"),
+            Some(ProfDagEdgeType::SimilarTo)
+        );
+        assert_eq!(
+            ProfDagEdgeType::from_str("derived_from"),
+            Some(ProfDagEdgeType::DerivedFrom)
+        );
+        assert_eq!(
+            ProfDagEdgeType::from_str("wormhole"),
+            Some(ProfDagEdgeType::Wormhole)
+        );
+        assert_eq!(
+            ProfDagEdgeType::from_str("temporal_link"),
+            Some(ProfDagEdgeType::TemporalLink)
+        );
         assert_eq!(ProfDagEdgeType::from_str("invalid"), None);
     }
 
@@ -859,8 +945,7 @@ mod metadata_tests {
 
     #[test]
     fn test_metadata_serialization() {
-        let node = ProfDagNode::pattern("Test")
-            .with_metadata(serde_json::json!({"key": "value"}));
+        let node = ProfDagNode::pattern("Test").with_metadata(serde_json::json!({"key": "value"}));
 
         let serialized = serde_json::to_string(&node).unwrap();
         let deserialized: ProfDagNode = serde_json::from_str(&serialized).unwrap();
@@ -974,15 +1059,16 @@ mod edge_cases {
     #[test]
     fn test_high_dimensional_embedding() {
         let embedding = normalized_embedding(1536); // Large embedding dimension
-        let node = ProfDagNode::pattern("High-dim embedding")
-            .with_embedding(embedding);
+        let node = ProfDagNode::pattern("High-dim embedding").with_embedding(embedding);
         assert_eq!(node.embedding.as_ref().unwrap().len(), 1536);
     }
 
     #[test]
     fn test_single_node_graph() {
         let mut storage = TestProfDagStorage::new();
-        let id = storage.create_node(ProfDagNode::pattern("Only node")).unwrap();
+        let id = storage
+            .create_node(ProfDagNode::pattern("Only node"))
+            .unwrap();
 
         assert_eq!(storage.node_count(), 1);
         assert_eq!(storage.edge_count(), 0);
@@ -997,7 +1083,9 @@ mod edge_cases {
 
         // Create 10 nodes
         for i in 0..10 {
-            let id = storage.create_node(ProfDagNode::pattern(format!("Node {}", i))).unwrap();
+            let id = storage
+                .create_node(ProfDagNode::pattern(format!("Node {}", i)))
+                .unwrap();
             ids.push(id);
         }
 
@@ -1005,7 +1093,9 @@ mod edge_cases {
         for i in 0..ids.len() {
             for j in 0..ids.len() {
                 if i != j {
-                    storage.create_edge(ProfDagEdge::leads_to(&ids[i], &ids[j], 0.5)).unwrap();
+                    storage
+                        .create_edge(ProfDagEdge::leads_to(&ids[i], &ids[j], 0.5))
+                        .unwrap();
                 }
             }
         }
@@ -1030,7 +1120,9 @@ mod performance_tests {
 
         let start = Instant::now();
         for i in 0..count {
-            storage.create_node(ProfDagNode::pattern(format!("Pattern {}", i))).unwrap();
+            storage
+                .create_node(ProfDagNode::pattern(format!("Pattern {}", i)))
+                .unwrap();
         }
         let duration = start.elapsed();
 
@@ -1049,13 +1141,17 @@ mod performance_tests {
         // Create nodes first
         let mut ids = Vec::new();
         for i in 0..100 {
-            let id = storage.create_node(ProfDagNode::pattern(format!("Node {}", i))).unwrap();
+            let id = storage
+                .create_node(ProfDagNode::pattern(format!("Node {}", i)))
+                .unwrap();
             ids.push(id);
         }
 
         let start = Instant::now();
         for i in 0..99 {
-            storage.create_edge(ProfDagEdge::leads_to(&ids[i], &ids[i + 1], 0.5)).unwrap();
+            storage
+                .create_edge(ProfDagEdge::leads_to(&ids[i], &ids[i + 1], 0.5))
+                .unwrap();
         }
         let duration = start.elapsed();
 
@@ -1073,7 +1169,9 @@ mod performance_tests {
         let mut ids = Vec::new();
 
         for i in 0..1000 {
-            let id = storage.create_node(ProfDagNode::pattern(format!("Pattern {}", i))).unwrap();
+            let id = storage
+                .create_node(ProfDagNode::pattern(format!("Pattern {}", i)))
+                .unwrap();
             ids.push(id);
         }
 
@@ -1096,7 +1194,9 @@ mod performance_tests {
         let mut storage = TestProfDagStorage::new();
 
         for i in 0..5000 {
-            storage.create_node(ProfDagNode::pattern(format!("Pattern {}", i))).unwrap();
+            storage
+                .create_node(ProfDagNode::pattern(format!("Pattern {}", i)))
+                .unwrap();
         }
 
         let start = Instant::now();

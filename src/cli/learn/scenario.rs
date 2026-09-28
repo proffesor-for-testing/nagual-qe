@@ -318,7 +318,10 @@ pub async fn run(args: &ScenarioArgs) -> Result<()> {
                 println!("  Scenarios passed: {}", stats.scenarios_passed);
                 println!("  Pass rate: {:.1}%", stats.pass_rate() * 100.0);
                 println!("  Average score: {:.2}", stats.avg_score);
-                println!("  Holdout pass rate: {:.1}%", stats.holdout_pass_rate * 100.0);
+                println!(
+                    "  Holdout pass rate: {:.1}%",
+                    stats.holdout_pass_rate * 100.0
+                );
                 println!("  Holdout count: {}", stats.holdout_count);
 
                 if *verbose {

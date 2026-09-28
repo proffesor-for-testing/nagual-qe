@@ -308,7 +308,8 @@ impl BatchEmbedder {
             // Try batch embedding
             match self.embedder.embed_batch(&texts) {
                 Ok(embeddings) => {
-                    for (_i, ((id, text), result)) in chunk.iter().zip(embeddings.iter()).enumerate()
+                    for (_i, ((id, text), result)) in
+                        chunk.iter().zip(embeddings.iter()).enumerate()
                     {
                         items.push(ProcessedRecord {
                             id: id.to_string(),
@@ -682,7 +683,8 @@ impl BatchEmbedder {
             // Try batch embedding
             match self.embedder.embed_batch(&texts) {
                 Ok(embeddings) => {
-                    for (_i, ((id, text), result)) in chunk.iter().zip(embeddings.iter()).enumerate()
+                    for (_i, ((id, text), result)) in
+                        chunk.iter().zip(embeddings.iter()).enumerate()
                     {
                         items.push(ProcessedRecord {
                             id: id.to_string(),

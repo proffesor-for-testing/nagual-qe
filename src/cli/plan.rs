@@ -233,11 +233,9 @@ impl PlanCommand {
 
         // Query pattern count
         if let Ok(Some(count)) = db
-            .query_one(
-                "SELECT COUNT(*) FROM reasoning_patterns",
-                &[],
-                |row| row.get::<_, i64>(0),
-            )
+            .query_one("SELECT COUNT(*) FROM reasoning_patterns", &[], |row| {
+                row.get::<_, i64>(0)
+            })
             .await
         {
             state.set_number("pattern_count", count as f64);
@@ -310,11 +308,10 @@ impl PlanCommand {
         info!("Creating plan for goal: {}", goal_desc);
 
         // Parse goal from natural language
-        let mut goal = GoalParser::parse(goal_desc).map_err(|e| {
-            crate::error::NagualError::Internal {
+        let mut goal =
+            GoalParser::parse(goal_desc).map_err(|e| crate::error::NagualError::Internal {
                 message: format!("Failed to parse goal: {}", e),
-            }
-        })?;
+            })?;
         goal.priority = priority;
 
         // Create planner with default actions
@@ -328,11 +325,12 @@ impl PlanCommand {
         );
 
         // Plan
-        let plan = planner.plan(&current, &goal).map_err(|e| {
-            crate::error::NagualError::Internal {
-                message: format!("Planning failed: {}", e),
-            }
-        })?;
+        let plan =
+            planner
+                .plan(&current, &goal)
+                .map_err(|e| crate::error::NagualError::Internal {
+                    message: format!("Planning failed: {}", e),
+                })?;
 
         // Save plan to SQLite
         storage.save(&plan).await?;
@@ -351,8 +349,8 @@ impl PlanCommand {
         if execute && !plan.actions.is_empty() {
             println!();
             println!("Executing plan...");
-            let context = ExecutionContext::new(storage.clone(), db.clone())
-                .with_dry_run(self.dry_run);
+            let context =
+                ExecutionContext::new(storage.clone(), db.clone()).with_dry_run(self.dry_run);
             let executor = PlanExecutor::new(context);
             let mut plan = plan;
             let results = executor.execute_all(&mut plan).await.map_err(|e| {
@@ -417,11 +415,13 @@ impl PlanCommand {
         storage: Arc<PlanStorage>,
         db: Arc<SqliteDb>,
     ) -> Result<(), crate::error::NagualError> {
-        let mut plan = storage.load(plan_id).await?.ok_or_else(|| {
-            crate::error::NagualError::Internal {
-                message: format!("Plan not found: {}", plan_id),
-            }
-        })?;
+        let mut plan =
+            storage
+                .load(plan_id)
+                .await?
+                .ok_or_else(|| crate::error::NagualError::Internal {
+                    message: format!("Plan not found: {}", plan_id),
+                })?;
 
         let mut context =
             ExecutionContext::new(storage.clone(), db.clone()).with_dry_run(self.dry_run);
@@ -487,11 +487,13 @@ impl PlanCommand {
         storage: Arc<PlanStorage>,
         db: Arc<SqliteDb>,
     ) -> Result<(), crate::error::NagualError> {
-        let mut plan = storage.load(plan_id).await?.ok_or_else(|| {
-            crate::error::NagualError::Internal {
-                message: format!("Plan not found: {}", plan_id),
-            }
-        })?;
+        let mut plan =
+            storage
+                .load(plan_id)
+                .await?
+                .ok_or_else(|| crate::error::NagualError::Internal {
+                    message: format!("Plan not found: {}", plan_id),
+                })?;
 
         let mut context = ExecutionContext::new(storage.clone(), db.clone())
             .with_dry_run(self.dry_run)
@@ -620,7 +622,11 @@ impl PlanCommand {
             let cat_lower = cat.to_lowercase();
             actions
                 .into_iter()
-                .filter(|a| format!("{:?}", a.category).to_lowercase().contains(&cat_lower))
+                .filter(|a| {
+                    format!("{:?}", a.category)
+                        .to_lowercase()
+                        .contains(&cat_lower)
+                })
                 .collect()
         } else {
             actions
@@ -658,11 +664,13 @@ impl PlanCommand {
         plan_id: &str,
         storage: Arc<PlanStorage>,
     ) -> Result<(), crate::error::NagualError> {
-        let mut plan = storage.load(plan_id).await?.ok_or_else(|| {
-            crate::error::NagualError::Internal {
-                message: format!("Plan not found: {}", plan_id),
-            }
-        })?;
+        let mut plan =
+            storage
+                .load(plan_id)
+                .await?
+                .ok_or_else(|| crate::error::NagualError::Internal {
+                    message: format!("Plan not found: {}", plan_id),
+                })?;
 
         plan.status = PlanStatus::Cancelled;
         storage.save(&plan).await?;
@@ -759,7 +767,11 @@ impl PlanCommand {
                         })
                     );
                 } else {
-                    println!("Workflow '{}' has {} error(s):", workflow.name, errors.len());
+                    println!(
+                        "Workflow '{}' has {} error(s):",
+                        workflow.name,
+                        errors.len()
+                    );
                     for err in &errors {
                         println!("  - {}", err);
                     }

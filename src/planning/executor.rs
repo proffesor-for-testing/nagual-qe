@@ -93,11 +93,7 @@ impl ExecutionContext {
     }
 
     /// Enable re-planning on failure with a planner and initial state
-    pub fn with_replanning(
-        mut self,
-        planner: Arc<GOAPPlanner>,
-        initial_state: WorldState,
-    ) -> Self {
+    pub fn with_replanning(mut self, planner: Arc<GOAPPlanner>, initial_state: WorldState) -> Self {
         self.replan_config = ReplanConfig::enabled();
         self.planner = Some(planner);
         self.initial_state = Some(initial_state);
@@ -325,9 +321,9 @@ impl PlanExecutor {
                 ))
             }
 
-            "update_pattern" => {
-                Ok(Some("Pattern update capability available via 'nagual knowledge'".into()))
-            }
+            "update_pattern" => Ok(Some(
+                "Pattern update capability available via 'nagual knowledge'".into(),
+            )),
 
             "tag_pattern" => {
                 // Query untagged patterns
@@ -384,19 +380,15 @@ impl PlanExecutor {
             }
 
             // ==================== Analysis Actions ====================
-            "analyze_codebase" => {
-                Ok(Some(
-                    "Codebase analysis available via 'nagual transfuse <path>'".into(),
-                ))
-            }
+            "analyze_codebase" => Ok(Some(
+                "Codebase analysis available via 'nagual transfuse <path>'".into(),
+            )),
 
             "identify_patterns" => {
                 let pattern_count: i64 = db
-                    .query_one(
-                        "SELECT COUNT(*) FROM reasoning_patterns",
-                        &[],
-                        |row| row.get(0),
-                    )
+                    .query_one("SELECT COUNT(*) FROM reasoning_patterns", &[], |row| {
+                        row.get(0)
+                    })
                     .await
                     .unwrap_or(Some(0))
                     .unwrap_or(0);
@@ -451,11 +443,9 @@ impl PlanExecutor {
                     .unwrap_or(Some(0))
                     .unwrap_or(0);
                 let total: i64 = db
-                    .query_one(
-                        "SELECT COUNT(*) FROM reasoning_patterns",
-                        &[],
-                        |row| row.get(0),
-                    )
+                    .query_one("SELECT COUNT(*) FROM reasoning_patterns", &[], |row| {
+                        row.get(0)
+                    })
                     .await
                     .unwrap_or(Some(1))
                     .unwrap_or(1);
@@ -471,11 +461,9 @@ impl PlanExecutor {
             "introspect" => {
                 // Run actual introspection query
                 let total_patterns: i64 = db
-                    .query_one(
-                        "SELECT COUNT(*) FROM reasoning_patterns",
-                        &[],
-                        |row| row.get(0),
-                    )
+                    .query_one("SELECT COUNT(*) FROM reasoning_patterns", &[], |row| {
+                        row.get(0)
+                    })
                     .await
                     .unwrap_or(Some(0))
                     .unwrap_or(0);
@@ -498,11 +486,9 @@ impl PlanExecutor {
                     .unwrap_or(Some(0))
                     .unwrap_or(0);
                 let avg_reward: f64 = db
-                    .query_one(
-                        "SELECT AVG(reward) FROM reasoning_patterns",
-                        &[],
-                        |row| row.get(0),
-                    )
+                    .query_one("SELECT AVG(reward) FROM reasoning_patterns", &[], |row| {
+                        row.get(0)
+                    })
                     .await
                     .unwrap_or(Some(0.5))
                     .unwrap_or(0.5);
@@ -518,17 +504,13 @@ impl PlanExecutor {
             }
 
             // ==================== Testing Actions ====================
-            "run_tests" => {
-                Ok(Some(
-                    "Test execution available via 'cargo test' in nagual-rs/".into(),
-                ))
-            }
+            "run_tests" => Ok(Some(
+                "Test execution available via 'cargo test' in nagual-rs/".into(),
+            )),
 
-            "verify_pattern" => {
-                Ok(Some(
-                    "Pattern verification available via validation scenarios".into(),
-                ))
-            }
+            "verify_pattern" => Ok(Some(
+                "Pattern verification available via validation scenarios".into(),
+            )),
 
             "validate_coherence" => {
                 // Check if coherence gate is available
@@ -553,23 +535,17 @@ impl PlanExecutor {
             }
 
             // ==================== Improvement Actions ====================
-            "improve_domain" => {
-                Ok(Some(
-                    "Domain improvement available via 'nagual learn improve <domain>'".into(),
-                ))
-            }
+            "improve_domain" => Ok(Some(
+                "Domain improvement available via 'nagual learn improve <domain>'".into(),
+            )),
 
-            "record_success" => {
-                Ok(Some(
-                    "Success recording available via 'nagual learn record <id> success'".into(),
-                ))
-            }
+            "record_success" => Ok(Some(
+                "Success recording available via 'nagual learn record <id> success'".into(),
+            )),
 
-            "record_failure" => {
-                Ok(Some(
-                    "Failure recording available via 'nagual learn record <id> failure'".into(),
-                ))
-            }
+            "record_failure" => Ok(Some(
+                "Failure recording available via 'nagual learn record <id> failure'".into(),
+            )),
 
             "refresh_stale" => {
                 // Find stale patterns (older than 90 days with no recent access)
@@ -596,11 +572,9 @@ impl PlanExecutor {
             // ==================== Consolidation Actions ====================
             "consolidate_similar" => {
                 let pattern_count: i64 = db
-                    .query_one(
-                        "SELECT COUNT(*) FROM reasoning_patterns",
-                        &[],
-                        |row| row.get(0),
-                    )
+                    .query_one("SELECT COUNT(*) FROM reasoning_patterns", &[], |row| {
+                        row.get(0)
+                    })
                     .await
                     .unwrap_or(Some(0))
                     .unwrap_or(0);
@@ -803,11 +777,10 @@ impl PlanExecutor {
             });
         }
 
-        let planner = self
-            .context
-            .planner
-            .as_ref()
-            .ok_or_else(|| ExecutionError::Other("No planner configured for replanning".into()))?;
+        let planner =
+            self.context.planner.as_ref().ok_or_else(|| {
+                ExecutionError::Other("No planner configured for replanning".into())
+            })?;
 
         // Record this attempt
         self.context.replan_config.record_attempt();
@@ -1077,8 +1050,8 @@ mod tests {
         let context = ExecutionContext::new(storage, db);
         let executor = PlanExecutor::new(context);
 
-        let goal =
-            Goal::new("Introspect", "Run introspection").with_condition(Condition::is_true("introspection_complete"));
+        let goal = Goal::new("Introspect", "Run introspection")
+            .with_condition(Condition::is_true("introspection_complete"));
 
         let actions = vec![PlannedAction::new(
             Action::new("introspect", "Run Self-Introspection")
@@ -1104,8 +1077,7 @@ mod tests {
         let mut initial = WorldState::new();
         initial.set_bool("resources_available", true);
 
-        let context = ExecutionContext::new(storage, db)
-            .with_replanning(planner, initial.clone());
+        let context = ExecutionContext::new(storage, db).with_replanning(planner, initial.clone());
         let executor = PlanExecutor::new(context);
 
         // Create a plan with completed actions that have effects
@@ -1177,6 +1149,9 @@ mod tests {
 
         // Should fail with exhausted error since replanning is not enabled
         let result = executor.attempt_replan(&mut plan);
-        assert!(matches!(result, Err(ExecutionError::ReplanExhausted { .. })));
+        assert!(matches!(
+            result,
+            Err(ExecutionError::ReplanExhausted { .. })
+        ));
     }
 }

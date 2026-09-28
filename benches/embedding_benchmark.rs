@@ -10,12 +10,10 @@
 //! - HNSW index building: O(n log n)
 //! - Query throughput: > 100 queries/second for 10K vectors
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::prelude::*;
-use std::collections::BinaryHeap;
 use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 
 // ============================================================================
 // Test Data Generation
@@ -52,10 +50,7 @@ fn dot_product(a: &[f32], b: &[f32]) -> f32 {
 /// Compute L2 squared distance
 #[inline]
 fn l2_squared(a: &[f32], b: &[f32]) -> f32 {
-    a.iter()
-        .zip(b.iter())
-        .map(|(x, y)| (x - y) * (x - y))
-        .sum()
+    a.iter().zip(b.iter()).map(|(x, y)| (x - y) * (x - y)).sum()
 }
 
 /// SIMD-friendly dot product using chunks
@@ -113,16 +108,15 @@ impl PartialOrd for SearchEntry {
 impl Ord for SearchEntry {
     fn cmp(&self, other: &Self) -> Ordering {
         // Min-heap: lower scores have higher priority
-        other.score.partial_cmp(&self.score).unwrap_or(Ordering::Equal)
+        other
+            .score
+            .partial_cmp(&self.score)
+            .unwrap_or(Ordering::Equal)
     }
 }
 
 /// Brute force k-NN search using a min-heap
-fn brute_force_knn(
-    vectors: &[Vec<f32>],
-    query: &[f32],
-    k: usize,
-) -> Vec<(usize, f32)> {
+fn brute_force_knn(vectors: &[Vec<f32>], query: &[f32], k: usize) -> Vec<(usize, f32)> {
     let mut heap: BinaryHeap<SearchEntry> = BinaryHeap::with_capacity(k + 1);
 
     for (idx, vec) in vectors.iter().enumerate() {
@@ -138,10 +132,7 @@ fn brute_force_knn(
         }
     }
 
-    let mut results: Vec<(usize, f32)> = heap
-        .into_iter()
-        .map(|e| (e.index, e.score))
-        .collect();
+    let mut results: Vec<(usize, f32)> = heap.into_iter().map(|e| (e.index, e.score)).collect();
     results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
     results
 }
@@ -162,7 +153,7 @@ struct SimpleHnswIndex {
     // Graph layers: layer -> node -> neighbors
     layers: Vec<Vec<Vec<usize>>>,
     entry_point: usize,
-    m: usize,        // Max connections per node
+    m: usize, // Max connections per node
     ef_construction: usize,
 }
 
@@ -225,11 +216,7 @@ impl SimpleHnswIndex {
             let neighbors = self.search_layer(&self.vectors[idx], ep, self.ef_construction, l);
 
             // Select m best neighbors
-            let selected: Vec<usize> = neighbors
-                .into_iter()
-                .take(self.m)
-                .map(|(i, _)| i)
-                .collect();
+            let selected: Vec<usize> = neighbors.into_iter().take(self.m).map(|(i, _)| i).collect();
 
             // Add bidirectional connections
             for &neighbor in &selected {
@@ -350,21 +337,13 @@ fn bench_dot_product(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(*dim as u64));
 
-        group.bench_with_input(
-            BenchmarkId::new("standard", dim),
-            dim,
-            |bench, _| {
-                bench.iter(|| black_box(dot_product(&a, &b)))
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("standard", dim), dim, |bench, _| {
+            bench.iter(|| black_box(dot_product(&a, &b)))
+        });
 
-        group.bench_with_input(
-            BenchmarkId::new("chunked", dim),
-            dim,
-            |bench, _| {
-                bench.iter(|| black_box(dot_product_chunked(&a, &b)))
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("chunked", dim), dim, |bench, _| {
+            bench.iter(|| black_box(dot_product_chunked(&a, &b)))
+        });
     }
 
     group.finish();
@@ -388,9 +367,7 @@ fn bench_brute_force_search(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("knn", vector_count),
             &vector_count,
-            |b, _| {
-                b.iter(|| black_box(brute_force_knn(&vectors, &query, k)))
-            },
+            |b, _| b.iter(|| black_box(brute_force_knn(&vectors, &query, k))),
         );
     }
 
@@ -413,9 +390,7 @@ fn bench_hnsw_build(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("build", vector_count),
             &vector_count,
-            |b, _| {
-                b.iter(|| black_box(SimpleHnswIndex::build(&vectors, m, ef_construction, 42)))
-            },
+            |b, _| b.iter(|| black_box(SimpleHnswIndex::build(&vectors, m, ef_construction, 42))),
         );
     }
 
@@ -444,9 +419,7 @@ fn bench_hnsw_query(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("search", vector_count),
             &vector_count,
-            |b, _| {
-                b.iter(|| black_box(index.search(&query, k, ef_search)))
-            },
+            |b, _| b.iter(|| black_box(index.search(&query, k, ef_search))),
         );
     }
 
@@ -507,9 +480,7 @@ fn bench_scaling(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("brute_force", vector_count),
             &vector_count,
-            |b, _| {
-                b.iter(|| black_box(brute_force_knn(&vectors, &query, k)))
-            },
+            |b, _| b.iter(|| black_box(brute_force_knn(&vectors, &query, k))),
         );
     }
 
@@ -530,13 +501,9 @@ fn bench_dimension_impact(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(dim as u64 * vector_count as u64));
 
-        group.bench_with_input(
-            BenchmarkId::new("dim", dim),
-            &dim,
-            |b, _| {
-                b.iter(|| black_box(brute_force_knn(&vectors, &query, k)))
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("dim", dim), &dim, |b, _| {
+            b.iter(|| black_box(brute_force_knn(&vectors, &query, k)))
+        });
     }
 
     group.finish();

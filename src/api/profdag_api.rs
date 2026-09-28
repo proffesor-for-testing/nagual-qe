@@ -31,8 +31,8 @@ use tracing::{debug, info, instrument};
 use super::NagualState;
 use crate::error::{NagualError, Result};
 use crate::profdag::{
-    ProfDAGEdge, ProfDAGNode, ProfDAGSearch, ProfDAGStats, ProfDAGStorage,
-    RecorderConfig, SearchConfig, TrajectoryRecorder,
+    ProfDAGEdge, ProfDAGNode, ProfDAGSearch, ProfDAGStats, ProfDAGStorage, RecorderConfig,
+    SearchConfig, TrajectoryRecorder,
 };
 
 /// API for ProfDAG knowledge graph operations.

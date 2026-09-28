@@ -530,7 +530,10 @@ mod tests {
 
         assert!(!pattern.id.is_empty());
         assert_eq!(pattern.problem, "How to handle errors?");
-        assert_eq!(pattern.solution, "Use Result type with proper error handling");
+        assert_eq!(
+            pattern.solution,
+            "Use Result type with proper error handling"
+        );
         assert_eq!(pattern.domain, "rust.error_handling");
         assert_eq!(pattern.confidence, 0.5);
         assert_eq!(pattern.reward, 0.5);
@@ -656,10 +659,7 @@ mod tests {
     fn test_domain_is_ancestor() {
         assert!(domain::is_ancestor("rust", "rust.async.tokio"));
         assert!(domain::is_ancestor("rust.async", "rust.async.tokio"));
-        assert!(domain::is_ancestor(
-            "rust.async.tokio",
-            "rust.async.tokio"
-        )); // Self is ancestor
+        assert!(domain::is_ancestor("rust.async.tokio", "rust.async.tokio")); // Self is ancestor
         assert!(!domain::is_ancestor("rust.sync", "rust.async.tokio"));
     }
 
@@ -702,10 +702,8 @@ mod tests {
             PatternTier::check_demotion(PatternTier::Crystal, 0.65),
             None
         ); // above threshold
-        assert_eq!(
-            PatternTier::check_demotion(PatternTier::Booster, 0.1),
-            None
-        ); // can't demote below booster
+        assert_eq!(PatternTier::check_demotion(PatternTier::Booster, 0.1), None);
+        // can't demote below booster
     }
 
     #[test]

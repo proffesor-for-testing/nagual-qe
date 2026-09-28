@@ -350,8 +350,16 @@ impl TieringManager {
             }
 
             let is_promotion = tier_ordinal(new_tier) > tier_ordinal(rec.tier);
-            let promoted_at = if is_promotion { Some(now) } else { rec.promoted_at };
-            let demoted_at = if !is_promotion { Some(now) } else { rec.demoted_at };
+            let promoted_at = if is_promotion {
+                Some(now)
+            } else {
+                rec.promoted_at
+            };
+            let demoted_at = if !is_promotion {
+                Some(now)
+            } else {
+                rec.demoted_at
+            };
 
             self.db
                 .execute(
@@ -401,12 +409,7 @@ impl TieringManager {
             .query(
                 "SELECT tier, COUNT(*) FROM pattern_tiers GROUP BY tier",
                 &[],
-                |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, u64>(1)?,
-                    ))
-                },
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?)),
             )
             .await?;
 
@@ -427,12 +430,7 @@ impl TieringManager {
                 "SELECT COALESCE(SUM(access_count), 0), COALESCE(AVG(access_count), 0.0)
                  FROM pattern_tiers",
                 &[],
-                |row| {
-                    Ok((
-                        row.get::<_, u64>(0)?,
-                        row.get::<_, f64>(1)?,
-                    ))
-                },
+                |row| Ok((row.get::<_, u64>(0)?, row.get::<_, f64>(1)?)),
             )
             .await?;
 
@@ -638,7 +636,9 @@ mod tests {
 
     async fn setup_manager() -> TieringManager {
         let db = setup_test_db().await;
-        TieringManager::new(db, TieringConfig::default()).await.unwrap()
+        TieringManager::new(db, TieringConfig::default())
+            .await
+            .unwrap()
     }
 
     async fn setup_manager_with_config(config: TieringConfig) -> TieringManager {
@@ -837,12 +837,7 @@ mod tests {
         db.execute(
             "INSERT INTO pattern_tiers (pattern_id, access_count, last_accessed, tier)
              VALUES (?, ?, ?, ?)",
-            &[
-                &"stale-hot",
-                &5_i64,
-                &now.to_rfc3339(),
-                &"cold",
-            ],
+            &[&"stale-hot", &5_i64, &now.to_rfc3339(), &"cold"],
         )
         .await
         .unwrap();
@@ -969,10 +964,7 @@ mod tests {
         let manager = setup_manager().await;
         manager.record_access("mp-1").await.unwrap();
 
-        manager
-            .promote("mp-1", TemperatureTier::Hot)
-            .await
-            .unwrap();
+        manager.promote("mp-1", TemperatureTier::Hot).await.unwrap();
         let rec = manager.get_access_record("mp-1").await.unwrap().unwrap();
         assert_eq!(rec.tier, TemperatureTier::Hot);
         assert!(rec.promoted_at.is_some());
@@ -991,10 +983,7 @@ mod tests {
         let rec = manager.get_access_record("md-1").await.unwrap().unwrap();
         assert_eq!(rec.tier, TemperatureTier::Hot);
 
-        manager
-            .demote("md-1", TemperatureTier::Cold)
-            .await
-            .unwrap();
+        manager.demote("md-1", TemperatureTier::Cold).await.unwrap();
         let rec = manager.get_access_record("md-1").await.unwrap().unwrap();
         assert_eq!(rec.tier, TemperatureTier::Cold);
         assert!(rec.demoted_at.is_some());
@@ -1136,11 +1125,7 @@ mod tests {
             manager.record_access("multi-p").await.unwrap();
         }
 
-        let final_rec = manager
-            .get_access_record("multi-p")
-            .await
-            .unwrap()
-            .unwrap();
+        let final_rec = manager.get_access_record("multi-p").await.unwrap().unwrap();
         assert_eq!(final_rec.access_count, 10);
     }
 }

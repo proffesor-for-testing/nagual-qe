@@ -346,11 +346,17 @@ impl PromptFormatter {
         parts.push("<pattern>".to_string());
 
         if self.config.include_domain {
-            parts.push(format!("  <domain>{}</domain>", escape_xml(&pattern.domain)));
+            parts.push(format!(
+                "  <domain>{}</domain>",
+                escape_xml(&pattern.domain)
+            ));
         }
 
         if self.config.include_confidence {
-            parts.push(format!("  <confidence>{:.2}</confidence>", pattern.confidence));
+            parts.push(format!(
+                "  <confidence>{:.2}</confidence>",
+                pattern.confidence
+            ));
         }
 
         if self.config.include_reliability {
@@ -471,7 +477,10 @@ impl PromptFormatter {
 
         // Indicators
         if self.config.include_confidence {
-            parts.push(format!("({})", confidence_indicator_short(pattern.confidence)));
+            parts.push(format!(
+                "({})",
+                confidence_indicator_short(pattern.confidence)
+            ));
         }
 
         if self.config.include_similarity {

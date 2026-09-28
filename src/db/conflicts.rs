@@ -278,9 +278,7 @@ impl ConflictLog {
             "#,
         )?;
 
-        let entry = stmt.query_row([id], |row| {
-            Self::row_to_entry(row)
-        });
+        let entry = stmt.query_row([id], |row| Self::row_to_entry(row));
 
         match entry {
             Ok(e) => Ok(Some(e)),
@@ -290,7 +288,10 @@ impl ConflictLog {
     }
 
     /// Get all pending conflicts.
-    pub fn get_pending(&self, limit: usize) -> std::result::Result<Vec<ConflictLogEntry>, DlqError> {
+    pub fn get_pending(
+        &self,
+        limit: usize,
+    ) -> std::result::Result<Vec<ConflictLogEntry>, DlqError> {
         self.get_by_resolution(ConflictResolution::Pending, limit)
     }
 
@@ -360,7 +361,10 @@ impl ConflictLog {
 
         if rows == 0 {
             warn!(conflict_id = %id, "Conflict not found");
-            return Err(DlqError::DequeueFailed(format!("Conflict {} not found", id)));
+            return Err(DlqError::DequeueFailed(format!(
+                "Conflict {} not found",
+                id
+            )));
         }
 
         info!(
@@ -373,7 +377,10 @@ impl ConflictLog {
     }
 
     /// Auto-resolve pending conflicts using Last-Write-Wins.
-    pub fn auto_resolve_lww(&self, limit: usize) -> std::result::Result<AutoResolveResult, DlqError> {
+    pub fn auto_resolve_lww(
+        &self,
+        limit: usize,
+    ) -> std::result::Result<AutoResolveResult, DlqError> {
         let pending = self.get_pending(limit)?;
         let mut result = AutoResolveResult::default();
 
@@ -436,11 +443,14 @@ impl ConflictLog {
             |row| row.get(0),
         )?;
 
-        let oldest_pending: Option<String> = self.conn.query_row(
-            "SELECT MIN(created_at) FROM conflict_log WHERE resolution = 'pending'",
-            [],
-            |row| row.get(0),
-        ).ok();
+        let oldest_pending: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT MIN(created_at) FROM conflict_log WHERE resolution = 'pending'",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
 
         Ok(ConflictStats {
             pending,
@@ -485,8 +495,7 @@ impl ConflictLog {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(|e| DlqError::DequeueFailed(e.to_string()))?;
 
-        serde_json::to_string_pretty(&entries)
-            .map_err(|e| DlqError::EnqueueFailed(e.to_string()))
+        serde_json::to_string_pretty(&entries).map_err(|e| DlqError::EnqueueFailed(e.to_string()))
     }
 
     /// Convert a database row to a ConflictLogEntry.
@@ -723,7 +732,8 @@ mod tests {
         // Resolve some
         let pending = log.get_pending(3).unwrap();
         for entry in pending {
-            log.resolve(&entry.id, ConflictResolution::LocalWins).unwrap();
+            log.resolve(&entry.id, ConflictResolution::LocalWins)
+                .unwrap();
         }
 
         let stats = log.stats().unwrap();

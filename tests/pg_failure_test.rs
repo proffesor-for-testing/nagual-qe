@@ -7,10 +7,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use nagual::db::{DualWritable, DualWriteAdapter, DualWriteConfig, SqliteDb, PostgresDb};
+use nagual::db::{DualWritable, DualWriteAdapter, DualWriteConfig, PostgresDb, SqliteDb};
 use nagual::error::{
-    CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError, CircuitState,
-    DeadLetterQueue, DlqEntry, Result,
+    CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError, CircuitState, DeadLetterQueue,
+    DlqEntry, Result,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -390,7 +390,9 @@ mod recovery_tests {
 
         // Phase 2: Failures trigger open
         for _ in 0..2 {
-            let _ = breaker.call(|| async { Err::<(), _>("PG unavailable") }).await;
+            let _ = breaker
+                .call(|| async { Err::<(), _>("PG unavailable") })
+                .await;
         }
         assert_eq!(breaker.state(), CircuitState::Open);
 
@@ -430,9 +432,11 @@ mod recovery_tests {
         // Verify data integrity
         let data: Vec<(String, String)> = adapter
             .sqlite()
-            .query("SELECT id, data FROM failover_patterns ORDER BY id", &[], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            })
+            .query(
+                "SELECT id, data FROM failover_patterns ORDER BY id",
+                &[],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
             .await
             .unwrap();
 
@@ -606,8 +610,8 @@ mod retry_backoff_tests {
 
 mod concurrent_dlq_tests {
     use super::*;
-    use std::sync::Arc;
     use parking_lot::Mutex;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_concurrent_dlq_enqueue() {

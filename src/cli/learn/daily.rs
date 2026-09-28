@@ -143,10 +143,7 @@ pub struct DailyLogEntry {
 impl DailyLogEntry {
     /// Returns true if this entry type is promotable to the pattern store.
     pub fn is_promotable(&self) -> bool {
-        matches!(
-            self.entry_type.as_str(),
-            "LEARNED" | "INSIGHT" | "ERROR"
-        )
+        matches!(self.entry_type.as_str(), "LEARNED" | "INSIGHT" | "ERROR")
     }
 }
 
@@ -191,10 +188,7 @@ pub fn parse_daily_log_entry(line: &str) -> Option<DailyLogEntry> {
 ///
 /// Skips header lines, blank lines, and lines that don't match the entry format.
 pub fn parse_daily_log(content: &str) -> Vec<DailyLogEntry> {
-    content
-        .lines()
-        .filter_map(parse_daily_log_entry)
-        .collect()
+    content.lines().filter_map(parse_daily_log_entry).collect()
 }
 
 /// Get today's date in YYYY-MM-DD format (UTC).
@@ -261,7 +255,10 @@ async fn run_show(args: &DailyShowArgs) -> Result<()> {
 /// List available daily log files.
 async fn run_list(args: &DailyListArgs) -> Result<()> {
     if !args.log_dir.exists() {
-        println!("No daily logs directory found at {}", args.log_dir.display());
+        println!(
+            "No daily logs directory found at {}",
+            args.log_dir.display()
+        );
         return Ok(());
     }
 
@@ -406,7 +403,11 @@ async fn run_promote(args: &DailyPromoteArgs) -> Result<()> {
     }
 
     println!();
-    println!("{} / {} entries promoted to pattern store", promoted, promotable.len());
+    println!(
+        "{} / {} entries promoted to pattern store",
+        promoted,
+        promotable.len()
+    );
 
     Ok(())
 }
@@ -414,7 +415,10 @@ async fn run_promote(args: &DailyPromoteArgs) -> Result<()> {
 /// Clean up old daily logs.
 async fn run_cleanup(args: &DailyCleanupArgs) -> Result<()> {
     if !args.log_dir.exists() {
-        println!("No daily logs directory found at {}", args.log_dir.display());
+        println!(
+            "No daily logs directory found at {}",
+            args.log_dir.display()
+        );
         return Ok(());
     }
 
@@ -526,11 +530,7 @@ mod tests {
         for (line, expected_type, expected_content) in cases {
             let entry = parse_daily_log_entry(line).unwrap();
             assert_eq!(entry.entry_type, expected_type, "Failed for line: {}", line);
-            assert_eq!(
-                entry.content, expected_content,
-                "Failed for line: {}",
-                line
-            );
+            assert_eq!(entry.content, expected_content, "Failed for line: {}", line);
         }
     }
 

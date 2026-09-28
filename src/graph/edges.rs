@@ -97,10 +97,7 @@ impl GraphStorage {
         };
 
         // Configure SQLite
-        let mut pragmas = vec![format!(
-            "PRAGMA busy_timeout = {};",
-            config.busy_timeout_ms
-        )];
+        let mut pragmas = vec![format!("PRAGMA busy_timeout = {};", config.busy_timeout_ms)];
 
         if config.wal_mode && config.path != ":memory:" {
             pragmas.push("PRAGMA journal_mode = WAL;".to_string());
@@ -252,11 +249,8 @@ impl GraphStorage {
     pub async fn stats(&self) -> Result<GraphStats, GraphError> {
         let conn = self.conn.read().await;
 
-        let edge_count: usize = conn.query_row(
-            "SELECT COUNT(*) FROM context_graph",
-            [],
-            |row| row.get(0),
-        )?;
+        let edge_count: usize =
+            conn.query_row("SELECT COUNT(*) FROM context_graph", [], |row| row.get(0))?;
 
         let node_count: usize = conn.query_row(
             "SELECT COUNT(DISTINCT source_id) + COUNT(DISTINCT target_id) FROM context_graph",
@@ -264,9 +258,8 @@ impl GraphStorage {
             |row| row.get(0),
         )?;
 
-        let mut stmt = conn.prepare(
-            "SELECT edge_type, COUNT(*) FROM context_graph GROUP BY edge_type",
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT edge_type, COUNT(*) FROM context_graph GROUP BY edge_type")?;
         let edges_by_type: Vec<(String, usize)> = stmt
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
             .filter_map(|r| r.ok())

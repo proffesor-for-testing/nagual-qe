@@ -1,9 +1,8 @@
 //! Integration tests for the FastGRNN-based vendor router.
 
 use nagual::router::{
-    ComplexityEstimator, ComplexityLevel, EstimatorConfig, FastGRNN, FastGRNNConfig,
-    FallbackChain, RouterConfig, RoutingDecision, Vendor, VendorConfig,
-    VendorRouter, VendorSelector,
+    ComplexityEstimator, ComplexityLevel, EstimatorConfig, FallbackChain, FastGRNN, FastGRNNConfig,
+    RouterConfig, RoutingDecision, Vendor, VendorConfig, VendorRouter, VendorSelector,
 };
 
 /// Generate a sample normalized embedding for testing.
@@ -207,7 +206,10 @@ fn test_fallback_chain_operations() {
 
     assert_eq!(chain.vendors.len(), 4);
     assert!(chain.contains(Vendor::Claude));
-    assert_eq!(chain.next_after(Vendor::LocalSmall), Some(Vendor::LocalLarge));
+    assert_eq!(
+        chain.next_after(Vendor::LocalSmall),
+        Some(Vendor::LocalLarge)
+    );
     assert_eq!(chain.next_after(Vendor::GPT), None);
 
     // Starting from Claude

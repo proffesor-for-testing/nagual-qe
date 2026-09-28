@@ -35,7 +35,7 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::learning::trajectory::{Trajectory, TrajectoryStep, StepType};
+use crate::learning::trajectory::{StepType, Trajectory, TrajectoryStep};
 use crate::profdag::node::NodeType;
 use crate::profdag::search::ProfDAGSearch;
 use crate::profdag::storage::{ProfDAGStorage, SimilarNode};
@@ -380,9 +380,7 @@ impl ENagual {
         // Trajectory hints section
         if !self.trajectory_hints.is_empty() {
             sections.push("\n## Reasoning Hints".to_string());
-            sections.push(
-                "Based on past successful reasoning trajectories:".to_string(),
-            );
+            sections.push("Based on past successful reasoning trajectories:".to_string());
             for hint in &self.trajectory_hints {
                 sections.push(format!(
                     "- {} (Confidence: {:.0}%)",
@@ -398,8 +396,7 @@ impl ENagual {
             for pattern in &self.negative_examples {
                 sections.push(format!(
                     "- **{}**: {} (Failed approach)",
-                    pattern.problem,
-                    pattern.solution
+                    pattern.problem, pattern.solution
                 ));
             }
         }
@@ -453,10 +450,7 @@ impl ENagual {
                     "      <similarity>{:.2}</similarity>",
                     scored.similarity
                 ));
-                parts.push(format!(
-                    "      <reward>{:.2}</reward>",
-                    pattern.reward
-                ));
+                parts.push(format!("      <reward>{:.2}</reward>", pattern.reward));
                 parts.push(format!(
                     "      <problem>{}</problem>",
                     escape_xml(&pattern.problem)
@@ -467,10 +461,7 @@ impl ENagual {
                 ));
                 if let Some(ref ctx) = pattern.context {
                     if !ctx.is_empty() {
-                        parts.push(format!(
-                            "      <context>{}</context>",
-                            escape_xml(ctx)
-                        ));
+                        parts.push(format!("      <context>{}</context>", escape_xml(ctx)));
                     }
                 }
                 parts.push("    </pattern>".to_string());
@@ -487,7 +478,10 @@ impl ENagual {
                     "      <decision>{}</decision>",
                     escape_xml(&hint.decision)
                 ));
-                parts.push(format!("      <confidence>{:.2}</confidence>", hint.confidence));
+                parts.push(format!(
+                    "      <confidence>{:.2}</confidence>",
+                    hint.confidence
+                ));
                 parts.push("    </hint>".to_string());
             }
             parts.push("  </reasoning_hints>".to_string());
@@ -524,44 +518,93 @@ impl ENagual {
         // Build a serializable representation manually
         let mut obj = serde_json::Map::new();
 
-        obj.insert("query".to_string(), serde_json::Value::String(self.query.clone()));
-        obj.insert("overall_confidence".to_string(),
-            serde_json::Value::Number(serde_json::Number::from_f64(self.overall_confidence() as f64).unwrap()));
-        obj.insert("computed_at".to_string(),
-            serde_json::Value::String(self.computed_at.to_rfc3339()));
+        obj.insert(
+            "query".to_string(),
+            serde_json::Value::String(self.query.clone()),
+        );
+        obj.insert(
+            "overall_confidence".to_string(),
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(self.overall_confidence() as f64).unwrap(),
+            ),
+        );
+        obj.insert(
+            "computed_at".to_string(),
+            serde_json::Value::String(self.computed_at.to_rfc3339()),
+        );
 
         // Add patterns
-        let patterns: Vec<serde_json::Value> = self.relevant_patterns.iter().map(|scored| {
-            let pattern = &scored.pattern;
-            let mut p = serde_json::Map::new();
-            p.insert("problem".to_string(), serde_json::Value::String(pattern.problem.clone()));
-            p.insert("solution".to_string(), serde_json::Value::String(pattern.solution.clone()));
-            p.insert("similarity".to_string(),
-                serde_json::Value::Number(serde_json::Number::from_f64(scored.similarity as f64).unwrap()));
-            p.insert("reward".to_string(),
-                serde_json::Value::Number(serde_json::Number::from_f64(pattern.reward as f64).unwrap()));
-            if let Some(ref ctx) = pattern.context {
-                p.insert("context".to_string(), serde_json::Value::String(ctx.clone()));
-            }
-            serde_json::Value::Object(p)
-        }).collect();
+        let patterns: Vec<serde_json::Value> = self
+            .relevant_patterns
+            .iter()
+            .map(|scored| {
+                let pattern = &scored.pattern;
+                let mut p = serde_json::Map::new();
+                p.insert(
+                    "problem".to_string(),
+                    serde_json::Value::String(pattern.problem.clone()),
+                );
+                p.insert(
+                    "solution".to_string(),
+                    serde_json::Value::String(pattern.solution.clone()),
+                );
+                p.insert(
+                    "similarity".to_string(),
+                    serde_json::Value::Number(
+                        serde_json::Number::from_f64(scored.similarity as f64).unwrap(),
+                    ),
+                );
+                p.insert(
+                    "reward".to_string(),
+                    serde_json::Value::Number(
+                        serde_json::Number::from_f64(pattern.reward as f64).unwrap(),
+                    ),
+                );
+                if let Some(ref ctx) = pattern.context {
+                    p.insert(
+                        "context".to_string(),
+                        serde_json::Value::String(ctx.clone()),
+                    );
+                }
+                serde_json::Value::Object(p)
+            })
+            .collect();
         obj.insert("patterns".to_string(), serde_json::Value::Array(patterns));
 
         // Add trajectory hints
-        let hints: Vec<serde_json::Value> = self.trajectory_hints.iter().map(|hint| {
-            let mut h = serde_json::Map::new();
-            h.insert("decision".to_string(), serde_json::Value::String(hint.decision.clone()));
-            h.insert("confidence".to_string(),
-                serde_json::Value::Number(serde_json::Number::from_f64(hint.confidence as f64).unwrap()));
-            serde_json::Value::Object(h)
-        }).collect();
-        obj.insert("trajectory_hints".to_string(), serde_json::Value::Array(hints));
+        let hints: Vec<serde_json::Value> = self
+            .trajectory_hints
+            .iter()
+            .map(|hint| {
+                let mut h = serde_json::Map::new();
+                h.insert(
+                    "decision".to_string(),
+                    serde_json::Value::String(hint.decision.clone()),
+                );
+                h.insert(
+                    "confidence".to_string(),
+                    serde_json::Value::Number(
+                        serde_json::Number::from_f64(hint.confidence as f64).unwrap(),
+                    ),
+                );
+                serde_json::Value::Object(h)
+            })
+            .collect();
+        obj.insert(
+            "trajectory_hints".to_string(),
+            serde_json::Value::Array(hints),
+        );
 
         // Add neighbors
-        let neighbors: Vec<serde_json::Value> = self.hnsw_neighbors.iter()
+        let neighbors: Vec<serde_json::Value> = self
+            .hnsw_neighbors
+            .iter()
             .map(|id| serde_json::Value::String(id.clone()))
             .collect();
-        obj.insert("hnsw_neighbors".to_string(), serde_json::Value::Array(neighbors));
+        obj.insert(
+            "hnsw_neighbors".to_string(),
+            serde_json::Value::Array(neighbors),
+        );
 
         serde_json::to_string_pretty(&obj).unwrap_or_default()
     }
@@ -583,7 +626,8 @@ impl ENagual {
 
     /// Set a confidence score for an aspect.
     pub fn set_confidence(&mut self, aspect: impl Into<String>, score: f32) {
-        self.confidence_scores.insert(aspect.into(), score.clamp(0.0, 1.0));
+        self.confidence_scores
+            .insert(aspect.into(), score.clamp(0.0, 1.0));
     }
 }
 
@@ -722,7 +766,11 @@ impl ENagualBuilder {
         max_neighbors: usize,
     ) -> Self {
         match search
-            .find_similar(query_embedding, max_neighbors, self.config.min_neighbor_similarity as f32)
+            .find_similar(
+                query_embedding,
+                max_neighbors,
+                self.config.min_neighbor_similarity as f32,
+            )
             .await
         {
             Ok(results) => {
@@ -777,11 +825,7 @@ impl ENagualBuilder {
                     }
                 }
                 Err(e) => {
-                    tracing::warn!(
-                        "ENagualBuilder::from_storage failed for type {}: {}",
-                        nt,
-                        e
-                    );
+                    tracing::warn!("ENagualBuilder::from_storage failed for type {}: {}", nt, e);
                 }
             }
         }
@@ -798,25 +842,30 @@ impl ENagualBuilder {
 
         // Calculate pattern confidence
         if !self.patterns.is_empty() {
-            let avg_pattern_confidence: f32 = self.patterns
+            let avg_pattern_confidence: f32 = self
+                .patterns
                 .iter()
                 .map(|p| p.pattern.confidence)
-                .sum::<f32>() / self.patterns.len() as f32;
+                .sum::<f32>()
+                / self.patterns.len() as f32;
             confidence_scores.insert("patterns".to_string(), avg_pattern_confidence);
         }
 
         // Calculate trajectory confidence
         if !self.trajectory_hints.is_empty() {
-            let avg_trajectory_confidence: f32 = self.trajectory_hints
+            let avg_trajectory_confidence: f32 = self
+                .trajectory_hints
                 .iter()
                 .map(|h| h.confidence)
-                .sum::<f32>() / self.trajectory_hints.len() as f32;
+                .sum::<f32>()
+                / self.trajectory_hints.len() as f32;
             confidence_scores.insert("trajectories".to_string(), avg_trajectory_confidence);
         }
 
         // Calculate neighbor confidence (based on count)
         if !self.neighbor_ids.is_empty() {
-            let neighbor_confidence = (self.neighbor_ids.len() as f32 / self.config.max_neighbors as f32).min(1.0);
+            let neighbor_confidence =
+                (self.neighbor_ids.len() as f32 / self.config.max_neighbors as f32).min(1.0);
             confidence_scores.insert("neighbors".to_string(), neighbor_confidence);
         }
 
@@ -853,7 +902,7 @@ mod tests {
         let pattern = Pattern::new(
             "How to handle database timeouts?",
             "Use connection pooling with retry logic",
-            "database.resilience"
+            "database.resilience",
         )
         .with_context("Common in microservices")
         .with_confidence(0.85)
@@ -893,8 +942,7 @@ mod tests {
     #[test]
     fn test_e_nagual_with_patterns() {
         let patterns = vec![create_test_scored_pattern()];
-        let e_nagual = ENagual::new("test")
-            .with_patterns(patterns);
+        let e_nagual = ENagual::new("test").with_patterns(patterns);
 
         assert!(e_nagual.has_content());
         assert_eq!(e_nagual.pattern_count(), 1);
@@ -903,8 +951,7 @@ mod tests {
     #[test]
     fn test_e_nagual_to_prompt_prefix() {
         let patterns = vec![create_test_scored_pattern()];
-        let e_nagual = ENagual::new("test")
-            .with_patterns(patterns);
+        let e_nagual = ENagual::new("test").with_patterns(patterns);
 
         let prefix = e_nagual.to_prompt_prefix();
         assert!(prefix.contains("Learned Context"));
@@ -916,8 +963,7 @@ mod tests {
     #[test]
     fn test_e_nagual_to_xml_context() {
         let patterns = vec![create_test_scored_pattern()];
-        let e_nagual = ENagual::new("test")
-            .with_patterns(patterns);
+        let e_nagual = ENagual::new("test").with_patterns(patterns);
 
         let xml = e_nagual.to_xml_context();
         assert!(xml.contains("<learned_context>"));
@@ -930,8 +976,7 @@ mod tests {
     #[test]
     fn test_e_nagual_to_few_shot_examples() {
         let patterns = vec![create_test_scored_pattern()];
-        let e_nagual = ENagual::new("test")
-            .with_patterns(patterns);
+        let e_nagual = ENagual::new("test").with_patterns(patterns);
 
         let examples = e_nagual.to_few_shot_examples();
         assert_eq!(examples.len(), 1);
@@ -955,13 +1000,9 @@ mod tests {
 
     #[test]
     fn test_example_from_pattern() {
-        let pattern = Pattern::new(
-            "Test problem",
-            "Test solution",
-            "test"
-        )
-        .with_context("Test context")
-        .with_reward(0.9);
+        let pattern = Pattern::new("Test problem", "Test solution", "test")
+            .with_context("Test context")
+            .with_reward(0.9);
 
         let example = Example::from_pattern(&pattern);
         assert_eq!(example.input, "Test problem");
@@ -1034,9 +1075,7 @@ mod tests {
         use crate::profdag::search::SearchConfig;
 
         let adapter = Arc::new(DualWriteAdapter::new_for_testing().unwrap());
-        let storage = Arc::new(
-            ProfDAGStorage::with_defaults(adapter).await.unwrap(),
-        );
+        let storage = Arc::new(ProfDAGStorage::with_defaults(adapter).await.unwrap());
 
         // Insert test nodes with embeddings
         let dim = 128;
@@ -1102,9 +1141,7 @@ mod tests {
         use crate::profdag::search::SearchConfig;
 
         let adapter = Arc::new(DualWriteAdapter::new_for_testing().unwrap());
-        let storage = Arc::new(
-            ProfDAGStorage::with_defaults(adapter).await.unwrap(),
-        );
+        let storage = Arc::new(ProfDAGStorage::with_defaults(adapter).await.unwrap());
 
         // Empty index - no nodes inserted
         let search = ProfDAGSearch::new(storage.clone(), SearchConfig::default());
@@ -1133,9 +1170,7 @@ mod tests {
         use crate::profdag::node::ProfDAGNode;
 
         let adapter = Arc::new(DualWriteAdapter::new_for_testing().unwrap());
-        let storage = Arc::new(
-            ProfDAGStorage::with_defaults(adapter).await.unwrap(),
-        );
+        let storage = Arc::new(ProfDAGStorage::with_defaults(adapter).await.unwrap());
 
         // Insert test nodes of different types
         let node1 = ProfDAGNode::pattern("Pattern node 1").with_id("pat-1");
@@ -1168,9 +1203,7 @@ mod tests {
         use crate::profdag::node::ProfDAGNode;
 
         let adapter = Arc::new(DualWriteAdapter::new_for_testing().unwrap());
-        let storage = Arc::new(
-            ProfDAGStorage::with_defaults(adapter).await.unwrap(),
-        );
+        let storage = Arc::new(ProfDAGStorage::with_defaults(adapter).await.unwrap());
 
         let node1 = ProfDAGNode::pattern("Pattern node").with_id("pat-1");
         let node2 = ProfDAGNode::decision("Decision node").with_id("dec-1");
@@ -1198,14 +1231,11 @@ mod tests {
         use crate::profdag::node::ProfDAGNode;
 
         let adapter = Arc::new(DualWriteAdapter::new_for_testing().unwrap());
-        let storage = Arc::new(
-            ProfDAGStorage::with_defaults(adapter).await.unwrap(),
-        );
+        let storage = Arc::new(ProfDAGStorage::with_defaults(adapter).await.unwrap());
 
         // Insert more nodes than max_neighbors allows
         for i in 0..15 {
-            let node = ProfDAGNode::pattern(format!("Node {}", i))
-                .with_id(format!("node-{}", i));
+            let node = ProfDAGNode::pattern(format!("Node {}", i)).with_id(format!("node-{}", i));
             storage.insert_node(&node).await.unwrap();
         }
 
@@ -1234,9 +1264,7 @@ mod tests {
         use crate::profdag::search::SearchConfig;
 
         let adapter = Arc::new(DualWriteAdapter::new_for_testing().unwrap());
-        let storage = Arc::new(
-            ProfDAGStorage::with_defaults(adapter).await.unwrap(),
-        );
+        let storage = Arc::new(ProfDAGStorage::with_defaults(adapter).await.unwrap());
 
         // Insert a node with embedding
         let dim = 128;

@@ -58,7 +58,10 @@ pub async fn run(args: &AutoPromoteArgs) -> Result<()> {
     let result = run_auto_promotion(&storage, &criteria).await?;
 
     if args.json {
-        println!("{}", serde_json::to_string_pretty(&result).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result).unwrap_or_default()
+        );
         return Ok(());
     }
 

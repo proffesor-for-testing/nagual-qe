@@ -49,11 +49,13 @@ pub mod privacy;
 
 // Re-exports for convenience
 pub use apikey_store::{ApiKeyRecord, ApiKeyStore};
-pub use audit::{AuditEntry, AuditEventType, AuditLogger, AuditLoggerConfig, AuditOutcome, AuditQuery};
+pub use audit::{
+    AuditEntry, AuditEventType, AuditLogger, AuditLoggerConfig, AuditOutcome, AuditQuery,
+};
 pub use credentials::{
-    CredentialManager, CredentialMetadata, CredentialStatus, CredentialType, RotationPolicy,
-    RotationResult, derive_key, generate_key, generate_password, generate_salt, hash_password,
-    sha256_hash, verify_password,
+    derive_key, generate_key, generate_password, generate_salt, hash_password, sha256_hash,
+    verify_password, CredentialManager, CredentialMetadata, CredentialStatus, CredentialType,
+    RotationPolicy, RotationResult,
 };
 pub use pii::{PiiClassification, PiiDetector, PiiMatch, PiiSummary, PiiType};
 pub use privacy::{

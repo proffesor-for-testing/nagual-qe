@@ -98,9 +98,7 @@ impl LoraTrainer {
         pairs: &[TrainingPair],
     ) -> MlResult<TrainingResult> {
         if pairs.is_empty() {
-            return Err(MlError::Migration(
-                "No training pairs provided".to_string(),
-            ));
+            return Err(MlError::Migration("No training pairs provided".to_string()));
         }
 
         let start = std::time::Instant::now();
@@ -161,10 +159,8 @@ impl LoraTrainer {
                         let a_plus = adapter.transform(&pair.anchor.view())?;
                         let p_plus = adapter.transform(&pair.positive.view())?;
                         let n_plus = adapter.transform(&pair.negative.view())?;
-                        let sim_pos_plus =
-                            cosine_similarity(&a_plus.view(), &p_plus.view());
-                        let sim_neg_plus =
-                            cosine_similarity(&a_plus.view(), &n_plus.view());
+                        let sim_pos_plus = cosine_similarity(&a_plus.view(), &p_plus.view());
+                        let sim_neg_plus = cosine_similarity(&a_plus.view(), &n_plus.view());
                         let loss_plus =
                             (-sim_pos_plus + sim_neg_plus + self.config.margin).max(0.0);
 
@@ -183,10 +179,8 @@ impl LoraTrainer {
                         let a_plus = adapter.transform(&pair.anchor.view())?;
                         let p_plus = adapter.transform(&pair.positive.view())?;
                         let n_plus = adapter.transform(&pair.negative.view())?;
-                        let sim_pos_plus =
-                            cosine_similarity(&a_plus.view(), &p_plus.view());
-                        let sim_neg_plus =
-                            cosine_similarity(&a_plus.view(), &n_plus.view());
+                        let sim_pos_plus = cosine_similarity(&a_plus.view(), &p_plus.view());
+                        let sim_neg_plus = cosine_similarity(&a_plus.view(), &n_plus.view());
                         let loss_plus =
                             (-sim_pos_plus + sim_neg_plus + self.config.margin).max(0.0);
 
@@ -278,10 +272,7 @@ impl LoraTrainer {
 
         for (i, (_emb, domain, reward)) in patterns.iter().enumerate() {
             if *reward >= 0.6 {
-                domain_positives
-                    .entry(domain.clone())
-                    .or_default()
-                    .push(i);
+                domain_positives.entry(domain.clone()).or_default().push(i);
             }
             if *reward < 0.4 {
                 domain_negatives.push(i);
@@ -298,9 +289,7 @@ impl LoraTrainer {
             let negatives: Vec<usize> = patterns
                 .iter()
                 .enumerate()
-                .filter(|(i, (_, d, r))| {
-                    (d != domain || *r < 0.4) && !positives.contains(i)
-                })
+                .filter(|(i, (_, d, r))| (d != domain || *r < 0.4) && !positives.contains(i))
                 .map(|(i, _)| i)
                 .collect();
 

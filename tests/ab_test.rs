@@ -72,8 +72,14 @@ impl RetrievalMetrics {
         let p95_idx = (query_count as f64 * 0.95) as usize;
         let p99_idx = (query_count as f64 * 0.99) as usize;
 
-        let p95_latency_ms = sorted_latencies.get(p95_idx.min(query_count - 1)).copied().unwrap_or(0.0);
-        let p99_latency_ms = sorted_latencies.get(p99_idx.min(query_count - 1)).copied().unwrap_or(0.0);
+        let p95_latency_ms = sorted_latencies
+            .get(p95_idx.min(query_count - 1))
+            .copied()
+            .unwrap_or(0.0);
+        let p99_latency_ms = sorted_latencies
+            .get(p99_idx.min(query_count - 1))
+            .copied()
+            .unwrap_or(0.0);
 
         Self {
             precision_at_k,
@@ -200,7 +206,10 @@ impl ComparisonReport {
     pub fn to_markdown(&self) -> String {
         let mut md = String::new();
         md.push_str("# A/B Test Comparison Report\n\n");
-        md.push_str(&format!("Generated: {}\n\n", self.generated_at.format("%Y-%m-%d %H:%M:%S UTC")));
+        md.push_str(&format!(
+            "Generated: {}\n\n",
+            self.generated_at.format("%Y-%m-%d %H:%M:%S UTC")
+        ));
 
         md.push_str("## Summary\n\n");
         md.push_str("| Metric | Control | Treatment | Change |\n");
@@ -222,7 +231,8 @@ impl ComparisonReport {
             self.control_metrics.mrr,
             self.treatment_metrics.mrr,
             if self.control_metrics.mrr > 0.0 {
-                (self.treatment_metrics.mrr - self.control_metrics.mrr) / self.control_metrics.mrr * 100.0
+                (self.treatment_metrics.mrr - self.control_metrics.mrr) / self.control_metrics.mrr
+                    * 100.0
             } else {
                 0.0
             }
@@ -241,21 +251,33 @@ impl ComparisonReport {
             "| Precision | {:.4} | {:.4} | {} | {:.4} |\n",
             self.precision_significance.t_statistic,
             self.precision_significance.p_value,
-            if self.precision_significance.is_significant { "Yes" } else { "No" },
+            if self.precision_significance.is_significant {
+                "Yes"
+            } else {
+                "No"
+            },
             self.precision_significance.effect_size
         ));
         md.push_str(&format!(
             "| Recall | {:.4} | {:.4} | {} | {:.4} |\n",
             self.recall_significance.t_statistic,
             self.recall_significance.p_value,
-            if self.recall_significance.is_significant { "Yes" } else { "No" },
+            if self.recall_significance.is_significant {
+                "Yes"
+            } else {
+                "No"
+            },
             self.recall_significance.effect_size
         ));
         md.push_str(&format!(
             "| Latency | {:.4} | {:.4} | {} | {:.4} |\n",
             self.latency_significance.t_statistic,
             self.latency_significance.p_value,
-            if self.latency_significance.is_significant { "Yes" } else { "No" },
+            if self.latency_significance.is_significant {
+                "Yes"
+            } else {
+                "No"
+            },
             self.latency_significance.effect_size
         ));
 
@@ -423,38 +445,35 @@ impl AbTestHarness {
         // Calculate improvement percentages
         let precision_improvement_pct = if control_metrics.precision_at_k > 0.0 {
             (treatment_metrics.precision_at_k - control_metrics.precision_at_k)
-                / control_metrics.precision_at_k * 100.0
+                / control_metrics.precision_at_k
+                * 100.0
         } else {
             0.0
         };
 
         let recall_improvement_pct = if control_metrics.recall_at_k > 0.0 {
             (treatment_metrics.recall_at_k - control_metrics.recall_at_k)
-                / control_metrics.recall_at_k * 100.0
+                / control_metrics.recall_at_k
+                * 100.0
         } else {
             0.0
         };
 
         let latency_improvement_pct = if control_metrics.avg_latency_ms > 0.0 {
             (control_metrics.avg_latency_ms - treatment_metrics.avg_latency_ms)
-                / control_metrics.avg_latency_ms * 100.0
+                / control_metrics.avg_latency_ms
+                * 100.0
         } else {
             0.0
         };
 
         // Statistical significance tests
-        let precision_significance = self.calculate_significance(
-            &self.control_precisions,
-            &self.treatment_precisions,
-        );
-        let recall_significance = self.calculate_significance(
-            &self.control_recalls,
-            &self.treatment_recalls,
-        );
-        let latency_significance = self.calculate_significance(
-            &self.control_latencies,
-            &self.treatment_latencies,
-        );
+        let precision_significance =
+            self.calculate_significance(&self.control_precisions, &self.treatment_precisions);
+        let recall_significance =
+            self.calculate_significance(&self.control_recalls, &self.treatment_recalls);
+        let latency_significance =
+            self.calculate_significance(&self.control_latencies, &self.treatment_latencies);
 
         // Generate recommendation
         let recommendation = generate_recommendation(
@@ -631,7 +650,9 @@ fn betacf(a: f64, b: f64, x: f64) -> f64 {
 
     let mut h = 1.0_f64;
     let mut d = 1.0 - (a + b) * x / (a + 1.0);
-    if d.abs() < eps { d = eps; }
+    if d.abs() < eps {
+        d = eps;
+    }
     let mut c = 1.0;
     d = 1.0 / d;
     h = d;
@@ -642,18 +663,26 @@ fn betacf(a: f64, b: f64, x: f64) -> f64 {
         // Even step
         let an = m * (b - m) * x / ((a + 2.0 * m - 1.0) * (a + 2.0 * m));
         d = 1.0 + an * d;
-        if d.abs() < eps { d = eps; }
+        if d.abs() < eps {
+            d = eps;
+        }
         c = 1.0 + an / c;
-        if c.abs() < eps { c = eps; }
+        if c.abs() < eps {
+            c = eps;
+        }
         d = 1.0 / d;
         h *= d * c;
 
         // Odd step
         let an = -(a + m) * (a + b + m) * x / ((a + 2.0 * m) * (a + 2.0 * m + 1.0));
         d = 1.0 + an * d;
-        if d.abs() < eps { d = eps; }
+        if d.abs() < eps {
+            d = eps;
+        }
         c = 1.0 + an / c;
-        if c.abs() < eps { c = eps; }
+        if c.abs() < eps {
+            c = eps;
+        }
         d = 1.0 / d;
         let del = d * c;
         h *= del;
@@ -850,14 +879,8 @@ mod tests {
             ci_upper: 1.0,
         };
 
-        let recommendation = generate_recommendation(
-            &good_sig,
-            &good_sig,
-            &good_sig,
-            10.0,
-            8.0,
-            5.0,
-        );
+        let recommendation =
+            generate_recommendation(&good_sig, &good_sig, &good_sig, 10.0, 8.0, 5.0);
 
         assert!(recommendation.contains("RECOMMENDED"));
     }
@@ -873,27 +896,15 @@ mod tests {
             ci_upper: -0.2,
         };
 
-        let recommendation = generate_recommendation(
-            &bad_sig,
-            &bad_sig,
-            &bad_sig,
-            -10.0,
-            -8.0,
-            -5.0,
-        );
+        let recommendation =
+            generate_recommendation(&bad_sig, &bad_sig, &bad_sig, -10.0, -8.0, -5.0);
 
         assert!(recommendation.contains("NOT RECOMMENDED"));
     }
 
     #[test]
     fn test_empty_metrics() {
-        let metrics = RetrievalMetrics::from_measurements(
-            &[],
-            &[],
-            &[],
-            &[],
-            &[],
-        );
+        let metrics = RetrievalMetrics::from_measurements(&[], &[], &[], &[], &[]);
 
         assert_eq!(metrics.query_count, 0);
         assert_eq!(metrics.avg_latency_ms, 0.0);
@@ -901,13 +912,7 @@ mod tests {
 
     #[test]
     fn test_single_sample_metrics() {
-        let metrics = RetrievalMetrics::from_measurements(
-            &[15.0],
-            &[0.8],
-            &[0.7],
-            &[0.6],
-            &[10],
-        );
+        let metrics = RetrievalMetrics::from_measurements(&[15.0], &[0.8], &[0.7], &[0.6], &[10]);
 
         assert_eq!(metrics.query_count, 1);
         assert!((metrics.avg_latency_ms - 15.0).abs() < 0.001);

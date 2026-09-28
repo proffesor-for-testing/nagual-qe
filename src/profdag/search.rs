@@ -219,7 +219,10 @@ impl ProfDAGSearch {
         k: usize,
         min_similarity: f32,
     ) -> ProfDAGResult<Vec<SimilarNode>> {
-        let _guard = self.profiler.as_ref().map(|p| p.start_operation(OperationType::Search));
+        let _guard = self
+            .profiler
+            .as_ref()
+            .map(|p| p.start_operation(OperationType::Search));
         let start = Instant::now();
 
         if embedding.len() != self.config.embedding_dim {
@@ -262,7 +265,9 @@ impl ProfDAGSearch {
         min_similarity: f32,
     ) -> ProfDAGResult<Vec<SimilarNode>> {
         let expanded_k = k * 3;
-        let results = self.find_similar(embedding, expanded_k, min_similarity).await?;
+        let results = self
+            .find_similar(embedding, expanded_k, min_similarity)
+            .await?;
 
         let filtered: Vec<SimilarNode> = results
             .into_iter()
@@ -372,9 +377,7 @@ impl ProfDAGSearch {
             })
             .collect();
 
-        scored.sort_by(|a, b| {
-            b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal)
-        });
+        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
 
         let results: Vec<SimilarNode> = scored
             .into_iter()
@@ -435,7 +438,7 @@ impl ProfDAGSearch {
 
         let hnsw = HnswBuilder::default()
             .ef_construction(self.config.hnsw_ef_construction)
-            .ef_search(self.config.hnsw_ef_search)  // Critical: set search quality at build time
+            .ef_search(self.config.hnsw_ef_search) // Critical: set search quality at build time
             .build(point_vec, value_vec);
 
         *self.hnsw_index.write() = Some(hnsw);
@@ -455,7 +458,12 @@ impl ProfDAGSearch {
 
     async fn load_nodes_with_embeddings(&self) -> ProfDAGResult<Vec<ProfDAGNode>> {
         let mut nodes = Vec::new();
-        for node_type in [NodeType::Pattern, NodeType::Trajectory, NodeType::Prediction, NodeType::Decision] {
+        for node_type in [
+            NodeType::Pattern,
+            NodeType::Trajectory,
+            NodeType::Prediction,
+            NodeType::Decision,
+        ] {
             let type_nodes = self.storage.get_nodes_by_type(node_type, 100000).await?;
             nodes.extend(type_nodes.into_iter().filter(|n| n.has_embedding()));
         }
@@ -465,7 +473,9 @@ impl ProfDAGSearch {
     /// Notify the search engine that a node was added.
     pub fn notify_node_added(&self, node: &ProfDAGNode) {
         if node.has_embedding() {
-            self.node_cache.write().insert(node.id.clone(), node.clone());
+            self.node_cache
+                .write()
+                .insert(node.id.clone(), node.clone());
             *self.nodes_since_rebuild.write() += 1;
         }
     }

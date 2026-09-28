@@ -8,8 +8,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use nagual::db::{
-    ConflictResolution, DualWritable, DualWriteAdapter, DualWriteConfig, OperationType,
-    SqliteDb,
+    ConflictResolution, DualWritable, DualWriteAdapter, DualWriteConfig, OperationType, SqliteDb,
 };
 use nagual::error::{CircuitBreaker, CircuitBreakerConfig, CircuitState, Result};
 use serde::{Deserialize, Serialize};

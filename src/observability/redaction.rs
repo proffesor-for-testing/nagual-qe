@@ -208,7 +208,9 @@ impl LogRedactor {
     /// Check if text contains PII that would be redacted.
     pub fn contains_pii(&self, text: &str) -> bool {
         let matches = self.detector.scan_text(text);
-        matches.iter().any(|m| m.classification >= self.config.min_classification)
+        matches
+            .iter()
+            .any(|m| m.classification >= self.config.min_classification)
     }
 
     /// Get a summary of PII types in text.
@@ -381,7 +383,8 @@ impl<'a> tracing::field::Visit for RedactingVisitor<'a> {
         if !self.output.is_empty() {
             self.output.push_str(", ");
         }
-        self.output.push_str(&format!("{}={}", field.name(), redacted));
+        self.output
+            .push_str(&format!("{}={}", field.name(), redacted));
     }
 
     fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
@@ -390,7 +393,8 @@ impl<'a> tracing::field::Visit for RedactingVisitor<'a> {
         if !self.output.is_empty() {
             self.output.push_str(", ");
         }
-        self.output.push_str(&format!("{}=\"{}\"", field.name(), redacted));
+        self.output
+            .push_str(&format!("{}=\"{}\"", field.name(), redacted));
     }
 
     fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {

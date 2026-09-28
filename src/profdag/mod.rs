@@ -105,8 +105,7 @@ pub mod wormhole_detector;
 pub use edge::{EdgeType, ProfDAGEdge, TemporalDirection};
 pub use node::{NodeType, ProfDAGNode};
 pub use storage::{
-    NeighborQuery, NeighborResult, ProfDAGStats, ProfDAGStorage, ProfDAGStorageConfig,
-    SimilarNode,
+    NeighborQuery, NeighborResult, ProfDAGStats, ProfDAGStorage, ProfDAGStorageConfig, SimilarNode,
 };
 
 // HNSW-powered vector similarity search
@@ -114,14 +113,13 @@ pub use search::{ProfDAGSearch, SearchConfig, SearchMetrics, SearchStats};
 
 // Trajectory recorder types for full reasoning path capture
 pub use trajectory_recorder::{
-    CompleteResult, RecorderConfig, RecordingSession, ReplayResult, StepSummary,
-    TrajectoryRecorder,
+    CompleteResult, RecorderConfig, RecordingSession, ReplayResult, StepSummary, TrajectoryRecorder,
 };
 
 // Wormhole neural shortcuts for fast pattern access
 pub use wormhole::{
-    CoAccessRecord, Wormhole, WormholeConfig, WormholeCreationReason,
-    WormholeMaintenanceResult, WormholeManager, WormholeStats,
+    CoAccessRecord, Wormhole, WormholeConfig, WormholeCreationReason, WormholeMaintenanceResult,
+    WormholeManager, WormholeStats,
 };
 
 // Wormhole detection for automatic shortcut creation
@@ -130,14 +128,10 @@ pub use wormhole_detector::{
 };
 
 // Performance profiler for ProfDAG operations
-pub use profiler::{
-    OperationType, ProfDAGProfiler, ProfileSnapshot, ProfilerConfig,
-};
+pub use profiler::{OperationType, ProfDAGProfiler, ProfileSnapshot, ProfilerConfig};
 
 // Performance optimizer with recommendation engine
-pub use optimizer::{
-    Bottleneck, OptimizerConfig, ProfDAGOptimizer, Recommendation,
-};
+pub use optimizer::{Bottleneck, OptimizerConfig, ProfDAGOptimizer, Recommendation};
 
 // Light Cone temporal reasoning model
 pub use cognitive_core::{ActivePattern, AttentionStats, CognitiveCore, CognitiveCoreConfig};

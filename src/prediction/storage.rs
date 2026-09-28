@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
 use super::{
-    bucket_index_for_probability, CalibrationBucket, Prediction,
-    PredictionBuilder, PredictionError, PredictionId, PredictionResult, PredictionStatus,
+    bucket_index_for_probability, CalibrationBucket, Prediction, PredictionBuilder,
+    PredictionError, PredictionId, PredictionResult, PredictionStatus,
     SQLITE_CALIBRATION_BUCKETS_TABLE, SQLITE_PREDICTIONS_TABLE,
 };
 use crate::db::SqliteDb;
@@ -193,7 +193,10 @@ impl PredictionStorage {
     }
 
     /// Store a new prediction.
-    pub async fn store_prediction(&self, prediction: &Prediction) -> PredictionResult<PredictionId> {
+    pub async fn store_prediction(
+        &self,
+        prediction: &Prediction,
+    ) -> PredictionResult<PredictionId> {
         let tags_json =
             serde_json::to_string(prediction.tags()).unwrap_or_else(|_| "[]".to_string());
         let metadata_json =
@@ -215,7 +218,8 @@ impl PredictionStorage {
         let created_at_str = prediction.created_at().to_rfc3339();
         let updated_at_str = prediction.updated_at().to_rfc3339();
         let resolved_at_str = prediction.resolved_at().map(|dt| dt.to_rfc3339());
-        let actual_outcome: Option<i32> = prediction.actual_outcome().map(|b| if b { 1 } else { 0 });
+        let actual_outcome: Option<i32> =
+            prediction.actual_outcome().map(|b| if b { 1 } else { 0 });
 
         self.db
             .execute(

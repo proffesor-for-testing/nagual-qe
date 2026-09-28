@@ -271,7 +271,12 @@ pub struct ModelConfig {
 
 impl ModelConfig {
     /// Create a new model configuration.
-    pub fn new(num_layers: usize, num_heads: usize, head_dim: usize, model_type: ModelType) -> Self {
+    pub fn new(
+        num_layers: usize,
+        num_heads: usize,
+        head_dim: usize,
+        model_type: ModelType,
+    ) -> Self {
         Self {
             num_layers,
             num_heads,
@@ -426,9 +431,7 @@ impl AttentionBias {
         }
 
         // Broadcast the base signal across all target heads.
-        let bias_matrix: Vec<Vec<f32>> = (0..num_heads)
-            .map(|_| base_signal.clone())
-            .collect();
+        let bias_matrix: Vec<Vec<f32>> = (0..num_heads).map(|_| base_signal.clone()).collect();
 
         let mut bias = Self::new(bias_matrix, target_layer);
         bias.bias_method = config.bias_method;
@@ -759,11 +762,7 @@ impl AttentionSurgery {
 
         // Determine risk level based on KL divergence and layer coverage.
         let layer_fraction = affected_layers as f32
-            / biases
-                .iter()
-                .map(|b| b.target_layer)
-                .max()
-                .unwrap_or(1) as f32;
+            / biases.iter().map(|b| b.target_layer).max().unwrap_or(1) as f32;
 
         let risk_score = estimated_kl_divergence * (1.0 + layer_fraction);
         let risk_level = if risk_score < 0.1 {
@@ -1256,8 +1255,12 @@ mod tests {
     fn test_compute_pattern_attention_empty() {
         let surgery = AttentionSurgery::new(AttentionSurgeryConfig::default());
 
-        assert!(surgery.compute_pattern_attention(&[], &[1.0, 0.0]).is_empty());
-        assert!(surgery.compute_pattern_attention(&[vec![1.0]], &[]).is_empty());
+        assert!(surgery
+            .compute_pattern_attention(&[], &[1.0, 0.0])
+            .is_empty());
+        assert!(surgery
+            .compute_pattern_attention(&[vec![1.0]], &[])
+            .is_empty());
     }
 
     // ---- impact estimation tests ------------------------------------------

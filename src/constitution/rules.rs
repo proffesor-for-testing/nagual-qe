@@ -7,7 +7,9 @@ use chrono::Utc;
 pub struct NeverDeleteWithoutBackup;
 
 impl ConstitutionRule for NeverDeleteWithoutBackup {
-    fn name(&self) -> &str { "NeverDeleteWithoutBackup" }
+    fn name(&self) -> &str {
+        "NeverDeleteWithoutBackup"
+    }
 
     fn check(&self, context: &OperationContext) -> CheckResult {
         let allowed = context.has_recent_backup;
@@ -33,12 +35,22 @@ impl ConstitutionRule for NeverDeleteWithoutBackup {
 pub struct AlwaysRecordMAST;
 
 impl ConstitutionRule for AlwaysRecordMAST {
-    fn name(&self) -> &str { "AlwaysRecordMAST" }
+    fn name(&self) -> &str {
+        "AlwaysRecordMAST"
+    }
 
     fn check(&self, context: &OperationContext) -> CheckResult {
         let has_mast = context.failure_mode.is_some();
-        let valid_modes = ["specification", "misalignment", "verification", "resource", "unknown"];
-        let is_valid = context.failure_mode.as_ref()
+        let valid_modes = [
+            "specification",
+            "misalignment",
+            "verification",
+            "resource",
+            "unknown",
+        ];
+        let is_valid = context
+            .failure_mode
+            .as_ref()
             .map(|m| valid_modes.contains(&m.as_str()))
             .unwrap_or(false);
 
@@ -47,7 +59,10 @@ impl ConstitutionRule for AlwaysRecordMAST {
             allowed,
             rule: self.name().to_string(),
             message: if allowed {
-                format!("MAST classification: {}", context.failure_mode.as_deref().unwrap_or(""))
+                format!(
+                    "MAST classification: {}",
+                    context.failure_mode.as_deref().unwrap_or("")
+                )
             } else if !has_mast {
                 "Failure outcome must include MAST classification (specification, misalignment, verification, resource, unknown)".to_string()
             } else {
@@ -67,7 +82,9 @@ impl ConstitutionRule for AlwaysRecordMAST {
 pub struct SurpriseReview;
 
 impl ConstitutionRule for SurpriseReview {
-    fn name(&self) -> &str { "SurpriseReview" }
+    fn name(&self) -> &str {
+        "SurpriseReview"
+    }
 
     fn check(&self, context: &OperationContext) -> CheckResult {
         let surprise = context.surprise_score.unwrap_or(0.0);
@@ -94,7 +111,9 @@ impl ConstitutionRule for SurpriseReview {
 pub struct ConflictEscalation;
 
 impl ConstitutionRule for ConflictEscalation {
-    fn name(&self) -> &str { "ConflictEscalation" }
+    fn name(&self) -> &str {
+        "ConflictEscalation"
+    }
 
     fn check(&self, context: &OperationContext) -> CheckResult {
         // For overwrite operations, always warn (actual conflict detection
@@ -120,7 +139,9 @@ impl ConstitutionRule for ConflictEscalation {
 pub struct MinimumRewardForReflex;
 
 impl ConstitutionRule for MinimumRewardForReflex {
-    fn name(&self) -> &str { "MinimumRewardForReflex" }
+    fn name(&self) -> &str {
+        "MinimumRewardForReflex"
+    }
 
     fn check(&self, context: &OperationContext) -> CheckResult {
         let is_reflex = context.tier.as_deref() == Some("reflex");

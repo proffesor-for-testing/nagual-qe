@@ -9,11 +9,11 @@
 //! - Coherence energy calculation
 //! - Configurable conflict resolution recommendations
 
-mod types;
 mod engine;
+mod types;
 
 pub mod scoring;
 
-pub use types::*;
 pub use engine::*;
 pub use scoring::*;
+pub use types::*;

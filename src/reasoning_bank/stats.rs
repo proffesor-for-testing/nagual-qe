@@ -255,10 +255,7 @@ pub fn get_pattern_stats(
     let patterns_with_embeddings = patterns.iter().filter(|p| p.embedding.is_some()).count();
     let total_reward: f32 = patterns.iter().map(|p| p.reward).sum();
     let total_confidence: f32 = patterns.iter().map(|p| p.confidence).sum();
-    let successful_patterns = patterns
-        .iter()
-        .filter(|p| p.success_rate > 0.5)
-        .count();
+    let successful_patterns = patterns.iter().filter(|p| p.success_rate > 0.5).count();
     let total_usage_count: u64 = patterns.iter().map(|p| p.usage_count as u64).sum();
 
     let average_reward = total_reward / total_patterns as f32;
@@ -271,13 +268,15 @@ pub fn get_pattern_stats(
 
     // Top patterns
     let top_by_reward = compute_top_patterns(patterns, config.top_patterns_count, |p| p.reward);
-    let top_by_usage =
-        compute_top_patterns(patterns, config.top_patterns_count, |p| p.usage_count as f32);
+    let top_by_usage = compute_top_patterns(patterns, config.top_patterns_count, |p| {
+        p.usage_count as f32
+    });
     let top_by_success_rate =
         compute_top_patterns(patterns, config.top_patterns_count, |p| p.success_rate);
 
     // Reuse distribution
-    let reuse_distribution = compute_reuse_distribution(patterns, config.reuse_distribution_buckets);
+    let reuse_distribution =
+        compute_reuse_distribution(patterns, config.reuse_distribution_buckets);
 
     // Reward distribution (10 buckets from 0.0 to 1.0)
     let reward_distribution = compute_reward_distribution(patterns);

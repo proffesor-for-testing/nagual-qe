@@ -17,8 +17,8 @@ use ndarray::ArrayView1;
 use parking_lot::Mutex;
 
 use super::{
-    retrieve_patterns, Pattern, PatternTier, ReasoningBankResult, RetrievalConfig, RetrievalResult,
-    PatternQuery, ScoredPattern,
+    retrieve_patterns, Pattern, PatternQuery, PatternTier, ReasoningBankResult, RetrievalConfig,
+    RetrievalResult, ScoredPattern,
 };
 
 /// Default capacity for the Reflex index (number of elite pattern slots).
@@ -153,9 +153,7 @@ impl RetrievalStaging {
                     self.reflex_index.insert(key, scored);
                 }
                 PatternTier::Crystal => {
-                    self.crystal_cache
-                        .lock()
-                        .put(pattern.id.clone(), scored);
+                    self.crystal_cache.lock().put(pattern.id.clone(), scored);
                 }
                 PatternTier::Booster => {
                     // Booster-tier patterns are served by the full retrieval pipeline.
@@ -339,7 +337,13 @@ mod tests {
     use ndarray::Array1;
 
     /// Helper: build a `Pattern` (the mod.rs one) with specified fields.
-    fn make_pattern(id: &str, problem: &str, domain: &str, reward: f32, tier: PatternTier) -> Pattern {
+    fn make_pattern(
+        id: &str,
+        problem: &str,
+        domain: &str,
+        reward: f32,
+        tier: PatternTier,
+    ) -> Pattern {
         let mut p = Pattern::new(problem, "solution text", domain)
             .with_reward(reward)
             .with_tier(tier);
@@ -588,8 +592,7 @@ mod tests {
         p_with_emb.embedding = Some(embedding.clone());
         staging.populate_from_patterns(&[p_with_emb.clone()]);
 
-        let query = PatternQuery::new("elite pattern")
-            .with_domains(vec!["rust"]);
+        let query = PatternQuery::new("elite pattern").with_domains(vec!["rust"]);
         let config = RetrievalConfig::default();
 
         let result = staged_retrieve_patterns(
@@ -625,14 +628,9 @@ mod tests {
             .with_limit(5);
         let config = RetrievalConfig::default();
 
-        let result = staged_retrieve_patterns(
-            &mut staging,
-            &[p],
-            &embedding.view(),
-            &query,
-            &config,
-        )
-        .unwrap();
+        let result =
+            staged_retrieve_patterns(&mut staging, &[p], &embedding.view(), &query, &config)
+                .unwrap();
 
         // Should fall through to Booster.
         assert_eq!(staging.stats().booster_queries, 1);

@@ -321,8 +321,7 @@ impl AutoEdgeCreator {
         if similar_patterns.is_empty() {
             debug!(
                 pattern_id = pattern_id,
-                "No similar patterns found above threshold {}",
-                self.config.similarity_threshold
+                "No similar patterns found above threshold {}", self.config.similarity_threshold
             );
             return Ok(AutoEdgeResult {
                 duration_ms: start.elapsed().as_millis() as u64,
@@ -527,10 +526,7 @@ impl AutoEdgeCreator {
     /// # Returns
     ///
     /// Result containing number of edges created.
-    pub async fn check_and_create_coretrieval_edges(
-        &self,
-        limit: usize,
-    ) -> Result<AutoEdgeResult> {
+    pub async fn check_and_create_coretrieval_edges(&self, limit: usize) -> Result<AutoEdgeResult> {
         let start = std::time::Instant::now();
 
         // Find candidates above threshold that don't already have edges
@@ -642,11 +638,7 @@ impl AutoEdgeCreator {
     }
 
     /// Get co-retrieval count for a pattern pair.
-    pub async fn get_co_retrieval_count(
-        &self,
-        pattern_a: &str,
-        pattern_b: &str,
-    ) -> Result<i32> {
+    pub async fn get_co_retrieval_count(&self, pattern_a: &str, pattern_b: &str) -> Result<i32> {
         // Ensure consistent ordering
         let (ordered_a, ordered_b) = if pattern_a < pattern_b {
             (pattern_a, pattern_b)

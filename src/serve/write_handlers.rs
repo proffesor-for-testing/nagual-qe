@@ -13,11 +13,11 @@ use tracing::{info, warn};
 use super::auth::{RequireAuth, RequireWrite};
 use super::AppState;
 use crate::error::NagualError;
-#[allow(unused_imports)]
-use rusqlite;
 use crate::events::NagualEvent;
 use crate::learning::{apply_reward_step, Outcome};
 use crate::reasoning_bank::pattern::{FailureMode, Pattern, PatternCategory, PatternId};
+#[allow(unused_imports)]
+use rusqlite;
 
 /// API error wrapper mapping NagualError to HTTP status codes.
 #[derive(Debug)]
@@ -179,9 +179,10 @@ pub async fn api_store_pattern(
     _auth: RequireWrite,
     Json(req): Json<StorePatternRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let storage_mutex = state.storage.as_ref().ok_or_else(|| {
-        NagualError::internal("Storage not initialized")
-    })?;
+    let storage_mutex = state
+        .storage
+        .as_ref()
+        .ok_or_else(|| NagualError::internal("Storage not initialized"))?;
     let storage = storage_mutex.lock().await;
 
     let mut builder = Pattern::builder()
@@ -211,10 +212,9 @@ pub async fn api_store_pattern(
     let id = storage.store_pattern(&pattern).await?;
 
     let domain = req.domain.clone().unwrap_or_else(|| "general".to_string());
-    state.event_bus.publish_sync(NagualEvent::pattern_stored(
-        id.to_string(),
-        domain,
-    ));
+    state
+        .event_bus
+        .publish_sync(NagualEvent::pattern_stored(id.to_string(), domain));
 
     info!(pattern_id = %id, "Pattern stored via API");
 
@@ -232,9 +232,10 @@ pub async fn api_search_patterns(
     _auth: RequireAuth,
     Json(req): Json<SearchPatternsRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let storage_mutex = state.storage.as_ref().ok_or_else(|| {
-        NagualError::internal("Storage not initialized")
-    })?;
+    let storage_mutex = state
+        .storage
+        .as_ref()
+        .ok_or_else(|| NagualError::internal("Storage not initialized"))?;
     let storage = storage_mutex.lock().await;
 
     let results = storage.fts_search(&req.query, req.limit).await?;
@@ -243,9 +244,9 @@ pub async fn api_search_patterns(
     let filtered: Vec<PatternResponse> = results
         .iter()
         .filter(|p| {
-            req.domain.as_ref().map_or(true, |d| {
-                p.category().to_string().eq_ignore_ascii_case(d)
-            })
+            req.domain
+                .as_ref()
+                .map_or(true, |d| p.category().to_string().eq_ignore_ascii_case(d))
         })
         .map(PatternResponse::from)
         .collect();
@@ -284,9 +285,10 @@ pub async fn api_get_pattern(
     _auth: RequireAuth,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let storage_mutex = state.storage.as_ref().ok_or_else(|| {
-        NagualError::internal("Storage not initialized")
-    })?;
+    let storage_mutex = state
+        .storage
+        .as_ref()
+        .ok_or_else(|| NagualError::internal("Storage not initialized"))?;
     let storage = storage_mutex.lock().await;
 
     let pattern_id = PatternId::from(id.as_str());
@@ -308,9 +310,10 @@ pub async fn api_delete_pattern(
     _auth: RequireWrite,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let storage_mutex = state.storage.as_ref().ok_or_else(|| {
-        NagualError::internal("Storage not initialized")
-    })?;
+    let storage_mutex = state
+        .storage
+        .as_ref()
+        .ok_or_else(|| NagualError::internal("Storage not initialized"))?;
     let storage = storage_mutex.lock().await;
 
     let pattern_id = PatternId::from(id.as_str());
@@ -324,7 +327,9 @@ pub async fn api_delete_pattern(
 
     storage.delete_pattern(&pattern_id).await?;
 
-    state.event_bus.publish_sync(NagualEvent::pattern_deleted(id.clone()));
+    state
+        .event_bus
+        .publish_sync(NagualEvent::pattern_deleted(id.clone()));
 
     info!(pattern_id = %id, "Pattern deleted via API");
 
@@ -342,9 +347,10 @@ pub async fn api_record_outcome(
     Path(id): Path<String>,
     Json(req): Json<RecordOutcomeRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let storage_mutex = state.storage.as_ref().ok_or_else(|| {
-        NagualError::internal("Storage not initialized")
-    })?;
+    let storage_mutex = state
+        .storage
+        .as_ref()
+        .ok_or_else(|| NagualError::internal("Storage not initialized"))?;
     let storage = storage_mutex.lock().await;
 
     let pattern_id = PatternId::from(id.as_str());
@@ -424,9 +430,10 @@ pub async fn api_update_pattern(
     Path(id): Path<String>,
     Json(req): Json<UpdatePatternRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let storage_mutex = state.storage.as_ref().ok_or_else(|| {
-        NagualError::internal("Storage not initialized")
-    })?;
+    let storage_mutex = state
+        .storage
+        .as_ref()
+        .ok_or_else(|| NagualError::internal("Storage not initialized"))?;
     let storage = storage_mutex.lock().await;
 
     let pattern_id = PatternId::from(id.as_str());
@@ -497,7 +504,9 @@ pub async fn api_update_pattern(
         changes = changes.with_field("tags");
     }
 
-    state.event_bus.publish_sync(NagualEvent::pattern_updated(id.clone(), changes));
+    state
+        .event_bus
+        .publish_sync(NagualEvent::pattern_updated(id.clone(), changes));
 
     info!(pattern_id = %id, "Pattern updated via API");
 
@@ -518,7 +527,9 @@ mod outcome_tests {
     async fn state_with_pattern() -> (tempfile::TempDir, AppState, String) {
         let dir = tempfile::TempDir::new().unwrap();
         let db_path = dir.path().join("api.db");
-        let storage = crate::cli::common::init_storage_sqlite_only(&db_path).await.unwrap();
+        let storage = crate::cli::common::init_storage_sqlite_only(&db_path)
+            .await
+            .unwrap();
         let pattern = Pattern::builder().problem("p").solution("s").build(); // reward 0.5
         let id = pattern.id().to_string();
         storage.store_pattern(&pattern).await.unwrap();
@@ -535,7 +546,12 @@ mod outcome_tests {
         (dir, state, id)
     }
 
-    async fn post(state: &AppState, id: &str, outcome: &str, mode: Option<&str>) -> (StatusCode, serde_json::Value) {
+    async fn post(
+        state: &AppState,
+        id: &str,
+        outcome: &str,
+        mode: Option<&str>,
+    ) -> (StatusCode, serde_json::Value) {
         let req = RecordOutcomeRequest {
             outcome: outcome.to_string(),
             feedback: None,
@@ -552,7 +568,9 @@ mod outcome_tests {
         .unwrap()
         .into_response();
         let status = resp.status();
-        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
         (status, serde_json::from_slice(&body).unwrap())
     }
 
@@ -566,13 +584,22 @@ mod outcome_tests {
 
         let (s, v) = post(&state, &id, "failure", Some("security")).await;
         assert_eq!(s, StatusCode::OK);
-        assert!((reward(&v) - 0.20).abs() < 1e-5, "security failure: 0.50 -> 0.20, got {v}");
+        assert!(
+            (reward(&v) - 0.20).abs() < 1e-5,
+            "security failure: 0.50 -> 0.20, got {v}"
+        );
 
         let (_, v) = post(&state, &id, "partial", None).await;
-        assert!((reward(&v) - 0.25).abs() < 1e-5, "partial is a success step (+0.05), got {v}");
+        assert!(
+            (reward(&v) - 0.25).abs() < 1e-5,
+            "partial is a success step (+0.05), got {v}"
+        );
 
         let (_, v) = post(&state, &id, "failure", Some("verification")).await;
-        assert!((reward(&v) - 0.10).abs() < 1e-5, "ordinary failure: -0.15, got {v}");
+        assert!(
+            (reward(&v) - 0.10).abs() < 1e-5,
+            "ordinary failure: -0.15, got {v}"
+        );
     }
 
     #[tokio::test]
@@ -601,11 +628,31 @@ mod redaction_tests {
 
         let resp = PatternResponse::from(&pattern);
 
-        assert!(!resp.solution.contains("leak@example.com"), "email leaked: {}", resp.solution);
-        assert!(resp.solution.contains("[EMAIL_REDACTED]"), "email not redacted: {}", resp.solution);
-        assert!(!resp.solution.contains("/Users/alice/.nagual/secret.toml"), "path leaked: {}", resp.solution);
-        assert!(resp.solution.contains("[PATH_REDACTED]"), "path not redacted: {}", resp.solution);
-        assert!(!resp.context.contains("ops@example.com"), "context email leaked: {}", resp.context);
+        assert!(
+            !resp.solution.contains("leak@example.com"),
+            "email leaked: {}",
+            resp.solution
+        );
+        assert!(
+            resp.solution.contains("[EMAIL_REDACTED]"),
+            "email not redacted: {}",
+            resp.solution
+        );
+        assert!(
+            !resp.solution.contains("/Users/alice/.nagual/secret.toml"),
+            "path leaked: {}",
+            resp.solution
+        );
+        assert!(
+            resp.solution.contains("[PATH_REDACTED]"),
+            "path not redacted: {}",
+            resp.solution
+        );
+        assert!(
+            !resp.context.contains("ops@example.com"),
+            "context email leaked: {}",
+            resp.context
+        );
     }
 
     #[test]
@@ -618,7 +665,10 @@ mod redaction_tests {
 
         let resp = PatternResponse::from(&pattern);
 
-        assert_eq!(resp.solution, "Use tokio::time::sleep with exponential backoff");
+        assert_eq!(
+            resp.solution,
+            "Use tokio::time::sleep with exponential backoff"
+        );
         assert_eq!(resp.problem, "How to write an async retry loop");
     }
 }

@@ -181,8 +181,7 @@ impl DomainRewardTracker {
                 return false;
             }
             let n = rewards.len();
-            let recent: f32 =
-                rewards[n - self.window..].iter().sum::<f32>() / self.window as f32;
+            let recent: f32 = rewards[n - self.window..].iter().sum::<f32>() / self.window as f32;
             let older_len = self.window.min(n - self.window);
             let older: f32 = rewards[n - self.window - older_len..n - self.window]
                 .iter()
@@ -509,8 +508,10 @@ pub fn persist_domain_state(db_path: &str) -> Result<(), String> {
             // TransferPrior has HashMap<ContextBucket, ...> which serde_json
             // cannot serialize directly (JSON keys must be strings). Convert
             // bucket_priors to a vec of (bucket, arms) pairs for serialization.
-            let bucket_priors_vec: Vec<(ContextBucket, std::collections::HashMap<ArmId, ruvector_domain_expansion::BetaParams>)> =
-                prior.bucket_priors.into_iter().collect();
+            let bucket_priors_vec: Vec<(
+                ContextBucket,
+                std::collections::HashMap<ArmId, ruvector_domain_expansion::BetaParams>,
+            )> = prior.bucket_priors.into_iter().collect();
             let cost_ema_vec: Vec<(ContextBucket, f32)> =
                 prior.cost_ema_priors.into_iter().collect();
 
@@ -595,8 +596,7 @@ fn deserialize_transfer_prior(json: &serde_json::Value) -> TransferPrior {
         for pair in bp_array {
             if let Some(pair_arr) = pair.as_array() {
                 if pair_arr.len() == 2 {
-                    if let Ok(bucket) =
-                        serde_json::from_value::<ContextBucket>(pair_arr[0].clone())
+                    if let Ok(bucket) = serde_json::from_value::<ContextBucket>(pair_arr[0].clone())
                     {
                         if let Ok(arms) = serde_json::from_value::<
                             std::collections::HashMap<ArmId, BetaParams>,
@@ -615,8 +615,7 @@ fn deserialize_transfer_prior(json: &serde_json::Value) -> TransferPrior {
         for pair in ce_array {
             if let Some(pair_arr) = pair.as_array() {
                 if pair_arr.len() == 2 {
-                    if let Ok(bucket) =
-                        serde_json::from_value::<ContextBucket>(pair_arr[0].clone())
+                    if let Ok(bucket) = serde_json::from_value::<ContextBucket>(pair_arr[0].clone())
                     {
                         if let Some(cost) = pair_arr[1].as_f64() {
                             cost_ema_priors.insert(bucket, cost as f32);
@@ -693,9 +692,7 @@ pub fn load_and_restore_domain_state(db_path: &str) -> Result<usize, String> {
             }
 
             // Restore Thompson priors from the persisted TransferPrior.
-            engine
-                .thompson
-                .init_domain_with_transfer(domain_id, &prior);
+            engine.thompson.init_domain_with_transfer(domain_id, &prior);
             restored += 1;
         }
     }

@@ -31,11 +31,11 @@ use crate::db::{DualWriteAdapter, DualWriteConfig, PostgresDb, SqliteDb};
 use crate::error::{NagualError, Result};
 use crate::events::{EventBus, NagualEvent};
 use crate::ml::to_array1;
-#[cfg(feature = "onnx-embed")]
-use crate::ml::{Embedder, EmbedderConfig};
 #[cfg(not(feature = "onnx-embed"))]
 use crate::ml::HashEmbedder;
 use crate::ml::LoraStorage;
+#[cfg(feature = "onnx-embed")]
+use crate::ml::{Embedder, EmbedderConfig};
 use crate::reasoning_bank::pattern::{Pattern, PatternCategory, PatternId, PatternMetadata};
 use crate::reasoning_bank::storage::{PatternStorage, StorageConfig};
 use crate::reasoning_bank::{
@@ -497,8 +497,13 @@ async fn run_search(args: &SearchArgs) -> Result<()> {
         if db_is_empty {
             tracing::info!("No patterns in database, showing demo data hint");
             if !args.json {
-                println!("\nNo patterns found in database at: {}", args.db_path.display());
-                println!("Use 'nagual knowledge store' to add patterns, or --demo for sample data.\n");
+                println!(
+                    "\nNo patterns found in database at: {}",
+                    args.db_path.display()
+                );
+                println!(
+                    "Use 'nagual knowledge store' to add patterns, or --demo for sample data.\n"
+                );
             }
         }
 
@@ -510,118 +515,129 @@ async fn run_search(args: &SearchArgs) -> Result<()> {
     let mut results: Vec<_> = if args.hyperbolic && !args.demo {
         #[cfg(feature = "onnx-embed")]
         {
-        // Try embedding-based hyperbolic retrieval
-        let (model_path, tokenizer_path) = crate::ml::resolve_model_paths();
-        let (model_path, tokenizer_path) = (model_path.to_string_lossy().into_owned(), tokenizer_path.to_string_lossy().into_owned());
-        if std::path::Path::new(&model_path).exists() {
-            let config = EmbedderConfig::dim_128(&model_path, &tokenizer_path);
-            match Embedder::new(&config) {
-                Ok(embedder) => match embedder.embed(&args.query) {
-                    Ok(embed_result) => {
-                        let base_embedding = to_array1(&embed_result.embedding);
+            // Try embedding-based hyperbolic retrieval
+            let (model_path, tokenizer_path) = crate::ml::resolve_model_paths();
+            let (model_path, tokenizer_path) = (
+                model_path.to_string_lossy().into_owned(),
+                tokenizer_path.to_string_lossy().into_owned(),
+            );
+            if std::path::Path::new(&model_path).exists() {
+                let config = EmbedderConfig::dim_128(&model_path, &tokenizer_path);
+                match Embedder::new(&config) {
+                    Ok(embedder) => {
+                        match embedder.embed(&args.query) {
+                            Ok(embed_result) => {
+                                let base_embedding = to_array1(&embed_result.embedding);
 
-                        // Apply LoRA domain adapter if available (F11)
-                        let query_embedding = if let Some(ref domain) = args.domain {
-                            let lora_storage = LoraStorage::new("./models/lora");
-                            match lora_storage.load(domain) {
-                                Ok(adapter) => {
-                                    match adapter.transform(&base_embedding.view()) {
-                                        Ok(transformed) => {
-                                            tracing::info!("Applied LoRA adapter for domain '{}'", domain);
-                                            transformed
+                                // Apply LoRA domain adapter if available (F11)
+                                let query_embedding = if let Some(ref domain) = args.domain {
+                                    let lora_storage = LoraStorage::new("./models/lora");
+                                    match lora_storage.load(domain) {
+                                        Ok(adapter) => {
+                                            match adapter.transform(&base_embedding.view()) {
+                                                Ok(transformed) => {
+                                                    tracing::info!(
+                                                        "Applied LoRA adapter for domain '{}'",
+                                                        domain
+                                                    );
+                                                    transformed
+                                                }
+                                                Err(_) => base_embedding,
+                                            }
                                         }
                                         Err(_) => base_embedding,
                                     }
+                                } else {
+                                    base_embedding
+                                };
+
+                                let mut pq = PatternQuery::new(&args.query);
+                                if let Some(ref domain) = args.domain {
+                                    pq = pq.with_domains(vec![domain.as_str()]);
                                 }
-                                Err(_) => base_embedding,
-                            }
-                        } else {
-                            base_embedding
-                        };
-
-                        let mut pq = PatternQuery::new(&args.query);
-                        if let Some(ref domain) = args.domain {
-                            pq = pq.with_domains(vec![domain.as_str()]);
-                        }
-                        if let Some(min_reward) = args.min_reward {
-                            pq = pq.with_min_reward(min_reward);
-                        }
-                        pq = pq.with_limit(args.limit);
-
-                        let retrieval_config = RetrievalConfig::default();
-                        let hyper_config = HyperbolicRetrievalConfig::default();
-
-                        // Convert CLI patterns to retrieval format
-                        let rb_patterns: Vec<rb::Pattern> =
-                            patterns.iter().map(rb::Pattern::from).collect();
-
-                        // Use staged retrieval (F06) feeding into hyperbolic re-ranking (F09)
-                        let mut staging = RetrievalStaging::new();
-                        let _ = staged_retrieve_patterns(
-                            &mut staging,
-                            &rb_patterns,
-                            &query_embedding.view(),
-                            &pq,
-                            &retrieval_config,
-                        ); // Populate staging cache for future calls
-
-                        match retrieve_patterns_hyperbolic(
-                            &rb_patterns,
-                            &query_embedding.view(),
-                            &pq,
-                            &retrieval_config,
-                            &hyper_config,
-                        ) {
-                            Ok(result) => {
-                                if !args.json {
-                                    println!("  (hyperbolic retrieval: {} candidates scored)", result.total_candidates);
+                                if let Some(min_reward) = args.min_reward {
+                                    pq = pq.with_min_reward(min_reward);
                                 }
-                                result
-                                    .patterns
-                                    .into_iter()
-                                    .map(|sp| {
-                                        Pattern::builder()
-                                            .id(sp.pattern.id.as_str())
-                                            .problem(&sp.pattern.problem)
-                                            .solution(&sp.pattern.solution)
-                                            .category(PatternCategory::from(
-                                                sp.pattern.domain.as_str(),
-                                            ))
-                                            .context(
-                                                sp.pattern
-                                                    .context
-                                                    .as_deref()
-                                                    .unwrap_or(""),
-                                            )
-                                            .confidence(sp.pattern.confidence)
-                                            .reward(sp.pattern.reward)
-                                            .reuse_count(sp.pattern.usage_count)
-                                            .tags(sp.pattern.tags)
-                                            .build()
-                                    })
-                                    .collect()
+                                pq = pq.with_limit(args.limit);
+
+                                let retrieval_config = RetrievalConfig::default();
+                                let hyper_config = HyperbolicRetrievalConfig::default();
+
+                                // Convert CLI patterns to retrieval format
+                                let rb_patterns: Vec<rb::Pattern> =
+                                    patterns.iter().map(rb::Pattern::from).collect();
+
+                                // Use staged retrieval (F06) feeding into hyperbolic re-ranking (F09)
+                                let mut staging = RetrievalStaging::new();
+                                let _ = staged_retrieve_patterns(
+                                    &mut staging,
+                                    &rb_patterns,
+                                    &query_embedding.view(),
+                                    &pq,
+                                    &retrieval_config,
+                                ); // Populate staging cache for future calls
+
+                                match retrieve_patterns_hyperbolic(
+                                    &rb_patterns,
+                                    &query_embedding.view(),
+                                    &pq,
+                                    &retrieval_config,
+                                    &hyper_config,
+                                ) {
+                                    Ok(result) => {
+                                        if !args.json {
+                                            println!(
+                                                "  (hyperbolic retrieval: {} candidates scored)",
+                                                result.total_candidates
+                                            );
+                                        }
+                                        result
+                                            .patterns
+                                            .into_iter()
+                                            .map(|sp| {
+                                                Pattern::builder()
+                                                    .id(sp.pattern.id.as_str())
+                                                    .problem(&sp.pattern.problem)
+                                                    .solution(&sp.pattern.solution)
+                                                    .category(PatternCategory::from(
+                                                        sp.pattern.domain.as_str(),
+                                                    ))
+                                                    .context(
+                                                        sp.pattern.context.as_deref().unwrap_or(""),
+                                                    )
+                                                    .confidence(sp.pattern.confidence)
+                                                    .reward(sp.pattern.reward)
+                                                    .reuse_count(sp.pattern.usage_count)
+                                                    .tags(sp.pattern.tags)
+                                                    .build()
+                                            })
+                                            .collect()
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("Hyperbolic retrieval failed, falling back to text search: {}", e);
+                                        Vec::new() // fall through to text search below
+                                    }
+                                }
                             }
                             Err(e) => {
-                                tracing::warn!("Hyperbolic retrieval failed, falling back to text search: {}", e);
-                                Vec::new() // fall through to text search below
+                                eprintln!("Warning: Could not embed query: {}. Falling back to text search.", e);
+                                Vec::new()
                             }
                         }
                     }
                     Err(e) => {
-                        eprintln!("Warning: Could not embed query: {}. Falling back to text search.", e);
+                        eprintln!("Warning: Could not load embedding model: {}. Falling back to text search.", e);
                         Vec::new()
                     }
-                },
-                Err(e) => {
-                    eprintln!("Warning: Could not load embedding model: {}. Falling back to text search.", e);
-                    Vec::new()
                 }
+            } else {
+                eprintln!(
+                    "Warning: ONNX model not found at {}. Run 'nagual learn embed' first.",
+                    model_path
+                );
+                eprintln!("Falling back to text search.\n");
+                Vec::new()
             }
-        } else {
-            eprintln!("Warning: ONNX model not found at {}. Run 'nagual learn embed' first.", model_path);
-            eprintln!("Falling back to text search.\n");
-            Vec::new()
-        }
         } // end #[cfg(feature = "onnx-embed")] block
         #[cfg(not(feature = "onnx-embed"))]
         {
@@ -648,8 +664,13 @@ async fn run_search(args: &SearchArgs) -> Result<()> {
                         })
                         .filter(|(sim, _)| *sim > 0.0)
                         .collect();
-                    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-                    scored.into_iter().take(args.limit).map(|(_, p)| p).collect()
+                    scored
+                        .sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+                    scored
+                        .into_iter()
+                        .take(args.limit)
+                        .map(|(_, p)| p)
+                        .collect()
                 }
                 Err(_) => Vec::new(),
             }
@@ -662,7 +683,10 @@ async fn run_search(args: &SearchArgs) -> Result<()> {
     if results.is_empty() {
         // Try FTS5 first — proper full-text search with BM25 ranking
         if let Some(ref storage) = storage {
-            match storage.fts_search(&args.query, args.limit + args.offset).await {
+            match storage
+                .fts_search(&args.query, args.limit + args.offset)
+                .await
+            {
                 Ok(fts_results) if !fts_results.is_empty() => {
                     tracing::info!("FTS5 search returned {} results", fts_results.len());
                     results = fts_results
@@ -689,7 +713,10 @@ async fn run_search(args: &SearchArgs) -> Result<()> {
                     tracing::info!("FTS5 returned no results, falling back to substring match");
                 }
                 Err(e) => {
-                    tracing::warn!("FTS5 search failed ({}), falling back to substring match", e);
+                    tracing::warn!(
+                        "FTS5 search failed ({}), falling back to substring match",
+                        e
+                    );
                 }
             }
         }
@@ -708,9 +735,9 @@ async fn run_search(args: &SearchArgs) -> Result<()> {
                     let problem = p.problem().to_lowercase();
                     let solution = p.solution().to_lowercase();
                     // Match if ALL words appear in problem or solution (not as one substring)
-                    query_words.iter().all(|word| {
-                        problem.contains(word) || solution.contains(word)
-                    })
+                    query_words
+                        .iter()
+                        .all(|word| problem.contains(word) || solution.contains(word))
                 })
                 .filter(|p| {
                     if let Some(ref domain) = args.domain {
@@ -732,7 +759,11 @@ async fn run_search(args: &SearchArgs) -> Result<()> {
         }
 
         // Sort by relevance (simplified: by reward)
-        results.sort_by(|a, b| b.reward().partial_cmp(&a.reward()).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.reward()
+                .partial_cmp(&a.reward())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
     }
 
     if args.json {
@@ -784,7 +815,8 @@ async fn run_search(args: &SearchArgs) -> Result<()> {
         if let Some(ref storage) = storage {
             // Try to get active session ID for context tracking
             let session_id: Option<String> = {
-                let session_mgr = crate::db::SessionManager::new(storage.adapter().sqlite().clone());
+                let session_mgr =
+                    crate::db::SessionManager::new(storage.adapter().sqlite().clone());
                 match session_mgr.get_active_session().await {
                     Ok(Some(session)) => Some(session.id),
                     _ => None,
@@ -868,9 +900,15 @@ async fn run_get(args: &GetArgs) -> Result<()> {
                 println!("Confidence: {:.3}", p.confidence());
                 println!("Reuse Count: {}", p.reuse_count());
                 println!("Created: {}", p.timestamp().format("%Y-%m-%d %H:%M:%S UTC"));
-                println!("Updated: {}", p.updated_at().format("%Y-%m-%d %H:%M:%S UTC"));
+                println!(
+                    "Updated: {}",
+                    p.updated_at().format("%Y-%m-%d %H:%M:%S UTC")
+                );
                 if args.verbose && p.has_embedding() {
-                    println!("Embedding: {} dimensions", p.embedding().map(|e| e.len()).unwrap_or(0));
+                    println!(
+                        "Embedding: {} dimensions",
+                        p.embedding().map(|e| e.len()).unwrap_or(0)
+                    );
                 }
                 println!("{:=<60}\n", "");
             }
@@ -976,8 +1014,15 @@ async fn run_list(args: &ListArgs) -> Result<()> {
 
         if results.is_empty() && !args.json {
             match args.domain {
-                Some(ref domain) => println!("\nNo patterns in domain '{}' at: {}", domain, args.db_path.display()),
-                None => println!("\nNo patterns found in database at: {}", args.db_path.display()),
+                Some(ref domain) => println!(
+                    "\nNo patterns in domain '{}' at: {}",
+                    domain,
+                    args.db_path.display()
+                ),
+                None => println!(
+                    "\nNo patterns found in database at: {}",
+                    args.db_path.display()
+                ),
             }
             println!("Use 'nagual knowledge store' to add patterns, or --demo for sample data.\n");
         }
@@ -996,8 +1041,8 @@ async fn list_from_storage(storage: &PatternStorage, args: &ListArgs) -> Result<
     // unless a qe.flaky pattern happened to be among the 5 most recently updated.
     // When a filter or a non-recency sort is requested, fetch everything and paginate
     // after filtering; the cheap path is kept for the plain "most recent N" case.
-    let needs_full_scan = args.domain.is_some()
-        || !matches!(args.sort.as_str(), "updated" | "effectiveness");
+    let needs_full_scan =
+        args.domain.is_some() || !matches!(args.sort.as_str(), "updated" | "effectiveness");
     let fetch_n = if needs_full_scan {
         storage.count().await?.max(1)
     } else {
@@ -1038,16 +1083,24 @@ fn filter_sort_paginate(patterns: Vec<Pattern>, args: &ListArgs) -> Vec<Pattern>
         }),
         "reward" => results.sort_by(|a, b| {
             if args.order == "asc" {
-                a.reward().partial_cmp(&b.reward()).unwrap_or(std::cmp::Ordering::Equal)
+                a.reward()
+                    .partial_cmp(&b.reward())
+                    .unwrap_or(std::cmp::Ordering::Equal)
             } else {
-                b.reward().partial_cmp(&a.reward()).unwrap_or(std::cmp::Ordering::Equal)
+                b.reward()
+                    .partial_cmp(&a.reward())
+                    .unwrap_or(std::cmp::Ordering::Equal)
             }
         }),
         "effectiveness" => results.sort_by(|a, b| {
             if args.order == "asc" {
-                a.effectiveness().partial_cmp(&b.effectiveness()).unwrap_or(std::cmp::Ordering::Equal)
+                a.effectiveness()
+                    .partial_cmp(&b.effectiveness())
+                    .unwrap_or(std::cmp::Ordering::Equal)
             } else {
-                b.effectiveness().partial_cmp(&a.effectiveness()).unwrap_or(std::cmp::Ordering::Equal)
+                b.effectiveness()
+                    .partial_cmp(&a.effectiveness())
+                    .unwrap_or(std::cmp::Ordering::Equal)
             }
         }),
         "usage" => results.sort_by(|a, b| {
@@ -1067,7 +1120,11 @@ fn filter_sort_paginate(patterns: Vec<Pattern>, args: &ListArgs) -> Vec<Pattern>
     }
 
     // Paginate
-    results.into_iter().skip(args.offset).take(args.limit).collect()
+    results
+        .into_iter()
+        .skip(args.offset)
+        .take(args.limit)
+        .collect()
 }
 
 fn print_list(results: &[Pattern], args: &ListArgs) -> Result<()> {
@@ -1127,19 +1184,28 @@ async fn run_sync(args: &SyncArgs) -> Result<()> {
     println!("\nSQLite → PostgreSQL Sync");
     println!("{:=<60}", "");
     println!("Source: {}", args.db_path.display());
-    println!("Target: {}",
+    println!(
+        "Target: {}",
         if let Some(at_pos) = pg_url.find('@') {
             if let Some(colon_pos) = pg_url[..at_pos].rfind(':') {
                 format!("{}****{}", &pg_url[..colon_pos + 1], &pg_url[at_pos..])
-            } else { pg_url.clone() }
-        } else { pg_url.clone() }
+            } else {
+                pg_url.clone()
+            }
+        } else {
+            pg_url.clone()
+        }
     );
     println!("{:-<60}", "");
 
     // Open SQLite (read-only source)
     let sqlite = Arc::new(SqliteDb::open(&args.db_path)?);
     let sqlite_config = DualWriteConfig {
-        dlq_path: args.db_path.with_extension("dlq.db").to_string_lossy().to_string(),
+        dlq_path: args
+            .db_path
+            .with_extension("dlq.db")
+            .to_string_lossy()
+            .to_string(),
         ..Default::default()
     };
     let sqlite_adapter = Arc::new(DualWriteAdapter::new(sqlite, None, sqlite_config)?);
@@ -1318,7 +1384,11 @@ async fn run_import(args: &ImportArgs) -> Result<()> {
     let parse_error_count = parse_errors.len();
 
     if !args.json {
-        println!("\nParsed {} records from {}", total_records, args.seed.display());
+        println!(
+            "\nParsed {} records from {}",
+            total_records,
+            args.seed.display()
+        );
         if parse_error_count > 0 {
             eprintln!("\nParse errors ({}):", parse_error_count);
             for (line, err) in parse_errors.iter().take(10) {
@@ -1515,7 +1585,9 @@ fn create_demo_patterns() -> Vec<Pattern> {
         Pattern::builder()
             .id("demo-001")
             .problem("How to handle async errors in Rust")
-            .solution("Use Result type with async/await and proper error propagation using ? operator")
+            .solution(
+                "Use Result type with async/await and proper error propagation using ? operator",
+            )
             .category(PatternCategory::Resilience)
             .effectiveness(0.92)
             .reward(0.88)
@@ -1528,7 +1600,9 @@ fn create_demo_patterns() -> Vec<Pattern> {
         Pattern::builder()
             .id("demo-002")
             .problem("Database connection pooling best practices")
-            .solution("Use sqlx pool with proper configuration, health checks, and connection limits")
+            .solution(
+                "Use sqlx pool with proper configuration, health checks, and connection limits",
+            )
             .category(PatternCategory::Performance)
             .effectiveness(0.85)
             .reward(0.82)
@@ -1541,7 +1615,9 @@ fn create_demo_patterns() -> Vec<Pattern> {
         Pattern::builder()
             .id("demo-003")
             .problem("API rate limiting implementation")
-            .solution("Implement token bucket algorithm with Redis backend for distributed rate limiting")
+            .solution(
+                "Implement token bucket algorithm with Redis backend for distributed rate limiting",
+            )
             .category(PatternCategory::ApiDesign)
             .effectiveness(0.78)
             .reward(0.75)
@@ -1726,8 +1802,16 @@ mod tests {
         let got_ids: Vec<String> = got.iter().map(|p| p.id().to_string()).collect();
         assert_eq!(got_ids, vec![flaky[0].0.clone(), flaky[1].0.clone()]);
         assert!(got.iter().all(|p| p.category().to_string() == "qe.flaky"));
-        assert!((got[0].reward() - 0.92).abs() < 1e-6, "got reward {}", got[0].reward());
-        assert!((got[1].reward() - 0.78).abs() < 1e-6, "got reward {}", got[1].reward());
+        assert!(
+            (got[0].reward() - 0.92).abs() < 1e-6,
+            "got reward {}",
+            got[0].reward()
+        );
+        assert!(
+            (got[1].reward() - 0.78).abs() < 1e-6,
+            "got reward {}",
+            got[1].reward()
+        );
     }
 
     #[tokio::test]
@@ -1742,7 +1826,11 @@ mod tests {
         let got = list_from_storage(&storage, &args).await.unwrap();
 
         assert_eq!(got.len(), 1);
-        assert!((got[0].reward() - 0.35).abs() < 1e-6, "got reward {}", got[0].reward());
+        assert!(
+            (got[0].reward() - 0.35).abs() < 1e-6,
+            "got reward {}",
+            got[0].reward()
+        );
     }
 
     #[tokio::test]
@@ -1750,7 +1838,9 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let (storage, _) = seeded_storage(&dir).await;
 
-        let got = list_from_storage(&storage, &list_args(None, "updated", 3)).await.unwrap();
+        let got = list_from_storage(&storage, &list_args(None, "updated", 3))
+            .await
+            .unwrap();
 
         assert_eq!(got.len(), 3);
         assert!(got.iter().all(|p| p.category().to_string() == "rust.async"));

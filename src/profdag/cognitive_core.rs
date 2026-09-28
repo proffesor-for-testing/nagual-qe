@@ -300,9 +300,7 @@ impl CognitiveCore {
     pub fn active_patterns_with_weights(&self) -> Vec<(PatternId, f32)> {
         self.sorted_patterns
             .iter()
-            .filter_map(|id| {
-                self.patterns.get(id).map(|p| (id.clone(), p.attention))
-            })
+            .filter_map(|id| self.patterns.get(id).map(|p| (id.clone(), p.attention)))
             .collect()
     }
 
@@ -467,11 +465,8 @@ impl CognitiveCore {
         let total: f32 = attentions.iter().sum();
         let mean = total / attentions.len() as f32;
 
-        let variance = attentions
-            .iter()
-            .map(|a| (a - mean).powi(2))
-            .sum::<f32>()
-            / attentions.len() as f32;
+        let variance =
+            attentions.iter().map(|a| (a - mean).powi(2)).sum::<f32>() / attentions.len() as f32;
 
         let mut sorted = attentions.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));

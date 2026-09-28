@@ -70,7 +70,11 @@ impl From<&Pattern> for SyncPatternData {
             content_hash: p.content_hash().map(|s| s.to_string()),
             critique: {
                 let c = p.critique();
-                if c.is_empty() { None } else { Some(c.to_string()) }
+                if c.is_empty() {
+                    None
+                } else {
+                    Some(c.to_string())
+                }
             },
         }
     }
@@ -177,7 +181,10 @@ mod tests {
         let reconstructed = sync_data.to_pattern();
         assert_eq!(reconstructed.problem(), pattern.problem());
         assert_eq!(reconstructed.solution(), pattern.solution());
-        assert_eq!(reconstructed.category().to_string(), pattern.category().to_string());
+        assert_eq!(
+            reconstructed.category().to_string(),
+            pattern.category().to_string()
+        );
         assert_eq!(reconstructed.reward(), pattern.reward());
     }
 

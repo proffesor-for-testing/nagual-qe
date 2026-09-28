@@ -123,10 +123,7 @@ pub async fn run(args: &TransferArgs) -> Result<()> {
                                 .and_then(|v| v.as_object())
                                 .map(|o| o.len())
                                 .unwrap_or(0);
-                            println!(
-                                "    - {} ({} cycles, {} buckets)",
-                                domain, cycles, buckets
-                            );
+                            println!("    - {} ({} cycles, {} buckets)", domain, cycles, buckets);
                         }
                     }
                     _ => {}

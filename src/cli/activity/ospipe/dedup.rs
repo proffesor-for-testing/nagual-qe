@@ -423,8 +423,7 @@ mod tests {
 
     #[test]
     fn test_dedup_capacity_eviction() {
-        let mut dedup = SlidingWindowDedup::new(Duration::from_secs(300), 0.9)
-            .with_max_entries(3);
+        let mut dedup = SlidingWindowDedup::new(Duration::from_secs(300), 0.9).with_max_entries(3);
 
         let now = Utc::now();
 
@@ -498,8 +497,14 @@ mod tests {
 
         // With low threshold (0.5), should be duplicate
         // With high threshold (0.99), should NOT be duplicate
-        assert!(result1.is_duplicate, "With threshold 0.5, should be duplicate");
-        assert!(!result2.is_duplicate, "With threshold 0.99, should not be duplicate");
+        assert!(
+            result1.is_duplicate,
+            "With threshold 0.5, should be duplicate"
+        );
+        assert!(
+            !result2.is_duplicate,
+            "With threshold 0.99, should not be duplicate"
+        );
     }
 
     #[test]

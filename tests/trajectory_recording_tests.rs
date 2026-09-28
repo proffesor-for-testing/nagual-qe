@@ -36,7 +36,10 @@ pub enum TrajectoryOutcome {
 
 impl TrajectoryOutcome {
     pub fn is_positive(&self) -> bool {
-        matches!(self, TrajectoryOutcome::Success | TrajectoryOutcome::PartialSuccess)
+        matches!(
+            self,
+            TrajectoryOutcome::Success | TrajectoryOutcome::PartialSuccess
+        )
     }
 
     pub fn reward_value(&self) -> f32 {
@@ -201,7 +204,10 @@ impl std::fmt::Debug for TrajectoryRecorder {
         f.debug_struct("TrajectoryRecorder")
             .field("current_trajectory", &self.current_trajectory)
             .field("completed_trajectories", &self.completed_trajectories)
-            .field("step_embedder", &self.step_embedder.as_ref().map(|_| "<embedder>"))
+            .field(
+                "step_embedder",
+                &self.step_embedder.as_ref().map(|_| "<embedder>"),
+            )
             .finish()
     }
 }
@@ -223,14 +229,24 @@ impl TrajectoryRecorder {
         self
     }
 
-    pub fn start_trajectory(&mut self, session_id: impl Into<String>, task: impl Into<String>) -> &Trajectory {
+    pub fn start_trajectory(
+        &mut self,
+        session_id: impl Into<String>,
+        task: impl Into<String>,
+    ) -> &Trajectory {
         let trajectory = Trajectory::new(session_id, task);
         self.current_trajectory = Some(trajectory);
         self.current_trajectory.as_ref().unwrap()
     }
 
-    pub fn record_step(&mut self, action: ActionType, input: impl Into<String>) -> Result<&TrajectoryStep, String> {
-        let trajectory = self.current_trajectory.as_mut()
+    pub fn record_step(
+        &mut self,
+        action: ActionType,
+        input: impl Into<String>,
+    ) -> Result<&TrajectoryStep, String> {
+        let trajectory = self
+            .current_trajectory
+            .as_mut()
             .ok_or_else(|| "No active trajectory".to_string())?;
 
         let step_number = trajectory.step_count() + 1;
@@ -254,7 +270,9 @@ impl TrajectoryRecorder {
         output: impl Into<String>,
         duration_ms: u64,
     ) -> Result<&TrajectoryStep, String> {
-        let trajectory = self.current_trajectory.as_mut()
+        let trajectory = self
+            .current_trajectory
+            .as_mut()
             .ok_or_else(|| "No active trajectory".to_string())?;
 
         let step_number = trajectory.step_count() + 1;
@@ -272,8 +290,13 @@ impl TrajectoryRecorder {
         Ok(trajectory.steps.last().unwrap())
     }
 
-    pub fn complete_trajectory(&mut self, outcome: TrajectoryOutcome) -> Result<Trajectory, String> {
-        let mut trajectory = self.current_trajectory.take()
+    pub fn complete_trajectory(
+        &mut self,
+        outcome: TrajectoryOutcome,
+    ) -> Result<Trajectory, String> {
+        let mut trajectory = self
+            .current_trajectory
+            .take()
             .ok_or_else(|| "No active trajectory".to_string())?;
 
         trajectory.complete(outcome);
@@ -286,7 +309,9 @@ impl TrajectoryRecorder {
         outcome: TrajectoryOutcome,
         reward: f32,
     ) -> Result<Trajectory, String> {
-        let mut trajectory = self.current_trajectory.take()
+        let mut trajectory = self
+            .current_trajectory
+            .take()
             .ok_or_else(|| "No active trajectory".to_string())?;
 
         trajectory.complete_with_reward(outcome, reward);
@@ -412,7 +437,10 @@ impl TrajectoryReplayer {
     }
 
     pub fn remaining_steps(&self) -> usize {
-        self.trajectory.steps.len().saturating_sub(self.current_step)
+        self.trajectory
+            .steps
+            .len()
+            .saturating_sub(self.current_step)
     }
 
     pub fn progress(&self) -> f32 {
@@ -444,7 +472,9 @@ mod step_recording_tests {
         let mut recorder = TrajectoryRecorder::new();
         recorder.start_trajectory("session-1", "Test task");
 
-        let step = recorder.record_step(ActionType::Query, "What is X?").unwrap();
+        let step = recorder
+            .record_step(ActionType::Query, "What is X?")
+            .unwrap();
 
         assert_eq!(step.step_number, 1);
         assert_eq!(step.action_type, ActionType::Query);
@@ -457,12 +487,9 @@ mod step_recording_tests {
         let mut recorder = TrajectoryRecorder::new();
         recorder.start_trajectory("session-1", "Test task");
 
-        let step = recorder.record_step_with_output(
-            ActionType::Generate,
-            "Generate code",
-            "fn main() {}",
-            150,
-        ).unwrap();
+        let step = recorder
+            .record_step_with_output(ActionType::Generate, "Generate code", "fn main() {}", 150)
+            .unwrap();
 
         assert_eq!(step.step_number, 1);
         assert_eq!(step.action_type, ActionType::Generate);
@@ -476,8 +503,12 @@ mod step_recording_tests {
         recorder.start_trajectory("session-1", "Multi-step task");
 
         recorder.record_step(ActionType::Query, "Step 1").unwrap();
-        recorder.record_step(ActionType::Retrieve, "Step 2").unwrap();
-        recorder.record_step(ActionType::Generate, "Step 3").unwrap();
+        recorder
+            .record_step(ActionType::Retrieve, "Step 2")
+            .unwrap();
+        recorder
+            .record_step(ActionType::Generate, "Step 3")
+            .unwrap();
 
         let trajectory = recorder.current().unwrap();
         assert_eq!(trajectory.step_count(), 3);
@@ -552,7 +583,9 @@ mod step_recording_tests {
         ];
 
         for action in action_types {
-            recorder.record_step(action.clone(), format!("Action: {:?}", action)).unwrap();
+            recorder
+                .record_step(action.clone(), format!("Action: {:?}", action))
+                .unwrap();
         }
 
         assert_eq!(recorder.current().unwrap().step_count(), 7);
@@ -585,9 +618,13 @@ mod trajectory_capture_tests {
         recorder.start_trajectory("session-1", "Complete task");
 
         recorder.record_step(ActionType::Query, "Step 1").unwrap();
-        recorder.record_step(ActionType::Generate, "Step 2").unwrap();
+        recorder
+            .record_step(ActionType::Generate, "Step 2")
+            .unwrap();
 
-        let trajectory = recorder.complete_trajectory(TrajectoryOutcome::Success).unwrap();
+        let trajectory = recorder
+            .complete_trajectory(TrajectoryOutcome::Success)
+            .unwrap();
 
         assert!(trajectory.is_complete());
         assert_eq!(trajectory.outcome, Some(TrajectoryOutcome::Success));
@@ -600,19 +637,25 @@ mod trajectory_capture_tests {
         recorder.start_trajectory("session-1", "Reward test");
 
         recorder.record_step(ActionType::Query, "Step").unwrap();
-        let trajectory = recorder.complete_trajectory(TrajectoryOutcome::Success).unwrap();
+        let trajectory = recorder
+            .complete_trajectory(TrajectoryOutcome::Success)
+            .unwrap();
 
         assert_eq!(trajectory.reward, Some(1.0));
 
         // Test other outcomes
         recorder.start_trajectory("session-2", "Partial");
         recorder.record_step(ActionType::Query, "Step").unwrap();
-        let partial = recorder.complete_trajectory(TrajectoryOutcome::PartialSuccess).unwrap();
+        let partial = recorder
+            .complete_trajectory(TrajectoryOutcome::PartialSuccess)
+            .unwrap();
         assert_eq!(partial.reward, Some(0.6));
 
         recorder.start_trajectory("session-3", "Failure");
         recorder.record_step(ActionType::Query, "Step").unwrap();
-        let failure = recorder.complete_trajectory(TrajectoryOutcome::Failure).unwrap();
+        let failure = recorder
+            .complete_trajectory(TrajectoryOutcome::Failure)
+            .unwrap();
         assert_eq!(failure.reward, Some(0.1));
     }
 
@@ -622,10 +665,9 @@ mod trajectory_capture_tests {
         recorder.start_trajectory("session-1", "Custom reward");
 
         recorder.record_step(ActionType::Query, "Step").unwrap();
-        let trajectory = recorder.complete_trajectory_with_reward(
-            TrajectoryOutcome::PartialSuccess,
-            0.85,
-        ).unwrap();
+        let trajectory = recorder
+            .complete_trajectory_with_reward(TrajectoryOutcome::PartialSuccess, 0.85)
+            .unwrap();
 
         assert_eq!(trajectory.reward, Some(0.85));
     }
@@ -636,10 +678,12 @@ mod trajectory_capture_tests {
         recorder.start_trajectory("session-1", "Clamp test");
         recorder.record_step(ActionType::Query, "Step").unwrap();
 
-        let trajectory = recorder.complete_trajectory_with_reward(
-            TrajectoryOutcome::Success,
-            1.5, // Should be clamped to 1.0
-        ).unwrap();
+        let trajectory = recorder
+            .complete_trajectory_with_reward(
+                TrajectoryOutcome::Success,
+                1.5, // Should be clamped to 1.0
+            )
+            .unwrap();
 
         assert_eq!(trajectory.reward, Some(1.0));
     }
@@ -649,9 +693,15 @@ mod trajectory_capture_tests {
         let mut recorder = TrajectoryRecorder::new();
         recorder.start_trajectory("session-1", "Duration test");
 
-        recorder.record_step_with_output(ActionType::Query, "Step 1", "Out 1", 100).unwrap();
-        recorder.record_step_with_output(ActionType::Generate, "Step 2", "Out 2", 200).unwrap();
-        recorder.record_step_with_output(ActionType::Execute, "Step 3", "Out 3", 150).unwrap();
+        recorder
+            .record_step_with_output(ActionType::Query, "Step 1", "Out 1", 100)
+            .unwrap();
+        recorder
+            .record_step_with_output(ActionType::Generate, "Step 2", "Out 2", 200)
+            .unwrap();
+        recorder
+            .record_step_with_output(ActionType::Execute, "Step 3", "Out 3", 150)
+            .unwrap();
 
         let trajectory = recorder.current().unwrap();
         assert_eq!(trajectory.total_duration_ms, 450);
@@ -672,8 +722,11 @@ mod trajectory_capture_tests {
 
     #[test]
     fn test_trajectory_with_tags() {
-        let trajectory = Trajectory::new("session-1", "Tagged task")
-            .with_tags(vec!["important".to_string(), "database".to_string(), "optimization".to_string()]);
+        let trajectory = Trajectory::new("session-1", "Tagged task").with_tags(vec![
+            "important".to_string(),
+            "database".to_string(),
+            "optimization".to_string(),
+        ]);
 
         assert_eq!(trajectory.tags.len(), 3);
         assert!(trajectory.tags.contains(&"important".to_string()));
@@ -693,12 +746,18 @@ mod trajectory_capture_tests {
         // First trajectory
         recorder.start_trajectory("session-1", "Task 1");
         recorder.record_step(ActionType::Query, "Step 1").unwrap();
-        recorder.complete_trajectory(TrajectoryOutcome::Success).unwrap();
+        recorder
+            .complete_trajectory(TrajectoryOutcome::Success)
+            .unwrap();
 
         // Second trajectory
         recorder.start_trajectory("session-1", "Task 2");
-        recorder.record_step(ActionType::Generate, "Step 1").unwrap();
-        recorder.complete_trajectory(TrajectoryOutcome::Failure).unwrap();
+        recorder
+            .record_step(ActionType::Generate, "Step 1")
+            .unwrap();
+        recorder
+            .complete_trajectory(TrajectoryOutcome::Failure)
+            .unwrap();
 
         assert_eq!(recorder.completed_count(), 2);
         assert_eq!(recorder.completed()[0].task_description, "Task 1");
@@ -707,14 +766,14 @@ mod trajectory_capture_tests {
 
     #[test]
     fn test_trajectory_with_embedder() {
-        let embedder = |_text: &str| -> Vec<f32> {
-            normalized_embedding(64)
-        };
+        let embedder = |_text: &str| -> Vec<f32> { normalized_embedding(64) };
 
         let mut recorder = TrajectoryRecorder::new().with_embedder(embedder);
         recorder.start_trajectory("session-1", "Embedder test");
 
-        recorder.record_step(ActionType::Query, "Test input").unwrap();
+        recorder
+            .record_step(ActionType::Query, "Test input")
+            .unwrap();
 
         let trajectory = recorder.current().unwrap();
         assert!(trajectory.steps[0].embedding.is_some());
@@ -732,17 +791,23 @@ mod replay_tests {
     fn create_sample_trajectory() -> Trajectory {
         let mut trajectory = Trajectory::new("session-1", "Sample task");
 
-        trajectory.add_step(TrajectoryStep::new(1, ActionType::Query, "Query input")
-            .with_output("Query result")
-            .with_duration(100));
+        trajectory.add_step(
+            TrajectoryStep::new(1, ActionType::Query, "Query input")
+                .with_output("Query result")
+                .with_duration(100),
+        );
 
-        trajectory.add_step(TrajectoryStep::new(2, ActionType::Retrieve, "Retrieve patterns")
-            .with_output("Pattern list")
-            .with_duration(50));
+        trajectory.add_step(
+            TrajectoryStep::new(2, ActionType::Retrieve, "Retrieve patterns")
+                .with_output("Pattern list")
+                .with_duration(50),
+        );
 
-        trajectory.add_step(TrajectoryStep::new(3, ActionType::Generate, "Generate code")
-            .with_output("fn main() {}")
-            .with_duration(200));
+        trajectory.add_step(
+            TrajectoryStep::new(3, ActionType::Generate, "Generate code")
+                .with_output("fn main() {}")
+                .with_duration(200),
+        );
 
         trajectory.complete(TrajectoryOutcome::Success);
         trajectory
@@ -839,7 +904,10 @@ mod replay_tests {
         let replayer = TrajectoryReplayer::new(trajectory.clone());
 
         assert_eq!(replayer.trajectory().task_description, "Sample task");
-        assert_eq!(replayer.trajectory().outcome, Some(TrajectoryOutcome::Success));
+        assert_eq!(
+            replayer.trajectory().outcome,
+            Some(TrajectoryOutcome::Success)
+        );
     }
 }
 
@@ -876,9 +944,13 @@ mod outcome_linking_tests {
         recorder.start_trajectory("session-1", "Linked outcome test");
 
         recorder.record_step(ActionType::Query, "Query").unwrap();
-        recorder.record_step(ActionType::Generate, "Generate").unwrap();
+        recorder
+            .record_step(ActionType::Generate, "Generate")
+            .unwrap();
 
-        let trajectory = recorder.complete_trajectory(TrajectoryOutcome::Success).unwrap();
+        let trajectory = recorder
+            .complete_trajectory(TrajectoryOutcome::Success)
+            .unwrap();
 
         // Outcome should be linked to the entire trajectory
         assert_eq!(trajectory.outcome, Some(TrajectoryOutcome::Success));
@@ -909,7 +981,9 @@ mod outcome_linking_tests {
 
         let successful = storage.get_successful();
         assert_eq!(successful.len(), 2);
-        assert!(successful.iter().all(|t| t.outcome.map_or(false, |o| o.is_positive())));
+        assert!(successful
+            .iter()
+            .all(|t| t.outcome.map_or(false, |o| o.is_positive())));
     }
 
     #[test]
@@ -941,8 +1015,7 @@ mod outcome_linking_tests {
         t1.complete(TrajectoryOutcome::Success);
         storage.store(t1);
 
-        let mut t2 = Trajectory::new("s2", "Task 2")
-            .with_tags(vec!["api".to_string()]);
+        let mut t2 = Trajectory::new("s2", "Task 2").with_tags(vec!["api".to_string()]);
         t2.complete(TrajectoryOutcome::Success);
         storage.store(t2);
 
@@ -1035,12 +1108,14 @@ mod performance_tests {
 
         let start = Instant::now();
         for i in 0..1000 {
-            recorder.record_step_with_output(
-                ActionType::Query,
-                format!("Step {}", i),
-                format!("Output {}", i),
-                10,
-            ).unwrap();
+            recorder
+                .record_step_with_output(
+                    ActionType::Query,
+                    format!("Step {}", i),
+                    format!("Output {}", i),
+                    10,
+                )
+                .unwrap();
         }
         let duration = start.elapsed();
 
@@ -1056,7 +1131,11 @@ mod performance_tests {
     fn test_replay_many_steps() {
         let mut trajectory = Trajectory::new("session-1", "Large trajectory");
         for i in 0..1000 {
-            trajectory.add_step(TrajectoryStep::new(i + 1, ActionType::Query, format!("Step {}", i)));
+            trajectory.add_step(TrajectoryStep::new(
+                i + 1,
+                ActionType::Query,
+                format!("Step {}", i),
+            ));
         }
 
         let mut replayer = TrajectoryReplayer::new(trajectory);
@@ -1097,9 +1176,14 @@ mod performance_tests {
         let mut storage = TrajectoryStorage::new();
 
         for i in 0..1000 {
-            let outcome = if i % 2 == 0 { TrajectoryOutcome::Success } else { TrajectoryOutcome::Failure };
-            let mut trajectory = Trajectory::new(format!("session-{}", i % 10), format!("Task {}", i))
-                .with_tags(vec![format!("tag-{}", i % 5)]);
+            let outcome = if i % 2 == 0 {
+                TrajectoryOutcome::Success
+            } else {
+                TrajectoryOutcome::Failure
+            };
+            let mut trajectory =
+                Trajectory::new(format!("session-{}", i % 10), format!("Task {}", i))
+                    .with_tags(vec![format!("tag-{}", i % 5)]);
             trajectory.complete(outcome);
             storage.store(trajectory);
         }

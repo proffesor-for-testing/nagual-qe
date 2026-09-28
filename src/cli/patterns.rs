@@ -31,19 +31,19 @@ use crate::error::Result;
 use crate::events::{EventBus, NagualEvent};
 use crate::learning::{consolidate_patterns, PatternConsolidationConfig};
 use crate::ml::to_array1;
-#[cfg(feature = "onnx-embed")]
-use crate::ml::{Embedder, EmbedderConfig};
 #[cfg(not(feature = "onnx-embed"))]
 use crate::ml::HashEmbedder;
 use crate::ml::LoraStorage;
+#[cfg(feature = "onnx-embed")]
+use crate::ml::{Embedder, EmbedderConfig};
 use crate::reasoning_bank::dna::PatternDNA;
 use crate::reasoning_bank::pattern::{Pattern, PatternCategory};
 use crate::reasoning_bank::pyramid;
+use crate::reasoning_bank::PatternTier;
 use crate::reasoning_bank::{
     self as rb, retrieve_patterns_hyperbolic, staged_retrieve_patterns, HyperbolicRetrievalConfig,
     PatternQuery, RetrievalConfig, RetrievalStaging,
 };
-use crate::reasoning_bank::PatternTier;
 
 /// Pattern management commands.
 ///
@@ -428,7 +428,12 @@ async fn run_store_pattern(args: &StorePatternArgs) -> Result<()> {
             Ok(input) => Pattern::builder()
                 .problem(input.problem)
                 .solution(input.solution)
-                .category(PatternCategory::from(input.category.unwrap_or_else(|| "general".to_string()).as_str()))
+                .category(PatternCategory::from(
+                    input
+                        .category
+                        .unwrap_or_else(|| "general".to_string())
+                        .as_str(),
+                ))
                 .context(input.context.unwrap_or_default())
                 .effectiveness(input.effectiveness.unwrap_or(0.5))
                 .confidence(input.confidence.unwrap_or(0.5))
@@ -457,14 +462,17 @@ async fn run_store_pattern(args: &StorePatternArgs) -> Result<()> {
         Pattern::builder()
             .problem(problem)
             .solution(solution)
-            .category(PatternCategory::from(args.category.as_deref().unwrap_or("general")))
+            .category(PatternCategory::from(
+                args.category.as_deref().unwrap_or("general"),
+            ))
             .context(args.context.as_deref().unwrap_or(""))
             .effectiveness(args.effectiveness)
             .confidence(args.confidence)
             .tags(args.tags.clone())
             .build()
     } else {
-        let msg = "Either --json-input, --interactive, or both --problem and --solution are required";
+        let msg =
+            "Either --json-input, --interactive, or both --problem and --solution are required";
         if args.output_json {
             let output = ErrorOutput {
                 error: msg.to_string(),
@@ -542,7 +550,10 @@ async fn run_search_pattern(args: &SearchPatternArgs) -> Result<()> {
         let all_patterns = storage.get_recent(args.limit * 10).await?;
 
         if all_patterns.is_empty() && !args.json {
-            println!("\nNo patterns found in database at: {}", args.db_path.display());
+            println!(
+                "\nNo patterns found in database at: {}",
+                args.db_path.display()
+            );
             println!("Use 'nagual patterns store' to add patterns, or --demo for sample data.\n");
         }
 
@@ -554,117 +565,128 @@ async fn run_search_pattern(args: &SearchPatternArgs) -> Result<()> {
     let mut results: Vec<_> = if args.hyperbolic && !args.demo {
         #[cfg(feature = "onnx-embed")]
         {
-        let (model_path, tokenizer_path) = crate::ml::resolve_model_paths();
-        let (model_path, tokenizer_path) = (model_path.to_string_lossy().into_owned(), tokenizer_path.to_string_lossy().into_owned());
-        if std::path::Path::new(&model_path).exists() {
-            let config = EmbedderConfig::dim_128(&model_path, &tokenizer_path);
-            match Embedder::new(&config) {
-                Ok(embedder) => match embedder.embed(&args.query) {
-                    Ok(embed_result) => {
-                        let base_embedding = to_array1(&embed_result.embedding);
+            let (model_path, tokenizer_path) = crate::ml::resolve_model_paths();
+            let (model_path, tokenizer_path) = (
+                model_path.to_string_lossy().into_owned(),
+                tokenizer_path.to_string_lossy().into_owned(),
+            );
+            if std::path::Path::new(&model_path).exists() {
+                let config = EmbedderConfig::dim_128(&model_path, &tokenizer_path);
+                match Embedder::new(&config) {
+                    Ok(embedder) => {
+                        match embedder.embed(&args.query) {
+                            Ok(embed_result) => {
+                                let base_embedding = to_array1(&embed_result.embedding);
 
-                        // Apply LoRA domain adapter if available (F11)
-                        let query_embedding = if let Some(ref domain) = args.domain {
-                            let lora_storage = LoraStorage::new("./models/lora");
-                            match lora_storage.load(domain) {
-                                Ok(adapter) => {
-                                    match adapter.transform(&base_embedding.view()) {
-                                        Ok(transformed) => {
-                                            tracing::info!("Applied LoRA adapter for domain '{}'", domain);
-                                            transformed
+                                // Apply LoRA domain adapter if available (F11)
+                                let query_embedding = if let Some(ref domain) = args.domain {
+                                    let lora_storage = LoraStorage::new("./models/lora");
+                                    match lora_storage.load(domain) {
+                                        Ok(adapter) => {
+                                            match adapter.transform(&base_embedding.view()) {
+                                                Ok(transformed) => {
+                                                    tracing::info!(
+                                                        "Applied LoRA adapter for domain '{}'",
+                                                        domain
+                                                    );
+                                                    transformed
+                                                }
+                                                Err(_) => base_embedding,
+                                            }
                                         }
                                         Err(_) => base_embedding,
                                     }
+                                } else {
+                                    base_embedding
+                                };
+
+                                let mut pq = PatternQuery::new(&args.query);
+                                if let Some(ref domain) = args.domain {
+                                    pq = pq.with_domains(vec![domain.as_str()]);
                                 }
-                                Err(_) => base_embedding,
-                            }
-                        } else {
-                            base_embedding
-                        };
-
-                        let mut pq = PatternQuery::new(&args.query);
-                        if let Some(ref domain) = args.domain {
-                            pq = pq.with_domains(vec![domain.as_str()]);
-                        }
-                        if let Some(min_reward) = args.min_reward {
-                            pq = pq.with_min_reward(min_reward);
-                        }
-                        pq = pq.with_limit(args.limit);
-
-                        let retrieval_config = RetrievalConfig::default();
-                        let hyper_config = HyperbolicRetrievalConfig::default();
-
-                        // Convert CLI patterns to retrieval format
-                        let rb_patterns: Vec<rb::Pattern> =
-                            patterns.iter().map(rb::Pattern::from).collect();
-
-                        // Use staged retrieval (F06) feeding into hyperbolic re-ranking (F09)
-                        let mut staging = RetrievalStaging::new();
-                        let _ = staged_retrieve_patterns(
-                            &mut staging,
-                            &rb_patterns,
-                            &query_embedding.view(),
-                            &pq,
-                            &retrieval_config,
-                        );
-
-                        match retrieve_patterns_hyperbolic(
-                            &rb_patterns,
-                            &query_embedding.view(),
-                            &pq,
-                            &retrieval_config,
-                            &hyper_config,
-                        ) {
-                            Ok(result) => {
-                                if !args.json {
-                                    println!("  (hyperbolic retrieval: {} candidates scored)", result.total_candidates);
+                                if let Some(min_reward) = args.min_reward {
+                                    pq = pq.with_min_reward(min_reward);
                                 }
-                                result
-                                    .patterns
-                                    .into_iter()
-                                    .map(|sp| {
-                                        Pattern::builder()
-                                            .id(sp.pattern.id.as_str())
-                                            .problem(&sp.pattern.problem)
-                                            .solution(&sp.pattern.solution)
-                                            .category(PatternCategory::from(
-                                                sp.pattern.domain.as_str(),
-                                            ))
-                                            .context(
-                                                sp.pattern
-                                                    .context
-                                                    .as_deref()
-                                                    .unwrap_or(""),
-                                            )
-                                            .confidence(sp.pattern.confidence)
-                                            .reward(sp.pattern.reward)
-                                            .reuse_count(sp.pattern.usage_count)
-                                            .tags(sp.pattern.tags)
-                                            .build()
-                                    })
-                                    .collect()
+                                pq = pq.with_limit(args.limit);
+
+                                let retrieval_config = RetrievalConfig::default();
+                                let hyper_config = HyperbolicRetrievalConfig::default();
+
+                                // Convert CLI patterns to retrieval format
+                                let rb_patterns: Vec<rb::Pattern> =
+                                    patterns.iter().map(rb::Pattern::from).collect();
+
+                                // Use staged retrieval (F06) feeding into hyperbolic re-ranking (F09)
+                                let mut staging = RetrievalStaging::new();
+                                let _ = staged_retrieve_patterns(
+                                    &mut staging,
+                                    &rb_patterns,
+                                    &query_embedding.view(),
+                                    &pq,
+                                    &retrieval_config,
+                                );
+
+                                match retrieve_patterns_hyperbolic(
+                                    &rb_patterns,
+                                    &query_embedding.view(),
+                                    &pq,
+                                    &retrieval_config,
+                                    &hyper_config,
+                                ) {
+                                    Ok(result) => {
+                                        if !args.json {
+                                            println!(
+                                                "  (hyperbolic retrieval: {} candidates scored)",
+                                                result.total_candidates
+                                            );
+                                        }
+                                        result
+                                            .patterns
+                                            .into_iter()
+                                            .map(|sp| {
+                                                Pattern::builder()
+                                                    .id(sp.pattern.id.as_str())
+                                                    .problem(&sp.pattern.problem)
+                                                    .solution(&sp.pattern.solution)
+                                                    .category(PatternCategory::from(
+                                                        sp.pattern.domain.as_str(),
+                                                    ))
+                                                    .context(
+                                                        sp.pattern.context.as_deref().unwrap_or(""),
+                                                    )
+                                                    .confidence(sp.pattern.confidence)
+                                                    .reward(sp.pattern.reward)
+                                                    .reuse_count(sp.pattern.usage_count)
+                                                    .tags(sp.pattern.tags)
+                                                    .build()
+                                            })
+                                            .collect()
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("Hyperbolic retrieval failed, falling back to text search: {}", e);
+                                        Vec::new()
+                                    }
+                                }
                             }
                             Err(e) => {
-                                tracing::warn!("Hyperbolic retrieval failed, falling back to text search: {}", e);
+                                eprintln!("Warning: Could not embed query: {}. Falling back to text search.", e);
                                 Vec::new()
                             }
                         }
                     }
                     Err(e) => {
-                        eprintln!("Warning: Could not embed query: {}. Falling back to text search.", e);
+                        eprintln!("Warning: Could not load embedding model: {}. Falling back to text search.", e);
                         Vec::new()
                     }
-                },
-                Err(e) => {
-                    eprintln!("Warning: Could not load embedding model: {}. Falling back to text search.", e);
-                    Vec::new()
                 }
+            } else {
+                eprintln!(
+                    "Warning: ONNX model not found at {}. Run 'nagual learn embed' first.",
+                    model_path
+                );
+                eprintln!("Falling back to text search.\n");
+                Vec::new()
             }
-        } else {
-            eprintln!("Warning: ONNX model not found at {}. Run 'nagual learn embed' first.", model_path);
-            eprintln!("Falling back to text search.\n");
-            Vec::new()
-        }
         } // end #[cfg(feature = "onnx-embed")] block
         #[cfg(not(feature = "onnx-embed"))]
         {
@@ -691,8 +713,13 @@ async fn run_search_pattern(args: &SearchPatternArgs) -> Result<()> {
                         })
                         .filter(|(sim, _)| *sim > 0.0)
                         .collect();
-                    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-                    scored.into_iter().take(args.limit).map(|(_, p)| p).collect()
+                    scored
+                        .sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+                    scored
+                        .into_iter()
+                        .take(args.limit)
+                        .map(|(_, p)| p)
+                        .collect()
                 }
                 Err(_) => Vec::new(),
             }
@@ -791,7 +818,8 @@ async fn run_search_pattern(args: &SearchPatternArgs) -> Result<()> {
                     truncate(pattern.problem(), 60)
                 );
                 println!("   ID: {}", pattern.id());
-                println!("   Category: {} | Effectiveness: {:.2} | Reward: {:.2} | Quality: {:.3}",
+                println!(
+                    "   Category: {} | Effectiveness: {:.2} | Reward: {:.2} | Quality: {:.3}",
                     pattern.category(),
                     pattern.effectiveness(),
                     pattern.reward(),
@@ -825,7 +853,10 @@ async fn run_stats(args: &StatsArgs) -> Result<()> {
         let all_patterns = storage.get_recent(10000).await?; // Get all patterns for stats
 
         if all_patterns.is_empty() && !args.json {
-            println!("\nNo patterns found in database at: {}", args.db_path.display());
+            println!(
+                "\nNo patterns found in database at: {}",
+                args.db_path.display()
+            );
             println!("Use 'nagual patterns store' to add patterns, or --demo for sample data.\n");
         }
 
@@ -848,7 +879,8 @@ async fn run_stats(args: &StatsArgs) -> Result<()> {
     let with_embeddings = patterns.iter().filter(|p| p.has_embedding()).count();
 
     // Category breakdown
-    let mut category_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut category_counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
     for p in &patterns {
         *category_counts.entry(p.category().to_string()).or_default() += 1;
     }
@@ -859,11 +891,12 @@ async fn run_stats(args: &StatsArgs) -> Result<()> {
         average_effectiveness: avg_effectiveness,
         total_reuse_count: total_reuse,
         patterns_with_embeddings: with_embeddings,
-        categories: category_counts.into_iter().map(|(k, v)| CategoryStats {
-            name: k,
-            count: v,
-        }).collect(),
-        top_patterns: patterns.iter()
+        categories: category_counts
+            .into_iter()
+            .map(|(k, v)| CategoryStats { name: k, count: v })
+            .collect(),
+        top_patterns: patterns
+            .iter()
             .take(args.top)
             .map(|p| TopPatternInfo {
                 id: p.id().to_string(),
@@ -887,7 +920,10 @@ async fn run_stats(args: &StatsArgs) -> Result<()> {
         println!("\nOverview:");
         println!("  Total Patterns: {}", stats.total_patterns);
         println!("  Average Reward: {:.3}", stats.average_reward);
-        println!("  Average Effectiveness: {:.3}", stats.average_effectiveness);
+        println!(
+            "  Average Effectiveness: {:.3}",
+            stats.average_effectiveness
+        );
         println!("  Total Reuse Count: {}", stats.total_reuse_count);
         println!("  With Embeddings: {}", stats.patterns_with_embeddings);
 
@@ -901,7 +937,8 @@ async fn run_stats(args: &StatsArgs) -> Result<()> {
         if args.detailed {
             println!("\nTop Patterns by Quality:");
             for (i, p) in stats.top_patterns.iter().enumerate() {
-                println!("  {}. [{}] {} (score: {:.3})",
+                println!(
+                    "  {}. [{}] {} (score: {:.3})",
                     i + 1,
                     truncate(&p.id, 8),
                     p.problem,
@@ -1030,7 +1067,12 @@ async fn run_consolidate_pattern(args: &ConsolidatePatternArgs) -> Result<()> {
         if let Some(ref details) = result.details {
             println!("\nDetails:");
             for d in details {
-                println!("  [{}] {} - {}", d.action.to_uppercase(), d.pattern_ids.join(", "), d.reason);
+                println!(
+                    "  [{}] {} - {}",
+                    d.action.to_uppercase(),
+                    d.pattern_ids.join(", "),
+                    d.reason
+                );
             }
         }
 
@@ -1052,31 +1094,51 @@ async fn run_analyze(args: &AnalyzeArgs) -> Result<()> {
     };
 
     // Calculate analysis
-    let high_quality: Vec<_> = patterns.iter().filter(|p| p.quality_score() > 0.7).collect();
-    let low_quality: Vec<_> = patterns.iter().filter(|p| p.quality_score() < 0.4).collect();
-    let stale: Vec<_> = patterns.iter().filter(|p| p.reuse_count() == 0 && p.age_seconds() > 30 * 24 * 60 * 60).collect();
+    let high_quality: Vec<_> = patterns
+        .iter()
+        .filter(|p| p.quality_score() > 0.7)
+        .collect();
+    let low_quality: Vec<_> = patterns
+        .iter()
+        .filter(|p| p.quality_score() < 0.4)
+        .collect();
+    let stale: Vec<_> = patterns
+        .iter()
+        .filter(|p| p.reuse_count() == 0 && p.age_seconds() > 30 * 24 * 60 * 60)
+        .collect();
 
     let analysis = AnalysisResult {
         total_patterns: patterns.len(),
         high_quality_count: high_quality.len(),
         low_quality_count: low_quality.len(),
         stale_count: stale.len(),
-        average_quality: patterns.iter().map(|p| p.quality_score()).sum::<f32>() / patterns.len().max(1) as f32,
+        average_quality: patterns.iter().map(|p| p.quality_score()).sum::<f32>()
+            / patterns.len().max(1) as f32,
         recommendations: if args.recommendations {
             let mut recs = Vec::new();
             if !low_quality.is_empty() {
                 recs.push(Recommendation {
                     priority: "high".to_string(),
                     action: "review".to_string(),
-                    description: format!("{} low-quality patterns should be reviewed or archived", low_quality.len()),
-                    pattern_ids: low_quality.iter().take(5).map(|p| p.id().to_string()).collect(),
+                    description: format!(
+                        "{} low-quality patterns should be reviewed or archived",
+                        low_quality.len()
+                    ),
+                    pattern_ids: low_quality
+                        .iter()
+                        .take(5)
+                        .map(|p| p.id().to_string())
+                        .collect(),
                 });
             }
             if !stale.is_empty() {
                 recs.push(Recommendation {
                     priority: "medium".to_string(),
                     action: "archive".to_string(),
-                    description: format!("{} stale patterns (no reuse in 30+ days) could be archived", stale.len()),
+                    description: format!(
+                        "{} stale patterns (no reuse in 30+ days) could be archived",
+                        stale.len()
+                    ),
                     pattern_ids: stale.iter().take(5).map(|p| p.id().to_string()).collect(),
                 });
             }
@@ -1107,7 +1169,12 @@ async fn run_analyze(args: &AnalyzeArgs) -> Result<()> {
         if let Some(ref recs) = analysis.recommendations {
             println!("\nRecommendations:");
             for (i, rec) in recs.iter().enumerate() {
-                println!("  {}. [{}] {}", i + 1, rec.priority.to_uppercase(), rec.description);
+                println!(
+                    "  {}. [{}] {}",
+                    i + 1,
+                    rec.priority.to_uppercase(),
+                    rec.description
+                );
                 println!("     Action: {}", rec.action);
                 if !rec.pattern_ids.is_empty() {
                     println!("     Affected: {}", rec.pattern_ids.join(", "));
@@ -1665,13 +1732,7 @@ mod tests {
 
     #[test]
     fn test_cli_parse_analyze() {
-        let args = vec![
-            "test",
-            "patterns",
-            "analyze",
-            "--recommendations",
-            "--demo",
-        ];
+        let args = vec!["test", "patterns", "analyze", "--recommendations", "--demo"];
         let cli = TestCli::try_parse_from(args);
         assert!(cli.is_ok());
     }
@@ -1766,6 +1827,8 @@ mod tests {
     fn test_demo_patterns() {
         let patterns = create_demo_patterns();
         assert!(!patterns.is_empty());
-        assert!(patterns.iter().any(|p| p.category() == &PatternCategory::Resilience));
+        assert!(patterns
+            .iter()
+            .any(|p| p.category() == &PatternCategory::Resilience));
     }
 }

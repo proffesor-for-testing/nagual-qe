@@ -127,7 +127,10 @@ pub enum PgNotification {
 ///
 /// * `channel` - The LISTEN channel name.
 /// * `payload` - The JSON string sent by `pg_notify`.
-pub fn parse_notification(channel: &str, payload: &str) -> Result<PgNotification, NotifyParseError> {
+pub fn parse_notification(
+    channel: &str,
+    payload: &str,
+) -> Result<PgNotification, NotifyParseError> {
     match channel {
         CHANNEL_PATTERN_STORED => {
             let p: PatternStoredPayload = serde_json::from_str(payload)?;
@@ -149,9 +152,7 @@ pub fn parse_notification(channel: &str, payload: &str) -> Result<PgNotification
 /// the internal event bus.
 pub fn notification_to_event(notification: &PgNotification) -> NagualEvent {
     match notification {
-        PgNotification::PatternStored(p) => {
-            NagualEvent::pattern_stored(&p.id, &p.category)
-        }
+        PgNotification::PatternStored(p) => NagualEvent::pattern_stored(&p.id, &p.category),
         PgNotification::PatternPromoted(p) => {
             let changes = PatternChanges::new()
                 .with_field("tier")
@@ -162,11 +163,7 @@ pub fn notification_to_event(notification: &PgNotification) -> NagualEvent {
             NagualEvent::pattern_updated(&p.id, changes)
         }
         PgNotification::ConsolidationComplete(p) => {
-            NagualEvent::consolidation_completed(
-                0,
-                0,
-                vec![p.deleted_id.clone()],
-            )
+            NagualEvent::consolidation_completed(0, 0, vec![p.deleted_id.clone()])
         }
     }
 }
@@ -474,7 +471,8 @@ mod tests {
     #[test]
     fn test_promoted_payload_with_integer_reward() {
         // PostgreSQL may send integer values (e.g. reward = 1 instead of 1.0)
-        let json = r#"{"id": "x", "old_tier": "a", "new_tier": "b", "reward": 1, "reuse_count": 5}"#;
+        let json =
+            r#"{"id": "x", "old_tier": "a", "new_tier": "b", "reward": 1, "reuse_count": 5}"#;
         let result = parse_notification(CHANNEL_PATTERN_PROMOTED, json);
         assert!(result.is_ok());
 
@@ -488,6 +486,9 @@ mod tests {
         // Verify channel names match what migration 016 uses
         assert_eq!(CHANNEL_PATTERN_STORED, "nagual_pattern_stored");
         assert_eq!(CHANNEL_PATTERN_PROMOTED, "nagual_pattern_promoted");
-        assert_eq!(CHANNEL_CONSOLIDATION_COMPLETE, "nagual_consolidation_complete");
+        assert_eq!(
+            CHANNEL_CONSOLIDATION_COMPLETE,
+            "nagual_consolidation_complete"
+        );
     }
 }

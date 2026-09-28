@@ -370,20 +370,28 @@ impl SyncApi {
             format!(
                 "gs://{}/{}",
                 b,
-                self.state.config.gcloud_project.as_deref().unwrap_or("nagual")
+                self.state
+                    .config
+                    .gcloud_project
+                    .as_deref()
+                    .unwrap_or("nagual")
             )
         });
 
         let restore_config = RestoreConfig::new(
             &target_path,
-            target_path.parent().map(|p| p.join("backups")).unwrap_or_else(|| PathBuf::from("./backups")),
+            target_path
+                .parent()
+                .map(|p| p.join("backups"))
+                .unwrap_or_else(|| PathBuf::from("./backups")),
         )
         .with_backup_before_restore(!options.merge) // Don't backup if merging
         .with_gcloud_bucket(gcloud_bucket.unwrap_or_default());
 
         // Create restore manager
-        let restore_manager = RestoreManager::with_config(restore_config)
-            .map_err(|e| NagualError::internal(format!("Failed to create restore manager: {}", e)))?;
+        let restore_manager = RestoreManager::with_config(restore_config).map_err(|e| {
+            NagualError::internal(format!("Failed to create restore manager: {}", e))
+        })?;
 
         // Determine the backup path - check if it's a GCloud path or local
         let backup_path = if backup_id.starts_with("gs://") {
@@ -398,13 +406,23 @@ impl SyncApi {
                         .map(|b| b.path.clone())
                         .unwrap_or_else(|| {
                             // Fallback: assume it's a GCloud path
-                            let bucket = self.state.config.gcloud_bucket.as_deref().unwrap_or("nagual-backups");
+                            let bucket = self
+                                .state
+                                .config
+                                .gcloud_bucket
+                                .as_deref()
+                                .unwrap_or("nagual-backups");
                             format!("gs://{}/backups/full/{}.db.gz", bucket, backup_id)
                         })
                 }
                 Err(_) => {
                     // Fallback to GCloud path construction
-                    let bucket = self.state.config.gcloud_bucket.as_deref().unwrap_or("nagual-backups");
+                    let bucket = self
+                        .state
+                        .config
+                        .gcloud_bucket
+                        .as_deref()
+                        .unwrap_or("nagual-backups");
                     format!("gs://{}/backups/full/{}.db.gz", bucket, backup_id)
                 }
             }
@@ -496,7 +514,8 @@ impl SyncApi {
             let adapter = sync_manager.adapter();
 
             // Convert full_backup_retention Duration to days
-            let retention_days = (retention.config().full_backup_retention.as_secs() / 86400) as u32;
+            let retention_days =
+                (retention.config().full_backup_retention.as_secs() / 86400) as u32;
 
             // Query retention stats from GCloud to get backup metadata
             let stats = retention.get_stats(adapter).await.unwrap_or_default();
@@ -584,7 +603,10 @@ impl SyncApi {
 
         match result {
             Some(sync_result) => {
-                info!(records = sync_result.records_synced, "Incremental sync completed");
+                info!(
+                    records = sync_result.records_synced,
+                    "Incremental sync completed"
+                );
                 Ok(sync_result.records_synced)
             }
             None => Ok(0),

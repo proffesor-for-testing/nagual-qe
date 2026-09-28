@@ -202,18 +202,11 @@ pub enum DegradationEvent {
         failure_count: u32,
     },
     /// Circuit breaker closed
-    CircuitClosed {
-        component: String,
-    },
+    CircuitClosed { component: String },
     /// Feature was disabled
-    FeatureDisabled {
-        feature: String,
-        reason: String,
-    },
+    FeatureDisabled { feature: String, reason: String },
     /// Feature was re-enabled
-    FeatureEnabled {
-        feature: String,
-    },
+    FeatureEnabled { feature: String },
 }
 
 /// Graceful Degradation Manager
@@ -255,11 +248,7 @@ impl DegradationManager {
     }
 
     /// Register a component with its fallback strategy
-    pub async fn register_component(
-        &self,
-        name: impl Into<String>,
-        fallback: FallbackStrategy,
-    ) {
+    pub async fn register_component(&self, name: impl Into<String>, fallback: FallbackStrategy) {
         let name = name.into();
 
         let mut components = self.components.write().await;
@@ -294,10 +283,12 @@ impl DegradationManager {
 
         match event.new_status {
             HealthStatus::Unhealthy => {
-                self.handle_component_failure(component, &event.message).await;
+                self.handle_component_failure(component, &event.message)
+                    .await;
             }
             HealthStatus::Degraded => {
-                self.handle_component_degradation(component, &event.message).await;
+                self.handle_component_degradation(component, &event.message)
+                    .await;
             }
             HealthStatus::Healthy if event.is_recovery() => {
                 self.handle_component_recovery(component).await;
@@ -322,7 +313,9 @@ impl DegradationManager {
         if state.failure_count >= self.config.circuit_breaker_threshold && !state.circuit_open {
             state.circuit_open = true;
             state.circuit_reset_at = Some(
-                Utc::now() + chrono::Duration::from_std(self.config.circuit_breaker_duration).unwrap_or_default()
+                Utc::now()
+                    + chrono::Duration::from_std(self.config.circuit_breaker_duration)
+                        .unwrap_or_default(),
             );
 
             warn!(
@@ -668,7 +661,11 @@ impl DegradationSummary {
             self.circuits_open,
             self.enabled_features,
             self.total_features,
-            if self.is_degraded { "DEGRADED" } else { "HEALTHY" }
+            if self.is_degraded {
+                "DEGRADED"
+            } else {
+                "HEALTHY"
+            }
         )
     }
 }
@@ -695,7 +692,11 @@ mod tests {
             .depends_on("postgres")
             .depends_on("network");
 
-        let healthy = vec!["postgres".to_string(), "network".to_string(), "disk".to_string()];
+        let healthy = vec![
+            "postgres".to_string(),
+            "network".to_string(),
+            "disk".to_string(),
+        ];
         assert!(feature.check_dependencies(&healthy));
 
         let partial = vec!["postgres".to_string()];
@@ -707,9 +708,12 @@ mod tests {
         let manager = DegradationManager::with_defaults();
 
         manager
-            .register_component("database", FallbackStrategy::UseCache {
-                max_age: Duration::from_secs(300),
-            })
+            .register_component(
+                "database",
+                FallbackStrategy::UseCache {
+                    max_age: Duration::from_secs(300),
+                },
+            )
             .await;
 
         let states = manager.component_states().await;
@@ -720,8 +724,8 @@ mod tests {
     async fn test_feature_registration() {
         let manager = DegradationManager::with_defaults();
 
-        let feature = FeatureFlag::new("cloud_sync", "Cloud synchronization")
-            .depends_on("postgres");
+        let feature =
+            FeatureFlag::new("cloud_sync", "Cloud synchronization").depends_on("postgres");
 
         manager.register_feature(feature).await;
 
@@ -747,9 +751,12 @@ mod tests {
         let manager = DegradationManager::with_defaults();
 
         manager
-            .register_component("database", FallbackStrategy::UseCache {
-                max_age: Duration::from_secs(300),
-            })
+            .register_component(
+                "database",
+                FallbackStrategy::UseCache {
+                    max_age: Duration::from_secs(300),
+                },
+            )
             .await;
 
         let event = HealthChangeEvent::new(

@@ -642,8 +642,7 @@ impl RoutingLadder {
     /// Remove reflex entries older than `max_reflex_age_secs`.
     /// Returns the number of entries removed.
     pub async fn expire_stale_reflexes(&self) -> Result<u64> {
-        let cutoff = Utc::now()
-            - chrono::Duration::seconds(self.config.max_reflex_age_secs as i64);
+        let cutoff = Utc::now() - chrono::Duration::seconds(self.config.max_reflex_age_secs as i64);
         let cutoff_str = cutoff.to_rfc3339();
 
         // Remove from SQLite
@@ -857,7 +856,9 @@ mod tests {
     #[tokio::test]
     async fn test_route_reflex_hit() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         // Seed a reflex entry with high confidence
         ladder
@@ -874,7 +875,9 @@ mod tests {
     #[tokio::test]
     async fn test_route_retrieval_lane() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         // Low complexity, no reflex entry
         let decision = ladder.route("simple query", 0.1).unwrap();
@@ -885,7 +888,9 @@ mod tests {
     #[tokio::test]
     async fn test_route_heavy_lane() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         // Medium complexity
         let decision = ladder.route("moderate query", 0.5).unwrap();
@@ -896,7 +901,9 @@ mod tests {
     #[tokio::test]
     async fn test_route_human_lane() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         // Very high complexity
         let decision = ladder.route("extremely complex query", 0.95).unwrap();
@@ -907,7 +914,9 @@ mod tests {
     #[tokio::test]
     async fn test_route_reflex_miss_falls_through() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         // Store reflex entry with LOW confidence (below threshold)
         ladder
@@ -926,7 +935,9 @@ mod tests {
     #[tokio::test]
     async fn test_store_and_check_reflex() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         ladder
             .store_reflex("greeting", "hello!", 0.95, Some("p-1"))
@@ -944,7 +955,9 @@ mod tests {
     #[tokio::test]
     async fn test_check_reflex_missing_returns_none() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         assert!(ladder.check_reflex("nonexistent").is_none());
     }
@@ -952,12 +965,11 @@ mod tests {
     #[tokio::test]
     async fn test_check_reflex_updates_hit_count() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
-
-        ladder
-            .store_reflex("q", "a", 0.99, None)
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
             .await
             .unwrap();
+
+        ladder.store_reflex("q", "a", 0.99, None).await.unwrap();
 
         // First check bumps from 0 to 1
         let e1 = ladder.check_reflex("q").unwrap();
@@ -973,7 +985,9 @@ mod tests {
     #[tokio::test]
     async fn test_record_latency() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         ladder
             .record_latency(ComputeLane::Heavy, 120, 100)
@@ -989,7 +1003,9 @@ mod tests {
     #[tokio::test]
     async fn test_avg_latency_computed() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         ladder
             .record_latency(ComputeLane::Retrieval, 8, 10)
@@ -1012,7 +1028,9 @@ mod tests {
     #[tokio::test]
     async fn test_promote_successful() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         let result = ladder
             .promote_to_reflex("pat-1", "some query", "some answer")
@@ -1027,7 +1045,9 @@ mod tests {
     #[tokio::test]
     async fn test_promote_already_in_cache() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         ladder
             .store_reflex("dup query", "existing", 0.99, None)
@@ -1046,7 +1066,9 @@ mod tests {
     #[tokio::test]
     async fn test_promotion_result_fields() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         let result = ladder
             .promote_to_reflex("p-99", "my query", "my answer")
@@ -1064,7 +1086,9 @@ mod tests {
     #[tokio::test]
     async fn test_retrieval_hit_tracking() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         let result = ladder
             .record_retrieval_hit("foo query", "p-1")
@@ -1190,7 +1214,9 @@ mod tests {
     #[tokio::test]
     async fn test_stats_empty() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         let stats = ladder.stats().await.unwrap();
         assert_eq!(stats.total_requests, 0);
@@ -1201,7 +1227,9 @@ mod tests {
     #[tokio::test]
     async fn test_stats_populated() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         ladder
             .record_latency(ComputeLane::Retrieval, 5, 10)
@@ -1211,10 +1239,7 @@ mod tests {
             .record_latency(ComputeLane::Heavy, 200, 300)
             .await
             .unwrap();
-        ladder
-            .store_reflex("q1", "a1", 0.99, None)
-            .await
-            .unwrap();
+        ladder.store_reflex("q1", "a1", 0.99, None).await.unwrap();
 
         let stats = ladder.stats().await.unwrap();
         assert_eq!(stats.total_requests, 2); // 1 retrieval + 1 heavy
@@ -1228,7 +1253,9 @@ mod tests {
     #[tokio::test]
     async fn test_clear_reflex_cache() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         ladder.store_reflex("q1", "a1", 0.99, None).await.unwrap();
         ladder.store_reflex("q2", "a2", 0.98, None).await.unwrap();
@@ -1243,7 +1270,9 @@ mod tests {
     #[tokio::test]
     async fn test_reflex_cache_size_correct() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         assert_eq!(ladder.reflex_cache_size(), 0);
         ladder.store_reflex("q1", "a1", 0.99, None).await.unwrap();
@@ -1257,7 +1286,9 @@ mod tests {
     #[tokio::test]
     async fn test_ladder_decision_correct_fields() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         let decision = ladder.route("test", 0.5).unwrap();
         assert_eq!(decision.lane, ComputeLane::Heavy);
@@ -1269,7 +1300,9 @@ mod tests {
     #[tokio::test]
     async fn test_ladder_decision_reasoning_populated() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         let decision = ladder.route("anything", 0.1).unwrap();
         assert!(!decision.reasoning.is_empty());
@@ -1281,7 +1314,9 @@ mod tests {
     #[tokio::test]
     async fn test_route_empty_query() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         // Empty query should still route successfully
         let decision = ladder.route("", 0.1).unwrap();
@@ -1292,7 +1327,9 @@ mod tests {
     #[tokio::test]
     async fn test_route_very_high_complexity() {
         let db = setup_test_db().await;
-        let ladder = RoutingLadder::new(db, LadderConfig::default()).await.unwrap();
+        let ladder = RoutingLadder::new(db, LadderConfig::default())
+            .await
+            .unwrap();
 
         let decision = ladder.route("impossible task", 1.0).unwrap();
         assert_eq!(decision.lane, ComputeLane::Human);

@@ -11,16 +11,16 @@
 //! - `CalibrationAdjuster`: For updating prediction calibration
 //! - `GraphStorage`: For creating/strengthening edges in the context graph
 
+use chrono::{Duration, Utc};
 use std::sync::Arc;
 use std::time::Instant;
-use chrono::{Duration, Utc};
-use tracing::{debug, info, warn, instrument};
+use tracing::{debug, info, instrument, warn};
 
 use super::types::*;
 use crate::db::SqliteDb;
 use crate::error::NagualError;
-use crate::graph::{GraphStorage, EdgeType};
-use crate::research::{ResearchCoordinator, ResearchRequest, ResearchDepth};
+use crate::graph::{EdgeType, GraphStorage};
+use crate::research::{ResearchCoordinator, ResearchDepth, ResearchRequest};
 
 /// Local calibration bucket for dream cycle calibration phase
 /// (Minimal version of prediction::calibration::CalibrationBucket)
@@ -336,10 +336,8 @@ impl DreamCycle {
             }
 
             for j in (i + 1)..patterns.len().min(i + 10) {
-                let similarity = self.calculate_jaccard_similarity(
-                    &patterns[i].problem,
-                    &patterns[j].problem,
-                );
+                let similarity =
+                    self.calculate_jaccard_similarity(&patterns[i].problem, &patterns[j].problem);
 
                 if similarity > 0.95 {
                     // Exact duplicate - archive lower reward one
@@ -417,7 +415,14 @@ impl DreamCycle {
                 // Trigger research if ResearchCoordinator is integrated
                 if relevance < 0.5 {
                     if let Some(ref research_coord) = self.research {
-                        match self.research_for_pattern_update(research_coord, &pattern.problem, &pattern.domain).await {
+                        match self
+                            .research_for_pattern_update(
+                                research_coord,
+                                &pattern.problem,
+                                &pattern.domain,
+                            )
+                            .await
+                        {
                             Ok(research_tokens) => {
                                 tokens += research_tokens;
                                 researched += 1;
@@ -569,41 +574,45 @@ impl DreamCycle {
     /// Load calibration buckets from database or create defaults
     async fn load_calibration_buckets(&self) -> Result<Vec<DreamCalibrationBucket>, NagualError> {
         // Try to load from database
-        let existing: Vec<DreamCalibrationBucket> = self.db.query(
-            r#"
+        let existing: Vec<DreamCalibrationBucket> = self
+            .db
+            .query(
+                r#"
             SELECT bucket_id, lower_bound, upper_bound, prediction_count,
                    actual_positive_count, total_brier_score, domain, updated_at
             FROM calibration_buckets
             WHERE domain = 'general'
             ORDER BY lower_bound ASC
             "#,
-            &[],
-            |row| {
-                let bucket_id: String = row.get(0)?;
-                let lower_bound_str: String = row.get(1)?;
-                let upper_bound_str: String = row.get(2)?;
-                let prediction_count: i32 = row.get(3)?;
-                let actual_positive_count: i32 = row.get(4)?;
-                let total_brier_str: String = row.get(5)?;
-                let domain: String = row.get(6)?;
-                let updated_at_str: String = row.get(7)?;
+                &[],
+                |row| {
+                    let bucket_id: String = row.get(0)?;
+                    let lower_bound_str: String = row.get(1)?;
+                    let upper_bound_str: String = row.get(2)?;
+                    let prediction_count: i32 = row.get(3)?;
+                    let actual_positive_count: i32 = row.get(4)?;
+                    let total_brier_str: String = row.get(5)?;
+                    let domain: String = row.get(6)?;
+                    let updated_at_str: String = row.get(7)?;
 
-                let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_at_str)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now());
+                    let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_at_str)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .unwrap_or_else(|_| Utc::now());
 
-                Ok(DreamCalibrationBucket {
-                    bucket_id,
-                    lower_bound: lower_bound_str.parse().unwrap_or(0.0),
-                    upper_bound: upper_bound_str.parse().unwrap_or(0.1),
-                    prediction_count: prediction_count as u32,
-                    actual_positive_count: actual_positive_count as u32,
-                    total_brier_score: total_brier_str.parse().unwrap_or(0.0),
-                    domain,
-                    updated_at,
-                })
-            },
-        ).await.unwrap_or_default();
+                    Ok(DreamCalibrationBucket {
+                        bucket_id,
+                        lower_bound: lower_bound_str.parse().unwrap_or(0.0),
+                        upper_bound: upper_bound_str.parse().unwrap_or(0.1),
+                        prediction_count: prediction_count as u32,
+                        actual_positive_count: actual_positive_count as u32,
+                        total_brier_score: total_brier_str.parse().unwrap_or(0.0),
+                        domain,
+                        updated_at,
+                    })
+                },
+            )
+            .await
+            .unwrap_or_default();
 
         if existing.len() == 10 {
             return Ok(existing);
@@ -618,10 +627,14 @@ impl DreamCycle {
     }
 
     /// Save calibration buckets to database
-    async fn save_calibration_buckets(&self, buckets: &[DreamCalibrationBucket]) -> Result<(), NagualError> {
+    async fn save_calibration_buckets(
+        &self,
+        buckets: &[DreamCalibrationBucket],
+    ) -> Result<(), NagualError> {
         // Ensure table exists
-        self.db.execute(
-            r#"
+        self.db
+            .execute(
+                r#"
             CREATE TABLE IF NOT EXISTS calibration_buckets (
                 bucket_id TEXT PRIMARY KEY,
                 lower_bound REAL NOT NULL,
@@ -633,8 +646,9 @@ impl DreamCycle {
                 updated_at TEXT NOT NULL
             )
             "#,
-            &[],
-        ).await?;
+                &[],
+            )
+            .await?;
 
         for bucket in buckets {
             let now = Utc::now().to_rfc3339();
@@ -675,10 +689,12 @@ impl DreamCycle {
     async fn mark_prediction_calibrated(&self, id: &str) -> Result<(), NagualError> {
         let now = Utc::now().to_rfc3339();
         let id_owned = id.to_string();
-        self.db.execute(
-            "UPDATE predictions SET calibrated_at = ? WHERE id = ?",
-            &[&now, &id_owned],
-        ).await?;
+        self.db
+            .execute(
+                "UPDATE predictions SET calibrated_at = ? WHERE id = ?",
+                &[&now, &id_owned],
+            )
+            .await?;
         Ok(())
     }
 
@@ -705,7 +721,10 @@ impl DreamCycle {
             for rel in related {
                 if let Some(ref graph) = self.graph {
                     // Use proper GraphStorage integration
-                    match self.process_activation_with_graph(graph, pattern_id, &rel).await {
+                    match self
+                        .process_activation_with_graph(graph, pattern_id, &rel)
+                        .await
+                    {
                         Ok(created) => {
                             if created {
                                 new_connections += 1;
@@ -725,7 +744,8 @@ impl DreamCycle {
                         self.strengthen_edge(pattern_id, &rel.id, 0.1).await?;
                         strengthened += 1;
                     } else if rel.similarity > 0.7 {
-                        self.create_edge(pattern_id, &rel.id, rel.similarity).await?;
+                        self.create_edge(pattern_id, &rel.id, rel.similarity)
+                            .await?;
                         new_connections += 1;
                     }
                 }
@@ -768,16 +788,19 @@ impl DreamCycle {
         related: &RelatedPattern,
     ) -> Result<bool, NagualError> {
         // Try to create/update edge
-        let result = graph.create_edge(
-            source_id,
-            &related.id,
-            EdgeType::SimilarTo,
-            related.similarity,
-            Some(serde_json::json!({
-                "source": "dream_cycle_activation",
-                "created_at": Utc::now().to_rfc3339()
-            })),
-        ).await.map_err(|e| NagualError::internal(e.to_string()))?;
+        let result = graph
+            .create_edge(
+                source_id,
+                &related.id,
+                EdgeType::SimilarTo,
+                related.similarity,
+                Some(serde_json::json!({
+                    "source": "dream_cycle_activation",
+                    "created_at": Utc::now().to_rfc3339()
+                })),
+            )
+            .await
+            .map_err(|e| NagualError::internal(e.to_string()))?;
 
         if result.created {
             debug!(
@@ -802,42 +825,45 @@ impl DreamCycle {
 
     // ================== Helper Methods ==================
 
-    async fn get_consolidation_candidates(&self) -> Result<Vec<ConsolidationCandidate>, NagualError> {
-        let candidates: Vec<ConsolidationCandidate> = self.db.query(
-            r#"
+    async fn get_consolidation_candidates(
+        &self,
+    ) -> Result<Vec<ConsolidationCandidate>, NagualError> {
+        let candidates: Vec<ConsolidationCandidate> = self
+            .db
+            .query(
+                r#"
             SELECT id, problem, solution, category, CAST(reward AS TEXT) as reward, timestamp
             FROM reasoning_patterns
             WHERE archived IS NULL OR archived = 0
             ORDER BY reward DESC
             LIMIT 200
             "#,
-            &[],
-            |row| {
-                let reward_str: String = row.get(4)?;
-                let timestamp_str: String = row.get(5)?;
-                Ok(ConsolidationCandidate {
-                    id: row.get(0)?,
-                    problem: row.get(1)?,
-                    solution: row.get(2)?,
-                    domain: row.get(3)?,
-                    reward: reward_str.parse().unwrap_or(0.5),
-                    created_at: chrono::DateTime::parse_from_rfc3339(&timestamp_str)
-                        .map(|dt| dt.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now()),
-                })
-            },
-        ).await?;
+                &[],
+                |row| {
+                    let reward_str: String = row.get(4)?;
+                    let timestamp_str: String = row.get(5)?;
+                    Ok(ConsolidationCandidate {
+                        id: row.get(0)?,
+                        problem: row.get(1)?,
+                        solution: row.get(2)?,
+                        domain: row.get(3)?,
+                        reward: reward_str.parse().unwrap_or(0.5),
+                        created_at: chrono::DateTime::parse_from_rfc3339(&timestamp_str)
+                            .map(|dt| dt.with_timezone(&Utc))
+                            .unwrap_or_else(|_| Utc::now()),
+                    })
+                },
+            )
+            .await?;
 
         Ok(candidates)
     }
 
     fn calculate_jaccard_similarity(&self, a: &str, b: &str) -> f64 {
-        let a_words: std::collections::HashSet<_> = a.split_whitespace()
-            .map(|w| w.to_lowercase())
-            .collect();
-        let b_words: std::collections::HashSet<_> = b.split_whitespace()
-            .map(|w| w.to_lowercase())
-            .collect();
+        let a_words: std::collections::HashSet<_> =
+            a.split_whitespace().map(|w| w.to_lowercase()).collect();
+        let b_words: std::collections::HashSet<_> =
+            b.split_whitespace().map(|w| w.to_lowercase()).collect();
 
         if a_words.is_empty() && b_words.is_empty() {
             return 1.0;
@@ -856,43 +882,55 @@ impl DreamCycle {
     async fn archive_pattern(&self, id: &str) -> Result<(), NagualError> {
         let now = Utc::now().to_rfc3339();
         let id_owned = id.to_string();
-        self.db.execute(
-            "UPDATE reasoning_patterns SET archived = 1, updated_at = ? WHERE id = ?",
-            &[&now, &id_owned],
-        ).await?;
+        self.db
+            .execute(
+                "UPDATE reasoning_patterns SET archived = 1, updated_at = ? WHERE id = ?",
+                &[&now, &id_owned],
+            )
+            .await?;
         Ok(())
     }
 
     async fn merge_patterns(&self, keep_id: &str, merge_id: &str) -> Result<(), NagualError> {
         // Get the pattern to merge
         let merge_id_str = merge_id.to_string();
-        let merge_data: Option<(String, String)> = self.db.query_one(
-            "SELECT solution, tags FROM reasoning_patterns WHERE id = ?",
-            &[&merge_id_str],
-            |row| Ok((row.get(0)?, row.get::<_, Option<String>>(1)?.unwrap_or_default())),
-        ).await?;
+        let merge_data: Option<(String, String)> = self
+            .db
+            .query_one(
+                "SELECT solution, tags FROM reasoning_patterns WHERE id = ?",
+                &[&merge_id_str],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                    ))
+                },
+            )
+            .await?;
 
         if let Some((merge_solution, merge_tags)) = merge_data {
             let now = Utc::now().to_rfc3339();
             let keep_id_owned = keep_id.to_string();
 
             // Append solution to keep pattern
-            self.db.execute(
-                r#"
+            self.db
+                .execute(
+                    r#"
                 UPDATE reasoning_patterns
                 SET solution = solution || '\n\n[Merged from similar pattern]\n' || ?,
                     tags = CASE WHEN tags IS NULL OR tags = '' THEN ? ELSE tags || ',' || ? END,
                     updated_at = ?
                 WHERE id = ?
                 "#,
-                &[
-                    &merge_solution,
-                    &merge_tags,
-                    &merge_tags,
-                    &now,
-                    &keep_id_owned,
-                ],
-            ).await?;
+                    &[
+                        &merge_solution,
+                        &merge_tags,
+                        &merge_tags,
+                        &now,
+                        &keep_id_owned,
+                    ],
+                )
+                .await?;
 
             // Archive the merged pattern
             self.archive_pattern(merge_id).await?;
@@ -901,12 +939,18 @@ impl DreamCycle {
         Ok(())
     }
 
-    async fn find_low_quality_patterns(&self, min_reward: f64, days_inactive: i64) -> Result<Vec<StalePattern>, NagualError> {
+    async fn find_low_quality_patterns(
+        &self,
+        min_reward: f64,
+        days_inactive: i64,
+    ) -> Result<Vec<StalePattern>, NagualError> {
         let cutoff = (Utc::now() - Duration::days(days_inactive)).to_rfc3339();
         let min_reward_str = min_reward.to_string();
 
-        let patterns: Vec<StalePattern> = self.db.query(
-            r#"
+        let patterns: Vec<StalePattern> = self
+            .db
+            .query(
+                r#"
             SELECT id, problem, category
             FROM reasoning_patterns
             WHERE (archived IS NULL OR archived = 0)
@@ -915,15 +959,18 @@ impl DreamCycle {
             ORDER BY reward ASC
             LIMIT 20
             "#,
-            &[&min_reward_str, &cutoff],
-            |row| Ok(StalePattern {
-                id: row.get(0)?,
-                problem: row.get(1)?,
-                domain: row.get(2)?,
-                days_since_update: days_inactive,
-                relevance_score: 0.0,
-            }),
-        ).await?;
+                &[&min_reward_str, &cutoff],
+                |row| {
+                    Ok(StalePattern {
+                        id: row.get(0)?,
+                        problem: row.get(1)?,
+                        domain: row.get(2)?,
+                        days_since_update: days_inactive,
+                        relevance_score: 0.0,
+                    })
+                },
+            )
+            .await?;
 
         Ok(patterns)
     }
@@ -931,8 +978,10 @@ impl DreamCycle {
     async fn find_stale_patterns(&self, days_old: i64) -> Result<Vec<StalePattern>, NagualError> {
         let cutoff = (Utc::now() - Duration::days(days_old)).to_rfc3339();
 
-        let patterns: Vec<StalePattern> = self.db.query(
-            r#"
+        let patterns: Vec<StalePattern> = self
+            .db
+            .query(
+                r#"
             SELECT id, problem, category, updated_at
             FROM reasoning_patterns
             WHERE (archived IS NULL OR archived = 0)
@@ -940,22 +989,23 @@ impl DreamCycle {
             ORDER BY updated_at ASC
             LIMIT 50
             "#,
-            &[&cutoff],
-            |row| {
-                let updated_at: String = row.get(3)?;
-                let days = chrono::DateTime::parse_from_rfc3339(&updated_at)
-                    .map(|dt| (Utc::now() - dt.with_timezone(&Utc)).num_days())
-                    .unwrap_or(days_old);
+                &[&cutoff],
+                |row| {
+                    let updated_at: String = row.get(3)?;
+                    let days = chrono::DateTime::parse_from_rfc3339(&updated_at)
+                        .map(|dt| (Utc::now() - dt.with_timezone(&Utc)).num_days())
+                        .unwrap_or(days_old);
 
-                Ok(StalePattern {
-                    id: row.get(0)?,
-                    problem: row.get(1)?,
-                    domain: row.get(2)?,
-                    days_since_update: days,
-                    relevance_score: 0.5,
-                })
-            },
-        ).await?;
+                    Ok(StalePattern {
+                        id: row.get(0)?,
+                        problem: row.get(1)?,
+                        domain: row.get(2)?,
+                        days_since_update: days,
+                        relevance_score: 0.5,
+                    })
+                },
+            )
+            .await?;
 
         Ok(patterns)
     }
@@ -963,15 +1013,18 @@ impl DreamCycle {
     async fn calculate_pattern_relevance(&self, id: &str) -> Result<f64, NagualError> {
         // Check if pattern has been accessed recently
         let id_owned = id.to_string();
-        let data: Option<(String, String)> = self.db.query_one(
-            r#"
+        let data: Option<(String, String)> = self
+            .db
+            .query_one(
+                r#"
             SELECT CAST(reward AS TEXT), updated_at
             FROM reasoning_patterns
             WHERE id = ?
             "#,
-            &[&id_owned],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        ).await?;
+                &[&id_owned],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .await?;
 
         if let Some((reward_str, updated_at)) = data {
             let reward: f64 = reward_str.parse().unwrap_or(0.5);
@@ -991,32 +1044,38 @@ impl DreamCycle {
     async fn touch_pattern(&self, id: &str) -> Result<(), NagualError> {
         let now = Utc::now().to_rfc3339();
         let id_owned = id.to_string();
-        self.db.execute(
-            "UPDATE reasoning_patterns SET updated_at = ? WHERE id = ?",
-            &[&now, &id_owned],
-        ).await?;
+        self.db
+            .execute(
+                "UPDATE reasoning_patterns SET updated_at = ? WHERE id = ?",
+                &[&now, &id_owned],
+            )
+            .await?;
         Ok(())
     }
 
     async fn get_resolved_predictions(&self) -> Result<Vec<(String, f64, bool)>, NagualError> {
-        let predictions: Vec<(String, f64, bool)> = self.db.query(
-            r#"
+        let predictions: Vec<(String, f64, bool)> = self
+            .db
+            .query(
+                r#"
             SELECT id, confidence, outcome
             FROM predictions
             WHERE resolved = 1
             ORDER BY resolved_at DESC
             LIMIT 100
             "#,
-            &[],
-            |row| {
-                let id: String = row.get(0)?;
-                let confidence_str: String = row.get(1)?;
-                let outcome_str: String = row.get(2)?;
-                let confidence: f64 = confidence_str.parse().unwrap_or(0.5);
-                let outcome: bool = outcome_str == "1" || outcome_str.to_lowercase() == "true";
-                Ok((id, confidence, outcome))
-            },
-        ).await.unwrap_or_default();
+                &[],
+                |row| {
+                    let id: String = row.get(0)?;
+                    let confidence_str: String = row.get(1)?;
+                    let outcome_str: String = row.get(2)?;
+                    let confidence: f64 = confidence_str.parse().unwrap_or(0.5);
+                    let outcome: bool = outcome_str == "1" || outcome_str.to_lowercase() == "true";
+                    Ok((id, confidence, outcome))
+                },
+            )
+            .await
+            .unwrap_or_default();
 
         Ok(predictions)
     }
@@ -1026,7 +1085,8 @@ impl DreamCycle {
             return 0.0;
         }
 
-        let sum: f64 = predictions.iter()
+        let sum: f64 = predictions
+            .iter()
             .map(|(_, conf, outcome)| {
                 let actual = if *outcome { 1.0 } else { 0.0 };
                 (conf - actual).powi(2)
@@ -1036,42 +1096,53 @@ impl DreamCycle {
         sum / predictions.len() as f64
     }
 
-
     async fn get_recently_used_patterns(&self, limit: usize) -> Result<Vec<String>, NagualError> {
         let limit_str = limit.to_string();
-        let ids: Vec<String> = self.db.query(
-            r#"
+        let ids: Vec<String> = self
+            .db
+            .query(
+                r#"
             SELECT id FROM reasoning_patterns
             WHERE (archived IS NULL OR archived = 0)
             ORDER BY updated_at DESC
             LIMIT ?
             "#,
-            &[&limit_str],
-            |row| row.get(0),
-        ).await?;
+                &[&limit_str],
+                |row| row.get(0),
+            )
+            .await?;
 
         Ok(ids)
     }
 
-    async fn find_related_patterns(&self, pattern_id: &str, limit: usize) -> Result<Vec<RelatedPattern>, NagualError> {
+    async fn find_related_patterns(
+        &self,
+        pattern_id: &str,
+        limit: usize,
+    ) -> Result<Vec<RelatedPattern>, NagualError> {
         let pattern_id_owned = pattern_id.to_string();
         let limit_str = limit.to_string();
 
         // Find patterns in the same domain
-        let related: Vec<RelatedPattern> = self.db.query(
-            r#"
+        let related: Vec<RelatedPattern> = self
+            .db
+            .query(
+                r#"
             SELECT p2.id
             FROM reasoning_patterns p1
             JOIN reasoning_patterns p2 ON p1.category = p2.category AND p1.id != p2.id
             WHERE p1.id = ? AND (p2.archived IS NULL OR p2.archived = 0)
             LIMIT ?
             "#,
-            &[&pattern_id_owned, &limit_str],
-            |row| Ok(RelatedPattern {
-                id: row.get(0)?,
-                similarity: 0.75, // Domain match gives base similarity
-            }),
-        ).await?;
+                &[&pattern_id_owned, &limit_str],
+                |row| {
+                    Ok(RelatedPattern {
+                        id: row.get(0)?,
+                        similarity: 0.75, // Domain match gives base similarity
+                    })
+                },
+            )
+            .await?;
 
         Ok(related)
     }
@@ -1080,34 +1151,49 @@ impl DreamCycle {
         let from_owned = from_id.to_string();
         let to_owned = to_id.to_string();
 
-        let count: Option<i64> = self.db.query_one(
-            "SELECT COUNT(*) FROM edges WHERE source_id = ? AND target_id = ?",
-            &[&from_owned, &to_owned],
-            |row| row.get(0),
-        ).await?;
+        let count: Option<i64> = self
+            .db
+            .query_one(
+                "SELECT COUNT(*) FROM edges WHERE source_id = ? AND target_id = ?",
+                &[&from_owned, &to_owned],
+                |row| row.get(0),
+            )
+            .await?;
 
         Ok(count.unwrap_or(0) > 0)
     }
 
-    async fn strengthen_edge(&self, from_id: &str, to_id: &str, delta: f64) -> Result<(), NagualError> {
+    async fn strengthen_edge(
+        &self,
+        from_id: &str,
+        to_id: &str,
+        delta: f64,
+    ) -> Result<(), NagualError> {
         let delta_str = delta.to_string();
         let now = Utc::now().to_rfc3339();
         let from_owned = from_id.to_string();
         let to_owned = to_id.to_string();
 
-        self.db.execute(
-            r#"
+        self.db
+            .execute(
+                r#"
             UPDATE edges
             SET weight = MIN(1.0, weight + ?),
                 updated_at = ?
             WHERE source_id = ? AND target_id = ?
             "#,
-            &[&delta_str, &now, &from_owned, &to_owned],
-        ).await?;
+                &[&delta_str, &now, &from_owned, &to_owned],
+            )
+            .await?;
         Ok(())
     }
 
-    async fn create_edge(&self, from_id: &str, to_id: &str, weight: f64) -> Result<(), NagualError> {
+    async fn create_edge(
+        &self,
+        from_id: &str,
+        to_id: &str,
+        weight: f64,
+    ) -> Result<(), NagualError> {
         let edge_id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
         let weight_str = weight.to_string();
@@ -1146,7 +1232,9 @@ mod tests {
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )"#,
             &[],
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
         db.execute(
             r#"CREATE TABLE IF NOT EXISTS predictions (
@@ -1157,7 +1245,9 @@ mod tests {
                 resolved_at TEXT
             )"#,
             &[],
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
         db.execute(
             r#"CREATE TABLE IF NOT EXISTS edges (
@@ -1170,7 +1260,9 @@ mod tests {
                 updated_at TEXT
             )"#,
             &[],
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
         // Add test patterns
         let now = Utc::now().to_rfc3339();
@@ -1268,7 +1360,9 @@ mod tests {
             graph: None,
         };
 
-        assert!((cycle.calculate_jaccard_similarity("hello world", "hello world") - 1.0).abs() < 0.001);
+        assert!(
+            (cycle.calculate_jaccard_similarity("hello world", "hello world") - 1.0).abs() < 0.001
+        );
         assert!((cycle.calculate_jaccard_similarity("hello world", "hello") - 0.5).abs() < 0.001);
         assert!((cycle.calculate_jaccard_similarity("a b c", "d e f") - 0.0).abs() < 0.001);
     }
@@ -1287,17 +1381,11 @@ mod tests {
         };
 
         // Perfect predictions
-        let perfect = vec![
-            ("1".to_string(), 1.0, true),
-            ("2".to_string(), 0.0, false),
-        ];
+        let perfect = vec![("1".to_string(), 1.0, true), ("2".to_string(), 0.0, false)];
         assert!((cycle.calculate_brier_score(&perfect) - 0.0).abs() < 0.001);
 
         // Worst predictions
-        let worst = vec![
-            ("1".to_string(), 0.0, true),
-            ("2".to_string(), 1.0, false),
-        ];
+        let worst = vec![("1".to_string(), 0.0, true), ("2".to_string(), 1.0, false)];
         assert!((cycle.calculate_brier_score(&worst) - 1.0).abs() < 0.001);
     }
 }

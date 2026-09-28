@@ -13,8 +13,8 @@
 use std::collections::HashSet;
 
 use nagual::router::{
-    ComplexityEstimator, ComplexityLevel, EstimatorConfig, FallbackChain, FastGRNN,
-    FastGRNNConfig, RouterConfig, Vendor, VendorConfig, VendorRouter, VendorSelector,
+    ComplexityEstimator, ComplexityLevel, EstimatorConfig, FallbackChain, FastGRNN, FastGRNNConfig,
+    RouterConfig, Vendor, VendorConfig, VendorRouter, VendorSelector,
 };
 use proptest::prelude::*;
 
@@ -33,13 +33,20 @@ fn selector() -> VendorSelector {
 
 /// Deterministic unit-norm embedding (proptest-independent).
 fn fixed_embedding() -> Vec<f32> {
-    let v: Vec<f32> = (0..DIM).map(|i| ((i * 37 % 101) as f32 / 101.0) - 0.5).collect();
+    let v: Vec<f32> = (0..DIM)
+        .map(|i| ((i * 37 % 101) as f32 / 101.0) - 0.5)
+        .collect();
     let n = v.iter().map(|x| x * x).sum::<f32>().sqrt();
     v.into_iter().map(|x| x / n).collect()
 }
 
 fn all_vendors() -> [Vendor; 4] {
-    [Vendor::LocalSmall, Vendor::LocalLarge, Vendor::Claude, Vendor::GPT]
+    [
+        Vendor::LocalSmall,
+        Vendor::LocalLarge,
+        Vendor::Claude,
+        Vendor::GPT,
+    ]
 }
 
 // ─── FastGRNN inference ─────────────────────────────────────────────────────────────────
@@ -68,7 +75,11 @@ mod fastgrnn_tests {
         assert_eq!(model.forward(&f).unwrap(), model.forward(&f).unwrap());
 
         let other = FastGRNN::new(FastGRNNConfig::default()).unwrap();
-        assert_eq!(model.forward(&f).unwrap(), other.forward(&f).unwrap(), "pretrained weights must be fixed");
+        assert_eq!(
+            model.forward(&f).unwrap(),
+            other.forward(&f).unwrap(),
+            "pretrained weights must be fixed"
+        );
     }
 
     #[test]
@@ -102,7 +113,11 @@ mod fastgrnn_tests {
     #[test]
     fn test_model_is_edge_sized() {
         let model = FastGRNN::new(FastGRNNConfig::default()).unwrap();
-        assert!(model.model_size_bytes() < 16 * 1024, "{} bytes", model.model_size_bytes());
+        assert!(
+            model.model_size_bytes() < 16 * 1024,
+            "{} bytes",
+            model.model_size_bytes()
+        );
     }
 }
 
@@ -127,9 +142,15 @@ mod complexity_tests {
     fn test_features_are_normalised() {
         let est = ComplexityEstimator::new(EstimatorConfig::default());
         let f = est
-            .extract_features("Explain this code: ```rust fn main() {} ``` and fix it", &fixed_embedding())
+            .extract_features(
+                "Explain this code: ```rust fn main() {} ``` and fix it",
+                &fixed_embedding(),
+            )
             .unwrap();
-        for (name, v) in ["length", "norm", "domain", "coverage", "accuracy"].iter().zip(f.to_vector()) {
+        for (name, v) in ["length", "norm", "domain", "coverage", "accuracy"]
+            .iter()
+            .zip(f.to_vector())
+        {
             assert!((0.0..=1.0).contains(&v), "{name} = {v}");
         }
     }
@@ -142,7 +163,10 @@ mod complexity_tests {
         let long = est.extract_features(&"why ".repeat(300), &e).unwrap();
         assert!(long.query_length > short.query_length);
         let huge = est.extract_features(&"x".repeat(10_000), &e).unwrap();
-        assert_eq!(huge.query_length, 1.0, "length feature saturates at max_query_length");
+        assert_eq!(
+            huge.query_length, 1.0,
+            "length feature saturates at max_query_length"
+        );
     }
 
     #[test]
@@ -166,17 +190,28 @@ mod complexity_tests {
         let est = ComplexityEstimator::new(EstimatorConfig::default());
         let e = fixed_embedding();
         let q = "cache invalidation strategy";
-        assert_eq!(est.extract_features(q, &e).unwrap().historical_accuracy, 0.5, "neutral default");
+        assert_eq!(
+            est.extract_features(q, &e).unwrap().historical_accuracy,
+            0.5,
+            "neutral default"
+        );
         est.record_accuracy(q, 0.9);
         assert!((est.extract_features(q, &e).unwrap().historical_accuracy - 0.9).abs() < 0.2);
         est.clear_cache();
-        assert_eq!(est.extract_features(q, &e).unwrap().historical_accuracy, 0.5);
+        assert_eq!(
+            est.extract_features(q, &e).unwrap().historical_accuracy,
+            0.5
+        );
     }
 
     #[test]
     fn test_estimate_is_a_probability_and_level_matches_score() {
         let r = router();
-        for q in ["What is 2+2?", "hello", "Design a lock-free concurrent hash map"] {
+        for q in [
+            "What is 2+2?",
+            "hello",
+            "Design a lock-free concurrent hash map",
+        ] {
             let score = r.estimate_complexity(q, &fixed_embedding()).unwrap();
             assert!((0.0..=1.0).contains(&score.score), "{q}: {}", score.score);
             let d = r.route(q, &fixed_embedding()).unwrap();
@@ -257,11 +292,26 @@ mod fallback_chain_tests {
         let chain = FallbackChain::default();
         let costs: Vec<u32> = chain.vendors.iter().map(|v| v.relative_cost()).collect();
         assert!(costs.windows(2).all(|w| w[0] <= w[1]), "{costs:?}");
-        assert_eq!(FallbackChain::starting_from(Vendor::Claude).vendors, vec![Vendor::Claude, Vendor::GPT]);
-        assert_eq!(FallbackChain::starting_from(Vendor::Claude).next_after(Vendor::Claude), Some(Vendor::GPT));
-        assert_eq!(FallbackChain::starting_from(Vendor::GPT).next_after(Vendor::GPT), None);
-        assert!(FallbackChain::local_only().vendors.iter().all(|v| v.is_local()));
-        assert!(FallbackChain::cloud_only().vendors.iter().all(|v| v.is_cloud()));
+        assert_eq!(
+            FallbackChain::starting_from(Vendor::Claude).vendors,
+            vec![Vendor::Claude, Vendor::GPT]
+        );
+        assert_eq!(
+            FallbackChain::starting_from(Vendor::Claude).next_after(Vendor::Claude),
+            Some(Vendor::GPT)
+        );
+        assert_eq!(
+            FallbackChain::starting_from(Vendor::GPT).next_after(Vendor::GPT),
+            None
+        );
+        assert!(FallbackChain::local_only()
+            .vendors
+            .iter()
+            .all(|v| v.is_local()));
+        assert!(FallbackChain::cloud_only()
+            .vendors
+            .iter()
+            .all(|v| v.is_cloud()));
     }
 
     #[test]
@@ -269,7 +319,10 @@ mod fallback_chain_tests {
         let s = selector();
         s.record_failure(Vendor::LocalSmall, "timeout".into());
         s.record_failure(Vendor::LocalSmall, "timeout".into());
-        assert!(s.is_vendor_available(Vendor::LocalSmall), "two failures are tolerated");
+        assert!(
+            s.is_vendor_available(Vendor::LocalSmall),
+            "two failures are tolerated"
+        );
         s.record_failure(Vendor::LocalSmall, "timeout".into());
         assert!(!s.is_vendor_available(Vendor::LocalSmall));
     }
@@ -282,7 +335,12 @@ mod fallback_chain_tests {
         s.record_success(Vendor::Claude, 1200);
         s.record_failure(Vendor::Claude, "429".into());
         assert!(s.is_vendor_available(Vendor::Claude));
-        assert_eq!(s.get_status(Vendor::Claude).unwrap().consecutive_failure_count(), 1);
+        assert_eq!(
+            s.get_status(Vendor::Claude)
+                .unwrap()
+                .consecutive_failure_count(),
+            1
+        );
     }
 
     #[test]
@@ -341,8 +399,15 @@ mod performance_tests {
         let start = Instant::now();
         let n = 200;
         for i in 0..n {
-            let d = r.route(&format!("query number {i} about async caches"), &e).unwrap();
-            assert!(d.routing_latency_us <= budget_us, "{} µs > {} µs", d.routing_latency_us, budget_us);
+            let d = r
+                .route(&format!("query number {i} about async caches"), &e)
+                .unwrap();
+            assert!(
+                d.routing_latency_us <= budget_us,
+                "{} µs > {} µs",
+                d.routing_latency_us,
+                budget_us
+            );
         }
         let avg_us = start.elapsed().as_micros() as u64 / n;
         assert!(avg_us <= budget_us, "average {avg_us} µs");
@@ -373,7 +438,10 @@ mod stats_tests {
         s.record_success(Vendor::GPT, 3000);
         s.record_failure(Vendor::GPT, "500".into());
         assert!((st.success_rate() - 2.0 / 3.0).abs() < 1e-9);
-        assert!((st.avg_latency_us() - 2000.0).abs() < 1e-9, "latency averages over successes");
+        assert!(
+            (st.avg_latency_us() - 2000.0).abs() < 1e-9,
+            "latency averages over successes"
+        );
     }
 
     #[test]
@@ -415,11 +483,24 @@ mod confidence_tests {
     #[test]
     fn test_confidence_is_bounded() {
         let r = router();
-        for q in ["", "hello", "Explain this code: ```rust fn main() {} ```", &"why ".repeat(500)] {
+        for q in [
+            "",
+            "hello",
+            "Explain this code: ```rust fn main() {} ```",
+            &"why ".repeat(500),
+        ] {
             let d = r.route(q, &fixed_embedding()).unwrap();
-            assert!((0.0..=1.0).contains(&d.confidence), "{q:?}: {}", d.confidence);
+            assert!(
+                (0.0..=1.0).contains(&d.confidence),
+                "{q:?}: {}",
+                d.confidence
+            );
             let s = r.route_simple(q, &fixed_embedding()).unwrap();
-            assert!((0.0..=1.0).contains(&s.confidence), "{q:?}: {}", s.confidence);
+            assert!(
+                (0.0..=1.0).contains(&s.confidence),
+                "{q:?}: {}",
+                s.confidence
+            );
         }
     }
 
@@ -522,7 +603,11 @@ mod edge_cases {
     #[test]
     fn test_unicode_and_huge_queries_route() {
         let r = router();
-        r.route("Kako da testiram async kod? 非同期テスト 🦀", &fixed_embedding()).unwrap();
+        r.route(
+            "Kako da testiram async kod? 非同期テスト 🦀",
+            &fixed_embedding(),
+        )
+        .unwrap();
         r.route(&"ő".repeat(100_000), &fixed_embedding()).unwrap();
     }
 
@@ -570,7 +655,12 @@ mod quality_tests {
             .filter(|l| !l.trim().is_empty())
             .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
             .filter(|r| r["split"] == name)
-            .map(|r| (r["query"].as_str().unwrap().to_string(), label(r["level"].as_str().unwrap())))
+            .map(|r| {
+                (
+                    r["query"].as_str().unwrap().to_string(),
+                    label(r["level"].as_str().unwrap()),
+                )
+            })
             .collect()
     }
 
@@ -589,7 +679,10 @@ mod quality_tests {
             if d.level == *want {
                 exact += 1;
             } else {
-                misses.push(format!("{:?} -> {:?} ({:.2}): {}", want, d.level, d.complexity, q));
+                misses.push(format!(
+                    "{:?} -> {:?} ({:.2}): {}",
+                    want, d.level, d.complexity, q
+                ));
             }
             let want_cloud = matches!(want, ComplexityLevel::High | ComplexityLevel::VeryHigh);
             if d.vendor.is_cloud() == want_cloud {
@@ -600,9 +693,18 @@ mod quality_tests {
         let n = test.len() as f64;
         let (exact_acc, tier_acc) = (exact as f64 / n, tier as f64 / n);
         let report = misses.join("\n  ");
-        assert!(exact_acc >= 0.65, "level accuracy {exact_acc:.3} < 0.65\n  {report}");
-        assert!(tier_acc >= 0.85, "local-vs-cloud accuracy {tier_acc:.3} < 0.85\n  {report}");
-        assert!(worst <= 1, "a prediction was {worst} levels off\n  {report}");
+        assert!(
+            exact_acc >= 0.65,
+            "level accuracy {exact_acc:.3} < 0.65\n  {report}"
+        );
+        assert!(
+            tier_acc >= 0.85,
+            "local-vs-cloud accuracy {tier_acc:.3} < 0.85\n  {report}"
+        );
+        assert!(
+            worst <= 1,
+            "a prediction was {worst} levels off\n  {report}"
+        );
     }
 
     /// The router must discriminate: the old weights scored everything 0.47–0.53.
@@ -618,7 +720,10 @@ mod quality_tests {
             xs.iter().sum::<f32>() / xs.len() as f32
         };
         let means: Vec<f32> = LEVELS.iter().map(|&l| mean(l)).collect();
-        assert!(means.windows(2).all(|w| w[0] < w[1]), "per-level means not increasing: {means:?}");
+        assert!(
+            means.windows(2).all(|w| w[0] < w[1]),
+            "per-level means not increasing: {means:?}"
+        );
         assert!(means[3] - means[0] > 0.4, "spread too small: {means:?}");
     }
 
@@ -631,10 +736,16 @@ mod quality_tests {
             let d = r.route(q, &fixed_embedding()).unwrap();
             assert_eq!(d.vendor, Vendor::LocalSmall, "{q}: {:.3}", d.complexity);
         }
-        let hard = "Design a lock-free concurrent hash map in Rust with epoch-based memory reclamation, \
+        let hard =
+            "Design a lock-free concurrent hash map in Rust with epoch-based memory reclamation, \
                     prove linearizability, and analyse ABA hazards under contention";
         let d = r.route(hard, &fixed_embedding()).unwrap();
-        assert!(d.vendor.is_cloud() && d.level == ComplexityLevel::VeryHigh, "{:.3} {:?}", d.complexity, d.level);
+        assert!(
+            d.vendor.is_cloud() && d.level == ComplexityLevel::VeryHigh,
+            "{:.3} {:?}",
+            d.complexity,
+            d.level
+        );
     }
 
     /// The Rust forward pass must reproduce what the training script measured on the test split
@@ -642,7 +753,8 @@ mod quality_tests {
     #[test]
     fn test_rust_inference_matches_recorded_training_metrics() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/models/fastgrnn_router.json");
-        let doc: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let doc: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         let recorded = doc["metrics"]["test"]["level_accuracy"].as_f64().unwrap();
 
         let r = router();
@@ -652,6 +764,9 @@ mod quality_tests {
             .filter(|(q, want)| r.route(q, &fixed_embedding()).unwrap().level == *want)
             .count() as f64
             / test.len() as f64;
-        assert!((exact - recorded).abs() < 1e-9, "rust {exact} vs trainer {recorded}");
+        assert!(
+            (exact - recorded).abs() < 1e-9,
+            "rust {exact} vs trainer {recorded}"
+        );
     }
 }

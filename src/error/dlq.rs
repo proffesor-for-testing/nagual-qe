@@ -11,7 +11,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
@@ -71,8 +71,7 @@ impl DlqEntry {
     /// Set metadata.
     pub fn with_metadata(mut self, metadata: impl Serialize) -> Result<Self, DlqError> {
         self.metadata = Some(
-            serde_json::to_string(&metadata)
-                .map_err(|e| DlqError::EnqueueFailed(e.to_string()))?,
+            serde_json::to_string(&metadata).map_err(|e| DlqError::EnqueueFailed(e.to_string()))?,
         );
         Ok(self)
     }
@@ -111,7 +110,10 @@ impl DeadLetterQueue {
     /// Create a new DLQ at the specified path.
     pub fn new(path: impl AsRef<Path>) -> Result<Self, DlqError> {
         let conn = Connection::open(path)?;
-        let dlq = Self { conn, max_size: None };
+        let dlq = Self {
+            conn,
+            max_size: None,
+        };
         dlq.initialize_schema()?;
         Ok(dlq)
     }
@@ -119,7 +121,10 @@ impl DeadLetterQueue {
     /// Create an in-memory DLQ (useful for testing).
     pub fn in_memory() -> Result<Self, DlqError> {
         let conn = Connection::open_in_memory()?;
-        let dlq = Self { conn, max_size: None };
+        let dlq = Self {
+            conn,
+            max_size: None,
+        };
         dlq.initialize_schema()?;
         Ok(dlq)
     }
@@ -260,10 +265,8 @@ impl DeadLetterQueue {
 
     /// Mark an entry as successfully processed (removes it from the queue).
     pub fn mark_success(&self, id: &str) -> Result<(), DlqError> {
-        self.conn.execute(
-            "DELETE FROM dlq WHERE id = ?1",
-            params![id],
-        )?;
+        self.conn
+            .execute("DELETE FROM dlq WHERE id = ?1", params![id])?;
         debug!(id = %id, "DLQ entry marked as success and removed");
         Ok(())
     }
@@ -371,7 +374,9 @@ impl DeadLetterQueue {
             })
         })?;
 
-        entries.collect::<Result<Vec<_>, _>>().map_err(DlqError::Database)
+        entries
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(DlqError::Database)
     }
 
     /// Process a batch of ready entries with a handler function.
@@ -439,25 +444,34 @@ impl DeadLetterQueue {
             |row| row.get(0),
         )?;
 
-        let oldest_entry: Option<String> = self.conn.query_row(
-            "SELECT MIN(created_at) FROM dlq WHERE status = 'pending'",
-            [],
-            |row| row.get(0),
-        ).ok();
+        let oldest_entry: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT MIN(created_at) FROM dlq WHERE status = 'pending'",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
 
         Ok(DlqStats {
             pending,
             processing,
             abandoned,
             total: pending + processing + abandoned,
-            oldest_entry: oldest_entry.and_then(|s| DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&Utc))),
+            oldest_entry: oldest_entry.and_then(|s| {
+                DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&Utc))
+            }),
         })
     }
 
     /// Clean up abandoned entries older than the specified duration.
     pub fn cleanup_abandoned(&self, older_than: Duration) -> Result<usize, DlqError> {
-        let cutoff = Utc::now() - chrono::Duration::from_std(older_than)
-            .expect("Duration should be within valid chrono range (less than ~292 billion years)");
+        let cutoff = Utc::now()
+            - chrono::Duration::from_std(older_than).expect(
+                "Duration should be within valid chrono range (less than ~292 billion years)",
+            );
         let deleted = self.conn.execute(
             "DELETE FROM dlq WHERE status = 'abandoned' AND updated_at < ?1",
             params![cutoff.to_rfc3339()],
@@ -468,8 +482,10 @@ impl DeadLetterQueue {
 
     /// Requeue a stuck processing entry (e.g., after worker crash).
     pub fn requeue_stuck(&self, stuck_threshold: Duration) -> Result<usize, DlqError> {
-        let cutoff = Utc::now() - chrono::Duration::from_std(stuck_threshold)
-            .expect("Duration should be within valid chrono range (less than ~292 billion years)");
+        let cutoff = Utc::now()
+            - chrono::Duration::from_std(stuck_threshold).expect(
+                "Duration should be within valid chrono range (less than ~292 billion years)",
+            );
         let requeued = self.conn.execute(
             "UPDATE dlq SET status = 'pending', updated_at = ?1 WHERE status = 'processing' AND updated_at < ?2",
             params![Utc::now().to_rfc3339(), cutoff.to_rfc3339()],
@@ -481,7 +497,11 @@ impl DeadLetterQueue {
     }
 
     /// Get entries by operation type.
-    pub fn get_by_operation(&self, operation: &str, limit: usize) -> Result<Vec<DlqEntry>, DlqError> {
+    pub fn get_by_operation(
+        &self,
+        operation: &str,
+        limit: usize,
+    ) -> Result<Vec<DlqEntry>, DlqError> {
         let mut stmt = self.conn.prepare(
             r#"
             SELECT id, operation, payload, error, attempts, max_attempts,
@@ -513,7 +533,9 @@ impl DeadLetterQueue {
             })
         })?;
 
-        entries.collect::<Result<Vec<_>, _>>().map_err(DlqError::Database)
+        entries
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(DlqError::Database)
     }
 }
 
@@ -566,7 +588,8 @@ mod tests {
             let diff = next - Utc::now();
             // Allow some tolerance for test execution time
             assert!(
-                diff.num_minutes() >= expected_minutes - 1 && diff.num_minutes() <= expected_minutes,
+                diff.num_minutes() >= expected_minutes - 1
+                    && diff.num_minutes() <= expected_minutes,
                 "Expected ~{} minutes for attempt {}, got {} minutes",
                 expected_minutes,
                 attempt,
@@ -587,10 +610,12 @@ mod tests {
         assert!(dequeued.is_none());
 
         // Manually update next_retry_at to now
-        dlq.conn.execute(
-            "UPDATE dlq SET next_retry_at = ?1 WHERE id = ?2",
-            params![Utc::now().to_rfc3339(), id],
-        ).unwrap();
+        dlq.conn
+            .execute(
+                "UPDATE dlq SET next_retry_at = ?1 WHERE id = ?2",
+                params![Utc::now().to_rfc3339(), id],
+            )
+            .unwrap();
 
         let dequeued = dlq.dequeue().unwrap();
         assert!(dequeued.is_some());

@@ -93,8 +93,11 @@ impl EstimatorConfig {
 
     /// Validate that weights sum to 1.0.
     pub fn validate(&self) -> RouterResult<()> {
-        let sum =
-            self.length_weight + self.reasoning_weight + self.domain_weight + self.structure_weight + self.accuracy_weight;
+        let sum = self.length_weight
+            + self.reasoning_weight
+            + self.domain_weight
+            + self.structure_weight
+            + self.accuracy_weight;
         if (sum - 1.0).abs() > 0.01 {
             return Err(super::RouterError::InvalidConfig(format!(
                 "Feature weights must sum to 1.0, got {}",
@@ -106,8 +109,11 @@ impl EstimatorConfig {
 
     /// Normalize weights to sum to 1.0.
     pub fn normalized(&self) -> Self {
-        let sum =
-            self.length_weight + self.reasoning_weight + self.domain_weight + self.structure_weight + self.accuracy_weight;
+        let sum = self.length_weight
+            + self.reasoning_weight
+            + self.domain_weight
+            + self.structure_weight
+            + self.accuracy_weight;
         if sum > 0.0 {
             Self {
                 length_weight: self.length_weight / sum,
@@ -321,28 +327,48 @@ impl ComplexityEstimator {
 
         // Technical/programming terms (high specificity)
         for term in &[
-            "algorithm", "implementation", "optimization", "architecture",
-            "database", "async", "concurrent", "thread", "memory", "cache",
-            "neural", "transformer", "embedding", "gradient", "backpropagation",
-            "kubernetes", "docker", "microservice", "api", "graphql",
-            "cryptography", "encryption", "hash", "signature", "certificate",
+            "algorithm",
+            "implementation",
+            "optimization",
+            "architecture",
+            "database",
+            "async",
+            "concurrent",
+            "thread",
+            "memory",
+            "cache",
+            "neural",
+            "transformer",
+            "embedding",
+            "gradient",
+            "backpropagation",
+            "kubernetes",
+            "docker",
+            "microservice",
+            "api",
+            "graphql",
+            "cryptography",
+            "encryption",
+            "hash",
+            "signature",
+            "certificate",
         ] {
             keywords.insert(term.to_string(), 0.8);
         }
 
         // Moderate specificity terms
         for term in &[
-            "function", "class", "method", "variable", "type", "error",
-            "debug", "test", "deploy", "build", "compile", "runtime",
-            "server", "client", "request", "response", "data", "model",
+            "function", "class", "method", "variable", "type", "error", "debug", "test", "deploy",
+            "build", "compile", "runtime", "server", "client", "request", "response", "data",
+            "model",
         ] {
             keywords.insert(term.to_string(), 0.5);
         }
 
         // General terms (low specificity)
         for term in &[
-            "how", "what", "why", "when", "where", "which", "can", "should",
-            "help", "explain", "describe", "show", "tell", "give", "make",
+            "how", "what", "why", "when", "where", "which", "can", "should", "help", "explain",
+            "describe", "show", "tell", "give", "make",
         ] {
             keywords.insert(term.to_string(), 0.2);
         }
@@ -353,7 +379,11 @@ impl ComplexityEstimator {
     /// Extract features from a query.
     ///
     /// The embedding is validated (non-empty, finite) but not scored: see the module docs.
-    pub fn extract_features(&self, query: &str, embedding: &[f32]) -> RouterResult<ComplexityFeatures> {
+    pub fn extract_features(
+        &self,
+        query: &str,
+        embedding: &[f32],
+    ) -> RouterResult<ComplexityFeatures> {
         Self::validate_embedding(embedding)?;
 
         Ok(ComplexityFeatures {
@@ -394,12 +424,47 @@ impl ComplexityEstimator {
     /// optimisation and hard constraints. Saturating in the number of distinct cues.
     fn compute_reasoning_demand(query: &str) -> f32 {
         const CUES: &[&str] = &[
-            "design", "architect", "prove", "proof", "derive", "trade-off", "tradeoff",
-            "compare", "evaluate", "optimi", "analy", "refactor", "migrat", "debug", "diagnos",
-            "investigat", "root cause", "why ", "strategy", "plan ", "step by step", "scal",
-            "guarantee", "ensure", "without ", "must ", "constraint", "edge case", "benchmark",
-            "threat model", "consisten", "fault", "concurren", "race condition", "deadlock",
-            "distributed", "invariant", "formal", "complexity", "bottleneck", "rollout",
+            "design",
+            "architect",
+            "prove",
+            "proof",
+            "derive",
+            "trade-off",
+            "tradeoff",
+            "compare",
+            "evaluate",
+            "optimi",
+            "analy",
+            "refactor",
+            "migrat",
+            "debug",
+            "diagnos",
+            "investigat",
+            "root cause",
+            "why ",
+            "strategy",
+            "plan ",
+            "step by step",
+            "scal",
+            "guarantee",
+            "ensure",
+            "without ",
+            "must ",
+            "constraint",
+            "edge case",
+            "benchmark",
+            "threat model",
+            "consisten",
+            "fault",
+            "concurren",
+            "race condition",
+            "deadlock",
+            "distributed",
+            "invariant",
+            "formal",
+            "complexity",
+            "bottleneck",
+            "rollout",
         ];
         let q = format!(" {} ", query.to_lowercase());
         let hits = CUES.iter().filter(|c| q.contains(*c)).count() as f32;
@@ -429,10 +494,17 @@ impl ComplexityEstimator {
                     || (t.chars().next().is_some_and(|c| c.is_ascii_digit()) && t.contains(". "))
             })
             .count() as f32;
-        let multi_part = [" and then ", " then ", " also ", " as well as ", " both ", " each "]
-            .iter()
-            .filter(|t| query.to_lowercase().contains(*t))
-            .count() as f32;
+        let multi_part = [
+            " and then ",
+            " then ",
+            " also ",
+            " as well as ",
+            " both ",
+            " each ",
+        ]
+        .iter()
+        .filter(|t| query.to_lowercase().contains(*t))
+        .count() as f32;
 
         let raw = 0.8 * code_blocks
             + 0.3 * inline_code.min(3.0)
@@ -468,11 +540,13 @@ impl ComplexityEstimator {
         if matched_count == 0 {
             // No keyword matches - use heuristics
             // Longer words tend to be more specific
-            let avg_word_len: f32 = words.iter().map(|w| w.len() as f32).sum::<f32>() / words.len() as f32;
+            let avg_word_len: f32 =
+                words.iter().map(|w| w.len() as f32).sum::<f32>() / words.len() as f32;
             let len_factor = (avg_word_len / 10.0).clamp(0.0, 1.0);
 
             // Technical punctuation (::, ->, etc.) indicates specificity
-            let has_tech_syntax = query.contains("::") || query.contains("->") || query.contains("()");
+            let has_tech_syntax =
+                query.contains("::") || query.contains("->") || query.contains("()");
             let syntax_factor = if has_tech_syntax { 0.3 } else { 0.0 };
 
             return (len_factor * 0.5 + syntax_factor + 0.2).clamp(0.0, 1.0);
@@ -506,11 +580,7 @@ impl ComplexityEstimator {
     }
 
     /// Estimate complexity using simple weighted average (no FastGRNN).
-    pub fn estimate_simple(
-        &self,
-        query: &str,
-        embedding: &[f32],
-    ) -> RouterResult<ComplexityScore> {
+    pub fn estimate_simple(&self, query: &str, embedding: &[f32]) -> RouterResult<ComplexityScore> {
         let start = std::time::Instant::now();
 
         let features = self.extract_features(query, embedding)?;
@@ -647,7 +717,8 @@ mod tests {
         let estimator = ComplexityEstimator::new(EstimatorConfig::default());
         let embedding = sample_embedding();
 
-        let features = estimator.extract_features("How do I implement a binary search?", &embedding);
+        let features =
+            estimator.extract_features("How do I implement a binary search?", &embedding);
         assert!(features.is_ok());
 
         let f = features.unwrap();
@@ -655,7 +726,10 @@ mod tests {
         assert_eq!(f.reasoning_demand, 0.0, "no design/proof/diagnosis cue");
 
         let hard = estimator
-            .extract_features("Design a distributed cache and prove it stays consistent under partitions", &embedding)
+            .extract_features(
+                "Design a distributed cache and prove it stays consistent under partitions",
+                &embedding,
+            )
             .unwrap();
         assert!(hard.reasoning_demand > 0.5, "{}", hard.reasoning_demand);
     }
@@ -665,13 +739,13 @@ mod tests {
         let estimator = ComplexityEstimator::new(EstimatorConfig::default());
 
         // Technical query
-        let tech_specificity =
-            estimator.compute_domain_specificity("Implement a concurrent algorithm with thread-safe caching");
+        let tech_specificity = estimator.compute_domain_specificity(
+            "Implement a concurrent algorithm with thread-safe caching",
+        );
         assert!(tech_specificity > 0.5);
 
         // General query
-        let gen_specificity =
-            estimator.compute_domain_specificity("How can I help you today?");
+        let gen_specificity = estimator.compute_domain_specificity("How can I help you today?");
         assert!(gen_specificity < 0.5);
     }
 

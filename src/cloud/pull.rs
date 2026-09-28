@@ -42,9 +42,7 @@ pub async fn cloud_pull(
     let mut max_updated_at: Option<DateTime<Utc>> = None;
 
     loop {
-        let response = client
-            .pull_patterns(since, PULL_PAGE_SIZE, offset)
-            .await?;
+        let response = client.pull_patterns(since, PULL_PAGE_SIZE, offset).await?;
 
         let page_count = response.patterns.len();
         if page_count == 0 {

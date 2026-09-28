@@ -6,8 +6,8 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::coherence::{
-    CoherenceAction, CoherenceConfigUpdate, CoherenceGate, CoherenceResult,
-    ConflictSeverity, GlobalCoherenceReport,
+    CoherenceAction, CoherenceConfigUpdate, CoherenceGate, CoherenceResult, ConflictSeverity,
+    GlobalCoherenceReport,
 };
 use crate::db::SqliteDb;
 use crate::error::NagualError;
@@ -86,9 +86,14 @@ impl CoherenceCommand {
                 let gate = CoherenceGate::with_persisted_config(db).await?;
                 self.check_pattern(&gate, pattern_id, json_output).await
             }
-            CoherenceSubcommand::Test { problem, solution, domain } => {
+            CoherenceSubcommand::Test {
+                problem,
+                solution,
+                domain,
+            } => {
                 let gate = CoherenceGate::with_persisted_config(db).await?;
-                self.test_content(&gate, problem, solution, domain, json_output).await
+                self.test_content(&gate, problem, solution, domain, json_output)
+                    .await
             }
             CoherenceSubcommand::Analyze { detailed } => {
                 let gate = CoherenceGate::with_persisted_config(db).await?;
@@ -109,7 +114,8 @@ impl CoherenceCommand {
                     *enabled,
                     *show,
                     json_output,
-                ).await
+                )
+                .await
             }
         }
     }
@@ -125,7 +131,10 @@ impl CoherenceCommand {
         let result = gate.check_pattern(pattern_id).await?;
 
         if json_output {
-            println!("{}", serde_json::to_string_pretty(&result).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&result).unwrap_or_default()
+            );
         } else {
             self.print_coherence_result(&result);
         }
@@ -146,7 +155,10 @@ impl CoherenceCommand {
         let result = gate.check(problem, solution, domain).await?;
 
         if json_output {
-            println!("{}", serde_json::to_string_pretty(&result).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&result).unwrap_or_default()
+            );
         } else {
             println!("Coherence Test Results");
             println!("======================");
@@ -171,7 +183,10 @@ impl CoherenceCommand {
         let report = gate.analyze_global_coherence().await?;
 
         if json_output {
-            println!("{}", serde_json::to_string_pretty(&report).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&report).unwrap_or_default()
+            );
         } else {
             self.print_global_report(&report, detailed);
         }
@@ -205,14 +220,24 @@ impl CoherenceCommand {
                 similarity_threshold,
                 max_conflicts,
                 check_enabled: enabled,
-            }).await?;
+            })
+            .await?;
 
             if json_output {
-                println!("{}", serde_json::to_string_pretty(gate.config()).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(gate.config()).unwrap_or_default()
+                );
             } else {
                 println!("Configuration updated and saved:");
-                println!("  Energy Threshold:     {:.2}", gate.config().energy_threshold);
-                println!("  Similarity Threshold: {:.2}", gate.config().similarity_threshold);
+                println!(
+                    "  Energy Threshold:     {:.2}",
+                    gate.config().energy_threshold
+                );
+                println!(
+                    "  Similarity Threshold: {:.2}",
+                    gate.config().similarity_threshold
+                );
                 println!("  Max Conflicts:        {}", gate.config().max_conflicts);
                 println!("  Check Enabled:        {}", gate.config().check_enabled);
             }
@@ -220,14 +245,26 @@ impl CoherenceCommand {
             // Just show current config
             let config = gate.config();
             if json_output {
-                println!("{}", serde_json::to_string_pretty(config).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(config).unwrap_or_default()
+                );
             } else {
                 println!("Coherence Gate Configuration");
                 println!("============================");
                 println!();
-                println!("  Energy Threshold:     {:.2} (patterns need >= this to pass)", config.energy_threshold);
-                println!("  Similarity Threshold: {:.2} (for contradiction detection)", config.similarity_threshold);
-                println!("  Max Conflicts:        {}   (before auto-reject)", config.max_conflicts);
+                println!(
+                    "  Energy Threshold:     {:.2} (patterns need >= this to pass)",
+                    config.energy_threshold
+                );
+                println!(
+                    "  Similarity Threshold: {:.2} (for contradiction detection)",
+                    config.similarity_threshold
+                );
+                println!(
+                    "  Max Conflicts:        {}   (before auto-reject)",
+                    config.max_conflicts
+                );
                 println!("  Check Enabled:        {}", config.check_enabled);
                 println!();
                 println!("Configuration is persisted to database.");
@@ -240,11 +277,18 @@ impl CoherenceCommand {
 
     fn print_coherence_result(&self, result: &CoherenceResult) {
         let icon = if result.is_coherent { "●" } else { "○" };
-        let status = if result.is_coherent { "COHERENT" } else { "INCOHERENT" };
+        let status = if result.is_coherent {
+            "COHERENT"
+        } else {
+            "INCOHERENT"
+        };
 
         println!("{} Status: {}", icon, status);
         println!();
-        println!("Energy: {:.3} (threshold: {:.3})", result.energy, result.threshold);
+        println!(
+            "Energy: {:.3} (threshold: {:.3})",
+            result.energy, result.threshold
+        );
         println!("Supporting Patterns: {}", result.supporting_patterns);
         println!();
 
@@ -281,13 +325,19 @@ impl CoherenceCommand {
                 println!("  Pattern can be safely stored.");
             }
             CoherenceAction::AcceptWithWarning { warnings } => {
-                println!("  Pattern can be stored with {} warning(s):", warnings.len());
+                println!(
+                    "  Pattern can be stored with {} warning(s):",
+                    warnings.len()
+                );
                 for (i, w) in warnings.iter().take(3).enumerate() {
                     println!("    {}. {}", i + 1, w);
                 }
             }
             CoherenceAction::RequireReview { conflicts } => {
-                println!("  Manual review required for {} conflict(s).", conflicts.len());
+                println!(
+                    "  Manual review required for {} conflict(s).",
+                    conflicts.len()
+                );
             }
             CoherenceAction::Reject { reason } => {
                 println!("  Pattern should NOT be stored: {}", reason);
@@ -358,7 +408,9 @@ impl CoherenceCommand {
         } else if report.overall_coherence > 0.7 {
             println!("  Good coherence. Consider reviewing flagged conflicts.");
         } else if report.overall_coherence > 0.5 {
-            println!("  Moderate coherence. Run 'nagual learn consolidate' to merge similar patterns.");
+            println!(
+                "  Moderate coherence. Run 'nagual learn consolidate' to merge similar patterns."
+            );
         } else {
             println!("  Low coherence detected. Manual review recommended.");
             println!("  Use 'nagual coherence check <pattern-id>' to inspect specific conflicts.");

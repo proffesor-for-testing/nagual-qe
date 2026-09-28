@@ -427,7 +427,11 @@ pub async fn api_action_embed(
         run_embed_job(&job_id, &db_path, &event_bus, force).await;
     });
 
-    (StatusCode::ACCEPTED, Json(serde_json::to_value(resp).unwrap())).into_response()
+    (
+        StatusCode::ACCEPTED,
+        Json(serde_json::to_value(resp).unwrap()),
+    )
+        .into_response()
 }
 
 /// POST /api/actions/consolidate -- start a consolidation job.
@@ -466,7 +470,11 @@ pub async fn api_action_consolidate(
         run_consolidate_job(&job_id, &db_path, &event_bus, similarity, dry_run).await;
     });
 
-    (StatusCode::ACCEPTED, Json(serde_json::to_value(resp).unwrap())).into_response()
+    (
+        StatusCode::ACCEPTED,
+        Json(serde_json::to_value(resp).unwrap()),
+    )
+        .into_response()
 }
 
 /// POST /api/actions/dedup -- start a deduplication job.
@@ -505,7 +513,11 @@ pub async fn api_action_dedup(
         run_dedup_job(&job_id, &db_path, &event_bus, auto, threshold).await;
     });
 
-    (StatusCode::ACCEPTED, Json(serde_json::to_value(resp).unwrap())).into_response()
+    (
+        StatusCode::ACCEPTED,
+        Json(serde_json::to_value(resp).unwrap()),
+    )
+        .into_response()
 }
 
 /// POST /api/actions/pyramid -- start a pyramid generation job.
@@ -543,7 +555,11 @@ pub async fn api_action_pyramid(
         run_pyramid_job(&job_id, &db_path, &event_bus, limit).await;
     });
 
-    (StatusCode::ACCEPTED, Json(serde_json::to_value(resp).unwrap())).into_response()
+    (
+        StatusCode::ACCEPTED,
+        Json(serde_json::to_value(resp).unwrap()),
+    )
+        .into_response()
 }
 
 /// GET /api/actions/status/:job_id -- poll job status.
@@ -567,9 +583,7 @@ pub async fn api_action_status(
 }
 
 /// GET /api/actions/jobs -- list recent jobs.
-pub async fn api_action_jobs(
-    _auth: RequireAuth,
-) -> impl IntoResponse {
+pub async fn api_action_jobs(_auth: RequireAuth) -> impl IntoResponse {
     let queue = job_queue();
     let jobs = queue.list().await;
     Json(serde_json::to_value(jobs).unwrap())
@@ -589,7 +603,9 @@ pub async fn api_insights(
 
     // Total patterns
     let total_patterns: u64 = conn
-        .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+            row.get(0)
+        })
         .unwrap_or(0);
 
     // Embedded count (has non-null embedding blob)
@@ -649,7 +665,10 @@ pub async fn api_insights(
              FROM reasoning_patterns GROUP BY d ORDER BY cnt DESC LIMIT 20"
         );
         let mut stmt = conn.prepare(&sql).map_err(|e| {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Query error: {}", e))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Query error: {}", e),
+            )
         })?;
         let rows = stmt
             .query_map([], |row| {
@@ -660,7 +679,10 @@ pub async fn api_insights(
                 })
             })
             .map_err(|e| {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("Query error: {}", e))
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Query error: {}", e),
+                )
             })?;
         rows.filter_map(|r| r.ok()).collect::<Vec<_>>()
     };
@@ -676,7 +698,10 @@ pub async fn api_insights(
              GROUP BY DATE({ccol}) ORDER BY day"
         );
         let mut stmt = conn.prepare(&sql).map_err(|e| {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Query error: {}", e))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Query error: {}", e),
+            )
         })?;
         let rows = stmt
             .query_map([], |row| {
@@ -687,7 +712,10 @@ pub async fn api_insights(
                 })
             })
             .map_err(|e| {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("Query error: {}", e))
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Query error: {}", e),
+                )
             })?;
         rows.filter_map(|r| r.ok()).collect::<Vec<_>>()
     };
@@ -711,23 +739,26 @@ pub async fn api_insights(
              LIMIT 10"
         );
         let mut stmt = conn.prepare(&sql).map_err(|e| {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Query error: {}", e))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Query error: {}", e),
+            )
         })?;
         let rows = stmt
             .query_map([], |row| {
                 Ok(TopPattern {
                     id: row.get(0)?,
-                    problem: row.get::<_, String>(1)?
-                        .chars()
-                        .take(120)
-                        .collect(),
+                    problem: row.get::<_, String>(1)?.chars().take(120).collect(),
                     domain: row.get(2)?,
                     reward: row.get(3)?,
                     reuse_count: row.get::<_, i64>(4).unwrap_or(0) as u32,
                 })
             })
             .map_err(|e| {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("Query error: {}", e))
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Query error: {}", e),
+                )
             })?;
         rows.filter_map(|r| r.ok()).collect::<Vec<_>>()
     };
@@ -751,7 +782,11 @@ pub async fn api_insights(
 
     let recommendations_count = if low_reward_count > 0 { 1 } else { 0 }
         + if high_reward_count > 0 { 1 } else { 0 }
-        + if embedded_count < total_patterns { 1 } else { 0 };
+        + if embedded_count < total_patterns {
+            1
+        } else {
+            0
+        };
 
     Ok(Json(InsightsResponse {
         total_patterns,
@@ -781,7 +816,9 @@ pub async fn api_recommendations(
 
     // 1. Unembedded patterns
     let total: u64 = conn
-        .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+            row.get(0)
+        })
         .unwrap_or(0);
     let embedded: u64 = conn
         .query_row(
@@ -1197,12 +1234,10 @@ pub async fn api_patterns_bulk(
                     rusqlite::params![domain_value, id],
                 )
             }
-            BulkAction::Delete => {
-                conn.execute(
-                    "DELETE FROM reasoning_patterns WHERE id = ?1",
-                    rusqlite::params![id],
-                )
-            }
+            BulkAction::Delete => conn.execute(
+                "DELETE FROM reasoning_patterns WHERE id = ?1",
+                rusqlite::params![id],
+            ),
         };
 
         match result {
@@ -1264,11 +1299,7 @@ pub async fn api_patterns_bulk(
         errors,
     };
 
-    (
-        StatusCode::OK,
-        Json(serde_json::to_value(resp).unwrap()),
-    )
-        .into_response()
+    (StatusCode::OK, Json(serde_json::to_value(resp).unwrap())).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -1460,11 +1491,7 @@ pub async fn api_pattern_archive(
         status: "archived".to_string(),
     };
 
-    (
-        StatusCode::OK,
-        Json(serde_json::to_value(resp).unwrap()),
-    )
-        .into_response()
+    (StatusCode::OK, Json(serde_json::to_value(resp).unwrap())).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -1528,11 +1555,7 @@ pub async fn api_pattern_promote(
         tier: "reflex".to_string(),
     };
 
-    (
-        StatusCode::OK,
-        Json(serde_json::to_value(resp).unwrap()),
-    )
-        .into_response()
+    (StatusCode::OK, Json(serde_json::to_value(resp).unwrap())).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -1554,21 +1577,12 @@ async fn run_embed_job(
 
     info!(job_id = %job_id, force = force, "Starting embed job");
 
-    event_bus.publish_sync(NagualEvent::batch_completed(
-        "embed_started",
-        0,
-        0,
-        0,
-        0,
-    ));
+    event_bus.publish_sync(NagualEvent::batch_completed("embed_started", 0, 0, 0, 0));
 
     let start = std::time::Instant::now();
 
     let mut cmd = tokio::process::Command::new(nagual_binary());
-    cmd.arg("learn")
-        .arg("embed")
-        .arg("--db-path")
-        .arg(db_path);
+    cmd.arg("learn").arg("embed").arg("--db-path").arg(db_path);
 
     if force {
         cmd.arg("--force");
@@ -1579,10 +1593,7 @@ async fn run_embed_job(
         cmd.env("ORT_DYLIB_PATH", ort_path);
     } else {
         // Default macOS path
-        cmd.env(
-            "ORT_DYLIB_PATH",
-            "/opt/homebrew/lib/libonnxruntime.dylib",
-        );
+        cmd.env("ORT_DYLIB_PATH", "/opt/homebrew/lib/libonnxruntime.dylib");
     }
 
     queue
@@ -1609,13 +1620,7 @@ async fn run_embed_job(
 
                 queue.set_completed(job_id, Some(result)).await;
 
-                event_bus.publish_sync(NagualEvent::batch_completed(
-                    "embed",
-                    0,
-                    0,
-                    0,
-                    elapsed,
-                ));
+                event_bus.publish_sync(NagualEvent::batch_completed("embed", 0, 0, 0, elapsed));
             } else {
                 let error_msg = if stderr.is_empty() {
                     format!("Embed failed with exit code {:?}", output.status.code())
@@ -1684,10 +1689,7 @@ async fn run_consolidate_job(
     if let Ok(ort_path) = std::env::var("ORT_DYLIB_PATH") {
         cmd.env("ORT_DYLIB_PATH", ort_path);
     } else {
-        cmd.env(
-            "ORT_DYLIB_PATH",
-            "/opt/homebrew/lib/libonnxruntime.dylib",
-        );
+        cmd.env("ORT_DYLIB_PATH", "/opt/homebrew/lib/libonnxruntime.dylib");
     }
 
     queue
@@ -1717,11 +1719,7 @@ async fn run_consolidate_job(
                 queue.set_completed(job_id, Some(result)).await;
 
                 if !dry_run {
-                    event_bus.publish_sync(NagualEvent::consolidation_completed(
-                        0,
-                        0,
-                        vec![],
-                    ));
+                    event_bus.publish_sync(NagualEvent::consolidation_completed(0, 0, vec![]));
                 }
             } else {
                 let error_msg = if stderr.is_empty() {
@@ -1791,8 +1789,7 @@ async fn run_dedup_job(
         cmd.arg("--scan");
     }
 
-    cmd.arg("--threshold")
-        .arg(format!("{:.2}", threshold));
+    cmd.arg("--threshold").arg(format!("{:.2}", threshold));
 
     queue
         .set_progress(job_id, 30, "Deduplication in progress")
@@ -1819,13 +1816,7 @@ async fn run_dedup_job(
 
                 queue.set_completed(job_id, Some(result)).await;
 
-                event_bus.publish_sync(NagualEvent::batch_completed(
-                    "dedup",
-                    0,
-                    0,
-                    0,
-                    elapsed,
-                ));
+                event_bus.publish_sync(NagualEvent::batch_completed("dedup", 0, 0, 0, elapsed));
             } else {
                 let error_msg = if stderr.is_empty() {
                     format!("Dedup failed with exit code {:?}", output.status.code())
@@ -1909,13 +1900,7 @@ async fn run_pyramid_job(
 
                 queue.set_completed(job_id, Some(result)).await;
 
-                event_bus.publish_sync(NagualEvent::batch_completed(
-                    "pyramid",
-                    0,
-                    0,
-                    0,
-                    elapsed,
-                ));
+                event_bus.publish_sync(NagualEvent::batch_completed("pyramid", 0, 0, 0, elapsed));
             } else {
                 let error_msg = if stderr.is_empty() {
                     format!("Pyramid failed with exit code {:?}", output.status.code())
@@ -2006,56 +1991,60 @@ pub async fn api_semantic_search(
         }
     };
 
-    let limit = if req.limit == 0 { 10 } else { req.limit.min(100) };
+    let limit = if req.limit == 0 {
+        10
+    } else {
+        req.limit.min(100)
+    };
     let dcol = domain_column(&conn);
 
     // Try FTS5 MATCH first
-    let fts_result: Result<Vec<serde_json::Value>, _> = (|| -> Result<Vec<serde_json::Value>, rusqlite::Error> {
-        let (sql, params_list): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(ref domain) = req.domain {
-            (
-                format!(
-                    "SELECT id, problem, solution, COALESCE({dcol},'') as domain, \
+    let fts_result: Result<Vec<serde_json::Value>, _> =
+        (|| -> Result<Vec<serde_json::Value>, rusqlite::Error> {
+            let (sql, params_list): (String, Vec<Box<dyn rusqlite::types::ToSql>>) =
+                if let Some(ref domain) = req.domain {
+                    (
+                        format!(
+                            "SELECT id, problem, solution, COALESCE({dcol},'') as domain, \
                      COALESCE(reward,0.0), COALESCE(surprise_score,0.0) \
                      FROM reasoning_patterns \
                      WHERE reasoning_patterns MATCH ?1 AND {dcol} = ?2 \
                      ORDER BY rank LIMIT ?3"
-                ),
-                vec![
-                    Box::new(req.query.clone()),
-                    Box::new(domain.clone()),
-                    Box::new(limit as i64),
-                ],
-            )
-        } else {
-            (
-                format!(
-                    "SELECT id, problem, solution, COALESCE({dcol},'') as domain, \
+                        ),
+                        vec![
+                            Box::new(req.query.clone()),
+                            Box::new(domain.clone()),
+                            Box::new(limit as i64),
+                        ],
+                    )
+                } else {
+                    (
+                        format!(
+                            "SELECT id, problem, solution, COALESCE({dcol},'') as domain, \
                      COALESCE(reward,0.0), COALESCE(surprise_score,0.0) \
                      FROM reasoning_patterns \
                      WHERE reasoning_patterns MATCH ?1 \
                      ORDER BY rank LIMIT ?2"
-                ),
-                vec![
-                    Box::new(req.query.clone()),
-                    Box::new(limit as i64),
-                ],
-            )
-        };
+                        ),
+                        vec![Box::new(req.query.clone()), Box::new(limit as i64)],
+                    )
+                };
 
-        let mut stmt = conn.prepare(&sql)?;
-        let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_list.iter().map(|p| p.as_ref()).collect();
-        let rows = stmt.query_map(params_refs.as_slice(), |row| {
-            Ok(serde_json::json!({
-                "id": row.get::<_, String>(0)?,
-                "problem": row.get::<_, String>(1).unwrap_or_default(),
-                "solution": row.get::<_, String>(2).unwrap_or_default(),
-                "domain": row.get::<_, String>(3).unwrap_or_default(),
-                "reward": row.get::<_, f64>(4).unwrap_or(0.0),
-                "surprise_score": row.get::<_, f64>(5).unwrap_or(0.0),
-            }))
-        })?;
-        rows.collect()
-    })();
+            let mut stmt = conn.prepare(&sql)?;
+            let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+                params_list.iter().map(|p| p.as_ref()).collect();
+            let rows = stmt.query_map(params_refs.as_slice(), |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, String>(0)?,
+                    "problem": row.get::<_, String>(1).unwrap_or_default(),
+                    "solution": row.get::<_, String>(2).unwrap_or_default(),
+                    "domain": row.get::<_, String>(3).unwrap_or_default(),
+                    "reward": row.get::<_, f64>(4).unwrap_or(0.0),
+                    "surprise_score": row.get::<_, f64>(5).unwrap_or(0.0),
+                }))
+            })?;
+            rows.collect()
+        })();
 
     if let Ok(results) = fts_result {
         let count = results.len();
@@ -2086,67 +2075,72 @@ pub async fn api_semantic_search(
         words
     };
 
-    let like_result: Result<Vec<serde_json::Value>, _> = (|| -> Result<Vec<serde_json::Value>, rusqlite::Error> {
-        let has_surprise = conn
-            .prepare("SELECT surprise_score FROM reasoning_patterns LIMIT 0")
-            .is_ok();
-        let surprise_expr = if has_surprise {
-            "COALESCE(surprise_score, 0.0)"
-        } else {
-            "0.0"
-        };
+    let like_result: Result<Vec<serde_json::Value>, _> =
+        (|| -> Result<Vec<serde_json::Value>, rusqlite::Error> {
+            let has_surprise = conn
+                .prepare("SELECT surprise_score FROM reasoning_patterns LIMIT 0")
+                .is_ok();
+            let surprise_expr = if has_surprise {
+                "COALESCE(surprise_score, 0.0)"
+            } else {
+                "0.0"
+            };
 
-        // Build per-word conditions: each word must appear in problem OR solution
-        let mut word_conditions = Vec::new();
-        let mut params_list: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
-        let mut param_idx = 1usize;
+            // Build per-word conditions: each word must appear in problem OR solution
+            let mut word_conditions = Vec::new();
+            let mut params_list: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+            let mut param_idx = 1usize;
 
-        for word in &words {
-            word_conditions.push(format!("(problem LIKE ?{idx} OR solution LIKE ?{idx})", idx = param_idx));
-            params_list.push(Box::new(word.clone()));
-            param_idx += 1;
-        }
+            for word in &words {
+                word_conditions.push(format!(
+                    "(problem LIKE ?{idx} OR solution LIKE ?{idx})",
+                    idx = param_idx
+                ));
+                params_list.push(Box::new(word.clone()));
+                param_idx += 1;
+            }
 
-        let where_words = word_conditions.join(" AND ");
+            let where_words = word_conditions.join(" AND ");
 
-        let sql = if let Some(ref domain) = req.domain {
-            let domain_idx = param_idx;
-            params_list.push(Box::new(domain.clone()));
-            let limit_idx = param_idx + 1;
-            params_list.push(Box::new(limit as i64));
-            format!(
-                "SELECT id, COALESCE(problem,''), COALESCE(solution,''), \
+            let sql = if let Some(ref domain) = req.domain {
+                let domain_idx = param_idx;
+                params_list.push(Box::new(domain.clone()));
+                let limit_idx = param_idx + 1;
+                params_list.push(Box::new(limit as i64));
+                format!(
+                    "SELECT id, COALESCE(problem,''), COALESCE(solution,''), \
                  COALESCE({dcol},'') as domain, COALESCE(reward,0.0), {surprise_expr} \
                  FROM reasoning_patterns \
                  WHERE ({where_words}) AND {dcol} = ?{domain_idx} \
                  ORDER BY reward DESC LIMIT ?{limit_idx}"
-            )
-        } else {
-            let limit_idx = param_idx;
-            params_list.push(Box::new(limit as i64));
-            format!(
-                "SELECT id, COALESCE(problem,''), COALESCE(solution,''), \
+                )
+            } else {
+                let limit_idx = param_idx;
+                params_list.push(Box::new(limit as i64));
+                format!(
+                    "SELECT id, COALESCE(problem,''), COALESCE(solution,''), \
                  COALESCE({dcol},'') as domain, COALESCE(reward,0.0), {surprise_expr} \
                  FROM reasoning_patterns \
                  WHERE {where_words} \
                  ORDER BY reward DESC LIMIT ?{limit_idx}"
-            )
-        };
+                )
+            };
 
-        let mut stmt = conn.prepare(&sql)?;
-        let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_list.iter().map(|p| p.as_ref()).collect();
-        let rows = stmt.query_map(params_refs.as_slice(), |row| {
-            Ok(serde_json::json!({
-                "id": row.get::<_, String>(0)?,
-                "problem": row.get::<_, String>(1).unwrap_or_default(),
-                "solution": row.get::<_, String>(2).unwrap_or_default(),
-                "domain": row.get::<_, String>(3).unwrap_or_default(),
-                "reward": row.get::<_, f64>(4).unwrap_or(0.0),
-                "surprise_score": row.get::<_, f64>(5).unwrap_or(0.0),
-            }))
-        })?;
-        rows.collect()
-    })();
+            let mut stmt = conn.prepare(&sql)?;
+            let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+                params_list.iter().map(|p| p.as_ref()).collect();
+            let rows = stmt.query_map(params_refs.as_slice(), |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, String>(0)?,
+                    "problem": row.get::<_, String>(1).unwrap_or_default(),
+                    "solution": row.get::<_, String>(2).unwrap_or_default(),
+                    "domain": row.get::<_, String>(3).unwrap_or_default(),
+                    "reward": row.get::<_, f64>(4).unwrap_or(0.0),
+                    "surprise_score": row.get::<_, f64>(5).unwrap_or(0.0),
+                }))
+            })?;
+            rows.collect()
+        })();
 
     match like_result {
         Ok(results) => {
@@ -2205,38 +2199,39 @@ pub async fn api_domain_stats(
          FROM reasoning_patterns GROUP BY d ORDER BY cnt DESC"
     );
 
-    let result: Result<Vec<serde_json::Value>, _> = (|| -> Result<Vec<serde_json::Value>, rusqlite::Error> {
-        let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt.query_map([], |row| {
-            let domain: String = row.get(0)?;
-            let count: i64 = row.get(1)?;
-            let avg_reward: f64 = row.get(2)?;
-            let avg_effectiveness: f64 = row.get(3)?;
-            let min_reward: f64 = row.get(4)?;
-            let max_reward: f64 = row.get(5)?;
-            let embedded_count: i64 = row.get(6)?;
+    let result: Result<Vec<serde_json::Value>, _> =
+        (|| -> Result<Vec<serde_json::Value>, rusqlite::Error> {
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map([], |row| {
+                let domain: String = row.get(0)?;
+                let count: i64 = row.get(1)?;
+                let avg_reward: f64 = row.get(2)?;
+                let avg_effectiveness: f64 = row.get(3)?;
+                let min_reward: f64 = row.get(4)?;
+                let max_reward: f64 = row.get(5)?;
+                let embedded_count: i64 = row.get(6)?;
 
-            let health = if avg_reward >= 0.6 && embedded_count > 0 {
-                "good"
-            } else if avg_reward >= 0.3 {
-                "warning"
-            } else {
-                "poor"
-            };
+                let health = if avg_reward >= 0.6 && embedded_count > 0 {
+                    "good"
+                } else if avg_reward >= 0.3 {
+                    "warning"
+                } else {
+                    "poor"
+                };
 
-            Ok(serde_json::json!({
-                "domain": domain,
-                "count": count,
-                "avg_reward": avg_reward,
-                "avg_effectiveness": avg_effectiveness,
-                "min_reward": min_reward,
-                "max_reward": max_reward,
-                "embedded_count": embedded_count,
-                "health": health,
-            }))
-        })?;
-        rows.collect()
-    })();
+                Ok(serde_json::json!({
+                    "domain": domain,
+                    "count": count,
+                    "avg_reward": avg_reward,
+                    "avg_effectiveness": avg_effectiveness,
+                    "min_reward": min_reward,
+                    "max_reward": max_reward,
+                    "embedded_count": embedded_count,
+                    "health": health,
+                }))
+            })?;
+            rows.collect()
+        })();
 
     match result {
         Ok(domains) => {
@@ -2297,19 +2292,20 @@ pub async fn api_graph_nodes(
          FROM reasoning_patterns ORDER BY reward DESC LIMIT 200"
     );
 
-    let result: Result<Vec<serde_json::Value>, _> = (|| -> Result<Vec<serde_json::Value>, rusqlite::Error> {
-        let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt.query_map([], |row| {
-            Ok(serde_json::json!({
-                "id": row.get::<_, String>(0)?,
-                "label": row.get::<_, String>(1).unwrap_or_default(),
-                "domain": row.get::<_, String>(2).unwrap_or_default(),
-                "reward": row.get::<_, f64>(3).unwrap_or(0.0),
-                "surprise": row.get::<_, f64>(4).unwrap_or(0.0),
-            }))
-        })?;
-        rows.collect()
-    })();
+    let result: Result<Vec<serde_json::Value>, _> =
+        (|| -> Result<Vec<serde_json::Value>, rusqlite::Error> {
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map([], |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, String>(0)?,
+                    "label": row.get::<_, String>(1).unwrap_or_default(),
+                    "domain": row.get::<_, String>(2).unwrap_or_default(),
+                    "reward": row.get::<_, f64>(3).unwrap_or(0.0),
+                    "surprise": row.get::<_, f64>(4).unwrap_or(0.0),
+                }))
+            })?;
+            rows.collect()
+        })();
 
     match result {
         Ok(nodes) => {
@@ -2394,7 +2390,7 @@ fn ensure_predictions_table(conn: &Connection) -> Result<(), rusqlite::Error> {
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             resolved_at TEXT
-        )"
+        )",
     )
 }
 
@@ -2422,28 +2418,29 @@ pub async fn api_predictions_list(
             .into_response();
     }
 
-    let result: Result<Vec<serde_json::Value>, _> = (|| -> Result<Vec<serde_json::Value>, rusqlite::Error> {
-        let mut stmt = conn.prepare(
-            "SELECT id, description, probability, calibrated_probability, status, \
+    let result: Result<Vec<serde_json::Value>, _> =
+        (|| -> Result<Vec<serde_json::Value>, rusqlite::Error> {
+            let mut stmt = conn.prepare(
+                "SELECT id, description, probability, calibrated_probability, status, \
              actual_outcome, brier_score, domain, created_at, resolved_at \
-             FROM predictions ORDER BY created_at DESC LIMIT 100"
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok(serde_json::json!({
-                "id": row.get::<_, String>(0)?,
-                "description": row.get::<_, String>(1).unwrap_or_default(),
-                "probability": row.get::<_, f64>(2).unwrap_or(0.5),
-                "calibrated_probability": row.get::<_, Option<f64>>(3).unwrap_or(None),
-                "status": row.get::<_, String>(4).unwrap_or_else(|_| "pending".to_string()),
-                "actual_outcome": row.get::<_, Option<i64>>(5).unwrap_or(None),
-                "brier_score": row.get::<_, Option<f64>>(6).unwrap_or(None),
-                "domain": row.get::<_, String>(7).unwrap_or_else(|_| "general".to_string()),
-                "created_at": row.get::<_, String>(8).unwrap_or_default(),
-                "resolved_at": row.get::<_, Option<String>>(9).unwrap_or(None),
-            }))
-        })?;
-        rows.collect()
-    })();
+             FROM predictions ORDER BY created_at DESC LIMIT 100",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, String>(0)?,
+                    "description": row.get::<_, String>(1).unwrap_or_default(),
+                    "probability": row.get::<_, f64>(2).unwrap_or(0.5),
+                    "calibrated_probability": row.get::<_, Option<f64>>(3).unwrap_or(None),
+                    "status": row.get::<_, String>(4).unwrap_or_else(|_| "pending".to_string()),
+                    "actual_outcome": row.get::<_, Option<i64>>(5).unwrap_or(None),
+                    "brier_score": row.get::<_, Option<f64>>(6).unwrap_or(None),
+                    "domain": row.get::<_, String>(7).unwrap_or_else(|_| "general".to_string()),
+                    "created_at": row.get::<_, String>(8).unwrap_or_default(),
+                    "resolved_at": row.get::<_, Option<String>>(9).unwrap_or(None),
+                }))
+            })?;
+            rows.collect()
+        })();
 
     match result {
         Ok(predictions) => {
@@ -2647,7 +2644,7 @@ pub async fn api_predictions_calibration(
     // Fetch all resolved predictions
     let resolved: Vec<(f64, f64, f64)> = match conn.prepare(
         "SELECT probability, COALESCE(actual_outcome, 0), COALESCE(brier_score, 0.0) \
-         FROM predictions WHERE status = 'resolved'"
+         FROM predictions WHERE status = 'resolved'",
     ) {
         Ok(mut stmt) => {
             match stmt.query_map([], |row| {
@@ -2679,7 +2676,8 @@ pub async fn api_predictions_calibration(
     }
 
     // Overall Brier score
-    let overall_brier: f64 = resolved.iter().map(|(_, _, b)| b).sum::<f64>() / total_resolved as f64;
+    let overall_brier: f64 =
+        resolved.iter().map(|(_, _, b)| b).sum::<f64>() / total_resolved as f64;
 
     // Build calibration buckets: 0.0-0.1, 0.1-0.2, ..., 0.9-1.0
     let mut buckets: Vec<serde_json::Value> = Vec::new();
@@ -2703,7 +2701,8 @@ pub async fn api_predictions_calibration(
             continue;
         }
 
-        let avg_probability: f64 = bucket_items.iter().map(|(p, _, _)| p).sum::<f64>() / count as f64;
+        let avg_probability: f64 =
+            bucket_items.iter().map(|(p, _, _)| p).sum::<f64>() / count as f64;
         let actual_rate: f64 = bucket_items.iter().map(|(_, o, _)| o).sum::<f64>() / count as f64;
         let calibration_error = (avg_probability - actual_rate).abs();
 
@@ -2773,7 +2772,7 @@ pub async fn api_session_stats(
         "SELECT id, started_at, ended_at, \
          COALESCE(tokens_used, 0), COALESCE(patterns_learned, 0), \
          COALESCE(patterns_retrieved, 0), COALESCE(domain, '') \
-         FROM sessions ORDER BY started_at DESC LIMIT 50"
+         FROM sessions ORDER BY started_at DESC LIMIT 50",
     ) {
         Ok(mut stmt) => {
             match stmt.query_map([], |row| {
@@ -2895,20 +2894,21 @@ pub async fn api_surprise_patterns(
          ORDER BY surprise_score DESC LIMIT 50"
     );
 
-    let result: Result<Vec<serde_json::Value>, _> = (|| -> Result<Vec<serde_json::Value>, rusqlite::Error> {
-        let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt.query_map([], |row| {
-            Ok(serde_json::json!({
-                "id": row.get::<_, String>(0)?,
-                "problem": row.get::<_, String>(1).unwrap_or_default(),
-                "domain": row.get::<_, String>(2).unwrap_or_default(),
-                "reward": row.get::<_, f64>(3).unwrap_or(0.0),
-                "surprise_score": row.get::<_, f64>(4).unwrap_or(0.0),
-                "created_at": row.get::<_, String>(5).unwrap_or_default(),
-            }))
-        })?;
-        rows.collect()
-    })();
+    let result: Result<Vec<serde_json::Value>, _> =
+        (|| -> Result<Vec<serde_json::Value>, rusqlite::Error> {
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map([], |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, String>(0)?,
+                    "problem": row.get::<_, String>(1).unwrap_or_default(),
+                    "domain": row.get::<_, String>(2).unwrap_or_default(),
+                    "reward": row.get::<_, f64>(3).unwrap_or(0.0),
+                    "surprise_score": row.get::<_, f64>(4).unwrap_or(0.0),
+                    "created_at": row.get::<_, String>(5).unwrap_or_default(),
+                }))
+            })?;
+            rows.collect()
+        })();
 
     match result {
         Ok(patterns) => {
@@ -2988,9 +2988,7 @@ fn parse_job_kind(action: &str) -> Option<JobKind> {
 }
 
 /// GET /api/schedule — list all scheduled jobs.
-pub async fn api_schedule_list(
-    _auth: RequireAuth,
-) -> impl IntoResponse {
+pub async fn api_schedule_list(_auth: RequireAuth) -> impl IntoResponse {
     let jobs = scheduled_jobs().read().await;
     Json(serde_json::json!({
         "count": jobs.len(),
@@ -3111,7 +3109,10 @@ pub async fn api_schedule_create(
         }
     });
 
-    schedule_tasks().write().await.insert(job_id.clone(), handle);
+    schedule_tasks()
+        .write()
+        .await
+        .insert(job_id.clone(), handle);
 
     (
         StatusCode::CREATED,
@@ -3241,9 +3242,7 @@ pub async fn api_webhook_learn(
                 let eb = event_bus.clone();
                 match kind {
                     JobKind::Embed => run_embed_job(job_id, &db, &eb, false).await,
-                    JobKind::Consolidate => {
-                        run_consolidate_job(job_id, &db, &eb, 0.9, false).await
-                    }
+                    JobKind::Consolidate => run_consolidate_job(job_id, &db, &eb, 0.9, false).await,
                     JobKind::Dedup => run_dedup_job(job_id, &db, &eb, true, 0.9).await,
                     JobKind::Pyramid => run_pyramid_job(job_id, &db, &eb, 200).await,
                 }
@@ -3422,7 +3421,9 @@ pub async fn api_events_recent(
                             event_type: "outcome_recorded".to_string(),
                             summary: format!(
                                 "Outcome '{}' for pattern {} (reward: {:.2})",
-                                outcome, &pid[..pid.len().min(8)], reward
+                                outcome,
+                                &pid[..pid.len().min(8)],
+                                reward
                             ),
                             details: Some(serde_json::json!({
                                 "pattern_id": pid,
@@ -3788,10 +3789,7 @@ pub async fn api_export(
             )?;
             rows.collect()
         } else {
-            let rows = stmt.query_map(
-                rusqlite::params![limit as i64],
-                map_export_row,
-            )?;
+            let rows = stmt.query_map(rusqlite::params![limit as i64], map_export_row)?;
             rows.collect()
         }
     })();
@@ -3880,10 +3878,7 @@ pub async fn api_import(
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
 
-        let solution_val = pattern
-            .solution
-            .clone()
-            .unwrap_or_default();
+        let solution_val = pattern.solution.clone().unwrap_or_default();
         let domain_val = pattern
             .domain
             .clone()
@@ -3915,7 +3910,15 @@ pub async fn api_import(
         let result = if has_tags && has_context {
             conn.execute(
                 &sql,
-                rusqlite::params![id, pattern.problem, solution_val, domain_val, tags_val, context_val, now],
+                rusqlite::params![
+                    id,
+                    pattern.problem,
+                    solution_val,
+                    domain_val,
+                    tags_val,
+                    context_val,
+                    now
+                ],
             )
         } else if has_tags {
             conn.execute(
@@ -4044,7 +4047,9 @@ mod tests {
         let id = queue.enqueue(JobKind::Embed).await.unwrap();
         assert!(queue.get(&id).await.unwrap().completed_at.is_none());
 
-        queue.set_completed(&id, Some(serde_json::json!({"ok": true}))).await;
+        queue
+            .set_completed(&id, Some(serde_json::json!({"ok": true})))
+            .await;
         let job = queue.get(&id).await.unwrap();
         assert!(job.completed_at.is_some());
         assert_eq!(job.result, Some(serde_json::json!({"ok": true})));
@@ -4104,7 +4109,9 @@ mod tests {
         let dcol = domain_column(&db_conn);
 
         let total: u64 = db_conn
-            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(total, 3);
 
@@ -4150,7 +4157,9 @@ mod tests {
 
         // Check that we can detect unembedded, archivable, and promotable patterns
         let total: u64 = db_conn
-            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(total, 2);
 
@@ -4581,11 +4590,9 @@ mod tests {
             .unwrap();
         assert_eq!(deleted, 1);
         let remaining: u64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM reasoning_patterns",
-                [],
-                |row| row.get(0),
-            )
+            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(remaining, 2);
     }
@@ -4800,13 +4807,19 @@ mod tests {
         assert_eq!(rows.len(), 2); // rust, python
 
         // rust domain: 2 patterns, avg reward 0.8, 1 embedded
-        let rust_row = rows.iter().find(|(d, _, _, _, _, _, _)| d == "rust").unwrap();
+        let rust_row = rows
+            .iter()
+            .find(|(d, _, _, _, _, _, _)| d == "rust")
+            .unwrap();
         assert_eq!(rust_row.1, 2); // count
         assert!((rust_row.2 - 0.8).abs() < 0.001); // avg_reward
         assert_eq!(rust_row.6, 1); // embedded_count
 
         // python domain: 1 pattern, reward 0.3, 0 embedded
-        let py_row = rows.iter().find(|(d, _, _, _, _, _, _)| d == "python").unwrap();
+        let py_row = rows
+            .iter()
+            .find(|(d, _, _, _, _, _, _)| d == "python")
+            .unwrap();
         assert_eq!(py_row.1, 1);
         assert!((py_row.2 - 0.3).abs() < 0.001);
         assert_eq!(py_row.6, 0);
@@ -5058,7 +5071,11 @@ mod tests {
     fn test_webhook_validates_actions() {
         // Valid actions
         for action in ALLOWED_SCHEDULE_ACTIONS {
-            assert!(parse_job_kind(action).is_some(), "Expected '{}' to be valid", action);
+            assert!(
+                parse_job_kind(action).is_some(),
+                "Expected '{}' to be valid",
+                action
+            );
         }
 
         // Invalid action
@@ -5097,7 +5114,9 @@ mod tests {
         let db_conn = open_db(&path).unwrap();
 
         let total: u64 = db_conn
-            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(total, 4);
 
@@ -5204,7 +5223,9 @@ mod tests {
 
         // All patterns
         let total: u64 = db_conn
-            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(total, 3);
 
@@ -5272,7 +5293,9 @@ mod tests {
         .unwrap();
 
         let count: u64 = conn
-            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(count, 2);
 
@@ -5316,7 +5339,9 @@ mod tests {
 
         // Empty DB should return 0 patterns
         let count: u64 = db_conn
-            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM reasoning_patterns", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(count, 0);
 
@@ -5326,9 +5351,7 @@ mod tests {
             .is_ok();
         assert!(!has_outcomes);
 
-        let has_outcomes_alt = db_conn
-            .prepare("SELECT id FROM outcomes LIMIT 0")
-            .is_ok();
+        let has_outcomes_alt = db_conn.prepare("SELECT id FROM outcomes LIMIT 0").is_ok();
         assert!(!has_outcomes_alt);
     }
 }

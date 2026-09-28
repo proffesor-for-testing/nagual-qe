@@ -24,7 +24,6 @@
 //! nagual.knowledge.delete(&id).await?;
 //! ```
 
-
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, instrument};
@@ -399,7 +398,11 @@ impl KnowledgeApi {
         // Use FTS5 search for efficient O(log n) text search with BM25 ranking
         // Request more results than needed to allow for post-filtering
         let fts_limit = limit * 5;
-        let patterns = self.state.pattern_storage.fts_search(&query_str, fts_limit).await?;
+        let patterns = self
+            .state
+            .pattern_storage
+            .fts_search(&query_str, fts_limit)
+            .await?;
 
         // Apply additional filters from options
         let mut filtered: Vec<Pattern> = patterns;
@@ -488,7 +491,10 @@ impl KnowledgeApi {
     #[instrument(skip(self))]
     pub async fn delete(&self, id: &str) -> Result<()> {
         let pattern_id = PatternId::from_string(id);
-        self.state.pattern_storage.delete_pattern(&pattern_id).await?;
+        self.state
+            .pattern_storage
+            .delete_pattern(&pattern_id)
+            .await?;
 
         info!(id = %id, "Knowledge deleted");
         Ok(())
@@ -611,7 +617,10 @@ mod tests {
 
         assert_eq!(options.context, Some("Test context".to_string()));
         assert_eq!(options.confidence, Some(0.9));
-        assert_eq!(options.tags, Some(vec!["tag1".to_string(), "tag2".to_string()]));
+        assert_eq!(
+            options.tags,
+            Some(vec!["tag1".to_string(), "tag2".to_string()])
+        );
         assert_eq!(options.agent_id, Some("agent-123".to_string()));
         assert_eq!(options.session_id, Some("session-456".to_string()));
     }

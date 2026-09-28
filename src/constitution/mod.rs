@@ -110,18 +110,10 @@ impl Principle {
             Self::PartnerCreator => {
                 "Be honest with the user. Challenge ideas. Protect the mission."
             }
-            Self::Impeccability => {
-                "Use energy wisely. Leave every pattern better than found."
-            }
-            Self::EpistemicHumility => {
-                "Beliefs are provisional. \"I might be wrong about this.\""
-            }
-            Self::DoNoHarm => {
-                "Never delete without backup. PAUSE when uncertain."
-            }
-            Self::Transparency => {
-                "Reasoning is open. Confidence is calibrated and displayed."
-            }
+            Self::Impeccability => "Use energy wisely. Leave every pattern better than found.",
+            Self::EpistemicHumility => "Beliefs are provisional. \"I might be wrong about this.\"",
+            Self::DoNoHarm => "Never delete without backup. PAUSE when uncertain.",
+            Self::Transparency => "Reasoning is open. Confidence is calibrated and displayed.",
             Self::WarriorOptimization => {
                 "Aim for revolutionary. \"What has no one ever thought of?\""
             }
@@ -553,7 +545,9 @@ impl Constitution {
             EnforcementMode::Block => {
                 // Block on Error-severity violations
                 let results = self.check(context);
-                !results.iter().any(|r| !r.allowed && r.severity == Severity::Error)
+                !results
+                    .iter()
+                    .any(|r| !r.allowed && r.severity == Severity::Error)
             }
         }
     }
@@ -890,7 +884,10 @@ mod tests {
     #[test]
     fn test_principle_from_number() {
         assert_eq!(Principle::from_number(0), Some(Principle::SeekTruth));
-        assert_eq!(Principle::from_number(7), Some(Principle::WarriorOptimization));
+        assert_eq!(
+            Principle::from_number(7),
+            Some(Principle::WarriorOptimization)
+        );
         assert_eq!(Principle::from_number(8), None);
         assert_eq!(Principle::from_number(255), None);
     }
@@ -1042,7 +1039,9 @@ mod tests {
         };
 
         let results = constitution.check(&context);
-        let backup_check = results.iter().find(|r| r.rule == "NeverDeleteWithoutBackup");
+        let backup_check = results
+            .iter()
+            .find(|r| r.rule == "NeverDeleteWithoutBackup");
         assert!(backup_check.map(|r| r.allowed).unwrap_or(true));
     }
 
@@ -1112,7 +1111,9 @@ mod tests {
         };
 
         let results = constitution.check(&context);
-        assert!(results.iter().any(|r| r.rule == "AlwaysRecordMAST" && !r.allowed));
+        assert!(results
+            .iter()
+            .any(|r| r.rule == "AlwaysRecordMAST" && !r.allowed));
     }
 
     #[test]
@@ -1130,7 +1131,9 @@ mod tests {
         };
 
         let results = constitution.check(&context);
-        assert!(results.iter().any(|r| r.rule == "MinimumRewardForReflex" && !r.allowed));
+        assert!(results
+            .iter()
+            .any(|r| r.rule == "MinimumRewardForReflex" && !r.allowed));
     }
 
     // ========================================================================
@@ -1161,11 +1164,7 @@ mod tests {
 
     #[test]
     fn test_adherence_event_creation() {
-        let event = AdherenceEvent::new(
-            Principle::SeekTruth,
-            true,
-            "Verified claim with evidence",
-        );
+        let event = AdherenceEvent::new(Principle::SeekTruth, true, "Verified claim with evidence");
         assert!(event.adhered);
         assert_eq!(event.principle, Principle::SeekTruth);
         assert_eq!(event.confidence, 1.0);
@@ -1174,8 +1173,12 @@ mod tests {
 
     #[test]
     fn test_adherence_event_with_confidence() {
-        let event = AdherenceEvent::new(Principle::EpistemicHumility, false, "Made overconfident claim")
-            .with_confidence(0.7);
+        let event = AdherenceEvent::new(
+            Principle::EpistemicHumility,
+            false,
+            "Made overconfident claim",
+        )
+        .with_confidence(0.7);
         assert!(!event.adhered);
         assert_eq!(event.confidence, 0.7);
     }
@@ -1226,9 +1229,15 @@ mod tests {
         tracker.init_schema().unwrap();
 
         // Record some events
-        tracker.record(&AdherenceEvent::new(Principle::SeekTruth, true, "event 1")).unwrap();
-        tracker.record(&AdherenceEvent::new(Principle::SeekTruth, true, "event 2")).unwrap();
-        tracker.record(&AdherenceEvent::new(Principle::SeekTruth, false, "event 3")).unwrap();
+        tracker
+            .record(&AdherenceEvent::new(Principle::SeekTruth, true, "event 1"))
+            .unwrap();
+        tracker
+            .record(&AdherenceEvent::new(Principle::SeekTruth, true, "event 2"))
+            .unwrap();
+        tracker
+            .record(&AdherenceEvent::new(Principle::SeekTruth, false, "event 3"))
+            .unwrap();
 
         let stats = tracker.principle_stats(Principle::SeekTruth, None).unwrap();
         assert_eq!(stats.total_events, 3);
@@ -1248,9 +1257,19 @@ mod tests {
         tracker.init_schema().unwrap();
 
         // Record events for multiple principles
-        tracker.record(&AdherenceEvent::new(Principle::SeekTruth, true, "truth")).unwrap();
-        tracker.record(&AdherenceEvent::new(Principle::Partnership, true, "partner")).unwrap();
-        tracker.record(&AdherenceEvent::new(Principle::DoNoHarm, false, "harm")).unwrap();
+        tracker
+            .record(&AdherenceEvent::new(Principle::SeekTruth, true, "truth"))
+            .unwrap();
+        tracker
+            .record(&AdherenceEvent::new(
+                Principle::Partnership,
+                true,
+                "partner",
+            ))
+            .unwrap();
+        tracker
+            .record(&AdherenceEvent::new(Principle::DoNoHarm, false, "harm"))
+            .unwrap();
 
         let overall = tracker.overall_stats(None).unwrap();
         assert_eq!(overall.total_events, 3);

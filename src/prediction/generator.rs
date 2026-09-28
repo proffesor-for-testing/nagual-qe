@@ -443,7 +443,10 @@ impl PredictionGenerator {
         let avg_quality = if pattern_analyses.is_empty() {
             0.0
         } else {
-            pattern_analyses.iter().map(|a| a.quality_score()).sum::<f64>()
+            pattern_analyses
+                .iter()
+                .map(|a| a.quality_score())
+                .sum::<f64>()
                 / pattern_analyses.len() as f64
         };
 
@@ -634,10 +637,7 @@ mod tests {
 
         // Only high_sim pattern should be used
         assert_eq!(result.metadata.patterns_used, 1);
-        assert!(result
-            .pattern_analyses
-            .iter()
-            .all(|a| a.similarity >= 0.5));
+        assert!(result.pattern_analyses.iter().all(|a| a.similarity >= 0.5));
     }
 
     #[test]

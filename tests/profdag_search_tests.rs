@@ -13,10 +13,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 mod common;
-use common::{
-    cosine_similarity, normalized_embedding, orthogonal_embeddings,
-    similar_embeddings,
-};
+use common::{cosine_similarity, normalized_embedding, orthogonal_embeddings, similar_embeddings};
 
 // ============================================================================
 // Search Structures
@@ -41,7 +38,12 @@ pub struct SearchableNode {
 }
 
 impl SearchableNode {
-    pub fn new(id: impl Into<String>, node_type: NodeType, content: impl Into<String>, embedding: Vec<f32>) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        node_type: NodeType,
+        content: impl Into<String>,
+        embedding: Vec<f32>,
+    ) -> Self {
         Self {
             id: id.into(),
             node_type,
@@ -126,7 +128,8 @@ impl TestSearchIndex {
 
     /// Perform brute-force similarity search (for correctness testing).
     pub fn search(&self, query: &SearchQuery) -> Vec<SearchResult> {
-        let mut results: Vec<SearchResult> = self.nodes
+        let mut results: Vec<SearchResult> = self
+            .nodes
             .values()
             .filter(|node| {
                 // Apply type filter
@@ -158,7 +161,8 @@ impl TestSearchIndex {
         // For testing, we use exact search but limit candidates
         let candidate_count = (ef_search * 2).min(self.nodes.len());
 
-        let mut candidates: Vec<(&SearchableNode, f32)> = self.nodes
+        let mut candidates: Vec<(&SearchableNode, f32)> = self
+            .nodes
             .values()
             .take(candidate_count)
             .map(|node| {
@@ -204,7 +208,12 @@ mod similarity_search_tests {
     fn test_search_single_node() {
         let mut index = TestSearchIndex::new();
         let embedding = normalized_embedding(128);
-        index.add_node(SearchableNode::new("node-1", NodeType::Pattern, "Content", embedding.clone()));
+        index.add_node(SearchableNode::new(
+            "node-1",
+            NodeType::Pattern,
+            "Content",
+            embedding.clone(),
+        ));
 
         let query = SearchQuery::new(embedding, 1);
         let results = index.search(&query);
@@ -245,7 +254,12 @@ mod similarity_search_tests {
         let base_embedding = normalized_embedding(128);
 
         // Add the base node
-        index.add_node(SearchableNode::new("base", NodeType::Pattern, "Base", base_embedding.clone()));
+        index.add_node(SearchableNode::new(
+            "base",
+            NodeType::Pattern,
+            "Base",
+            base_embedding.clone(),
+        ));
 
         // Add similar nodes (small perturbations)
         let similar = similar_embeddings(&base_embedding, 5, 0.1);
@@ -279,7 +293,11 @@ mod similarity_search_tests {
 
         // All top results should have high similarity
         for result in &results {
-            assert!(result.similarity > 0.5, "Expected high similarity, got {}", result.similarity);
+            assert!(
+                result.similarity > 0.5,
+                "Expected high similarity, got {}",
+                result.similarity
+            );
         }
     }
 
@@ -307,7 +325,10 @@ mod similarity_search_tests {
 
         // Other results should have low similarity (orthogonal)
         for i in 1..results.len() {
-            assert!(results[i].similarity.abs() < 0.1, "Expected low similarity for orthogonal vectors");
+            assert!(
+                results[i].similarity.abs() < 0.1,
+                "Expected low similarity for orthogonal vectors"
+            );
         }
     }
 
@@ -377,7 +398,13 @@ mod topk_tests {
         for k in [1, 5, 10, 50, 100] {
             let query = SearchQuery::new(base_embedding.clone(), k);
             let results = index.search(&query);
-            assert_eq!(results.len(), k, "Expected {} results, got {}", k, results.len());
+            assert_eq!(
+                results.len(),
+                k,
+                "Expected {} results, got {}",
+                k,
+                results.len()
+            );
         }
     }
 
@@ -400,7 +427,11 @@ mod topk_tests {
         let query = SearchQuery::new(base_embedding, 10);
         let results = index.search(&query);
 
-        assert_eq!(results.len(), 5, "Should return all nodes when k > node count");
+        assert_eq!(
+            results.len(),
+            5,
+            "Should return all nodes when k > node count"
+        );
     }
 
     #[test]
@@ -428,7 +459,12 @@ mod topk_tests {
         let target_embedding = normalized_embedding(128);
 
         // Add the target node
-        index.add_node(SearchableNode::new("target", NodeType::Pattern, "Target", target_embedding.clone()));
+        index.add_node(SearchableNode::new(
+            "target",
+            NodeType::Pattern,
+            "Target",
+            target_embedding.clone(),
+        ));
 
         // Add many other nodes
         for i in 0..100 {
@@ -449,7 +485,10 @@ mod topk_tests {
             results.iter().any(|r| r.node_id == "target"),
             "Target should be in top-k results"
         );
-        assert_eq!(results[0].node_id, "target", "Target should be first result");
+        assert_eq!(
+            results[0].node_id, "target",
+            "Target should be first result"
+        );
     }
 
     #[test]
@@ -463,7 +502,10 @@ mod topk_tests {
 
         for i in 0..100 {
             let factor = 1.0 - (i as f32 * 0.01);
-            let emb: Vec<f32> = query_emb.iter().map(|x| x * factor + (1.0 - factor) * 0.1).collect();
+            let emb: Vec<f32> = query_emb
+                .iter()
+                .map(|x| x * factor + (1.0 - factor) * 0.1)
+                .collect();
             let norm: f32 = emb.iter().map(|x| x * x).sum::<f32>().sqrt();
             let normalized: Vec<f32> = emb.iter().map(|x| x / norm).collect();
 
@@ -471,7 +513,12 @@ mod topk_tests {
             let sim = cosine_similarity(&query_emb, &normalized);
             ground_truth.push((id.clone(), sim));
 
-            index.add_node(SearchableNode::new(id, NodeType::Pattern, format!("Content {}", i), normalized));
+            index.add_node(SearchableNode::new(
+                id,
+                NodeType::Pattern,
+                format!("Content {}", i),
+                normalized,
+            ));
         }
 
         // Sort ground truth by similarity
@@ -482,7 +529,11 @@ mod topk_tests {
             let query = SearchQuery::new(query_emb.clone(), k);
             let results = index.search(&query);
 
-            let true_topk: HashSet<String> = ground_truth.iter().take(k).map(|(id, _)| id.clone()).collect();
+            let true_topk: HashSet<String> = ground_truth
+                .iter()
+                .take(k)
+                .map(|(id, _)| id.clone())
+                .collect();
             let returned: HashSet<String> = results.iter().map(|r| r.node_id.clone()).collect();
 
             let recall = returned.intersection(&true_topk).count() as f32 / k as f32;
@@ -511,7 +562,12 @@ mod filter_tests {
         let base_emb = normalized_embedding(128);
 
         // Add nodes of different types with similar embeddings
-        for node_type in [NodeType::Pattern, NodeType::Trajectory, NodeType::Prediction, NodeType::Decision] {
+        for node_type in [
+            NodeType::Pattern,
+            NodeType::Trajectory,
+            NodeType::Prediction,
+            NodeType::Decision,
+        ] {
             for i in 0..5 {
                 let similar = similar_embeddings(&base_emb, 1, 0.1)[0].clone();
                 index.add_node(SearchableNode::new(
@@ -529,7 +585,10 @@ mod filter_tests {
 
         assert_eq!(results.len(), 5, "Should return only Pattern nodes");
         for result in &results {
-            assert!(result.node_id.starts_with("Pattern"), "All results should be Pattern type");
+            assert!(
+                result.node_id.starts_with("Pattern"),
+                "All results should be Pattern type"
+            );
         }
     }
 
@@ -548,10 +607,14 @@ mod filter_tests {
         }
 
         // Search for Trajectory nodes
-        let query = SearchQuery::new(normalized_embedding(128), 10).with_type_filter(NodeType::Trajectory);
+        let query =
+            SearchQuery::new(normalized_embedding(128), 10).with_type_filter(NodeType::Trajectory);
         let results = index.search(&query);
 
-        assert!(results.is_empty(), "Should return empty when no matching type");
+        assert!(
+            results.is_empty(),
+            "Should return empty when no matching type"
+        );
     }
 
     #[test]
@@ -723,7 +786,12 @@ mod edge_cases {
 
         // Very small but non-zero embeddings
         let small_emb: Vec<f32> = (0..128).map(|_| 1e-10).collect();
-        index.add_node(SearchableNode::new("small", NodeType::Pattern, "Small", small_emb.clone()));
+        index.add_node(SearchableNode::new(
+            "small",
+            NodeType::Pattern,
+            "Small",
+            small_emb.clone(),
+        ));
 
         let query = SearchQuery::new(small_emb, 1);
         let results = index.search(&query);
@@ -736,11 +804,18 @@ mod edge_cases {
         let mut index = TestSearchIndex::new();
 
         // Embeddings with negative values
-        let neg_emb: Vec<f32> = (0..128).map(|i| if i % 2 == 0 { -1.0 } else { 1.0 }).collect();
+        let neg_emb: Vec<f32> = (0..128)
+            .map(|i| if i % 2 == 0 { -1.0 } else { 1.0 })
+            .collect();
         let norm: f32 = neg_emb.iter().map(|x| x * x).sum::<f32>().sqrt();
         let normalized: Vec<f32> = neg_emb.iter().map(|x| x / norm).collect();
 
-        index.add_node(SearchableNode::new("negative", NodeType::Pattern, "Negative", normalized.clone()));
+        index.add_node(SearchableNode::new(
+            "negative",
+            NodeType::Pattern,
+            "Negative",
+            normalized.clone(),
+        ));
 
         let query = SearchQuery::new(normalized, 1);
         let results = index.search(&query);
@@ -781,8 +856,18 @@ mod edge_cases {
     fn test_single_dimension_embedding() {
         let mut index = TestSearchIndex::new();
 
-        index.add_node(SearchableNode::new("pos", NodeType::Pattern, "Positive", vec![1.0]));
-        index.add_node(SearchableNode::new("neg", NodeType::Pattern, "Negative", vec![-1.0]));
+        index.add_node(SearchableNode::new(
+            "pos",
+            NodeType::Pattern,
+            "Positive",
+            vec![1.0],
+        ));
+        index.add_node(SearchableNode::new(
+            "neg",
+            NodeType::Pattern,
+            "Negative",
+            vec![-1.0],
+        ));
 
         // Allow negative similarity to include the negative vector
         let mut query = SearchQuery::new(vec![1.0], 2);
@@ -802,7 +887,12 @@ mod edge_cases {
         let target_emb = normalized_embedding(128);
 
         // Add target and other nodes
-        index.add_node(SearchableNode::new("target", NodeType::Pattern, "Target", target_emb.clone()));
+        index.add_node(SearchableNode::new(
+            "target",
+            NodeType::Pattern,
+            "Target",
+            target_emb.clone(),
+        ));
         for i in 0..5 {
             index.add_node(SearchableNode::new(
                 format!("other-{}", i),

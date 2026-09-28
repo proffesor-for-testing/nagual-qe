@@ -118,7 +118,10 @@ pub async fn run(args: &MetaArgs) -> Result<()> {
 
     if args.json {
         let stats = meta_engine.stats();
-        println!("\n{}", serde_json::to_string_pretty(&stats).unwrap_or_default());
+        println!(
+            "\n{}",
+            serde_json::to_string_pretty(&stats).unwrap_or_default()
+        );
     }
 
     println!("\nMeta-learning analysis complete.");
@@ -243,8 +246,14 @@ async fn run_optimization(meta_engine: &MetaLearningEngine) -> Result<()> {
     println!("  Fisher decay applied: {}", result.fisher_decayed);
     println!("  Data persisted: {}", result.persisted);
     println!("  Protected patterns: {}", result.stats.protected_patterns);
-    println!("  Forgetting prevented: {}", result.stats.forgetting_prevented);
-    println!("  Successful transfers: {}", result.stats.successful_transfers);
+    println!(
+        "  Forgetting prevented: {}",
+        result.stats.forgetting_prevented
+    );
+    println!(
+        "  Successful transfers: {}",
+        result.stats.successful_transfers
+    );
     println!("  Failed transfers: {}", result.stats.failed_transfers);
 
     Ok(())
@@ -258,7 +267,10 @@ fn display_stats(meta_engine: &MetaLearningEngine) {
 
     println!("EWC++ Statistics:");
     println!("  Protected patterns: {}", stats.protected_patterns);
-    println!("  Forgetting events prevented: {}", stats.forgetting_prevented);
+    println!(
+        "  Forgetting events prevented: {}",
+        stats.forgetting_prevented
+    );
 
     println!("\nTransfer Learning Statistics:");
     println!("  Successful transfers: {}", stats.successful_transfers);

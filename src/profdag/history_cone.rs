@@ -238,7 +238,11 @@ impl CausalChain {
         let target = target_id.into();
 
         Self {
-            id: format!("chain_{}_{}", &source[..8.min(source.len())], &target[..8.min(target.len())]),
+            id: format!(
+                "chain_{}_{}",
+                &source[..8.min(source.len())],
+                &target[..8.min(target.len())]
+            ),
             source_id: source.clone(),
             target_id: target.clone(),
             edge_type: EdgeType::LeadsTo,

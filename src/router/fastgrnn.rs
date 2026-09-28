@@ -213,9 +213,7 @@ impl FastGRNNWeights {
         let xavier_output = (6.0 / (config.hidden_dim + config.output_dim) as f32).sqrt();
 
         let mut random_vec = |size: usize, scale: f32| -> Vec<f32> {
-            (0..size)
-                .map(|_| rng.gen_range(-scale..scale))
-                .collect()
+            (0..size).map(|_| rng.gen_range(-scale..scale)).collect()
         };
 
         Self {
@@ -434,31 +432,23 @@ impl GRNNCell {
         config.validate()?;
         weights.validate(config)?;
 
-        let w_z = Array2::from_shape_vec(
-            (config.hidden_dim, config.input_dim),
-            weights.w_z.clone(),
-        )
-        .map_err(|e| super::RouterError::InvalidConfig(e.to_string()))?;
+        let w_z =
+            Array2::from_shape_vec((config.hidden_dim, config.input_dim), weights.w_z.clone())
+                .map_err(|e| super::RouterError::InvalidConfig(e.to_string()))?;
 
-        let u_z = Array2::from_shape_vec(
-            (config.hidden_dim, config.hidden_dim),
-            weights.u_z.clone(),
-        )
-        .map_err(|e| super::RouterError::InvalidConfig(e.to_string()))?;
+        let u_z =
+            Array2::from_shape_vec((config.hidden_dim, config.hidden_dim), weights.u_z.clone())
+                .map_err(|e| super::RouterError::InvalidConfig(e.to_string()))?;
 
         let b_z = Array1::from_vec(weights.b_z.clone());
 
-        let w_h = Array2::from_shape_vec(
-            (config.hidden_dim, config.input_dim),
-            weights.w_h.clone(),
-        )
-        .map_err(|e| super::RouterError::InvalidConfig(e.to_string()))?;
+        let w_h =
+            Array2::from_shape_vec((config.hidden_dim, config.input_dim), weights.w_h.clone())
+                .map_err(|e| super::RouterError::InvalidConfig(e.to_string()))?;
 
-        let u_h = Array2::from_shape_vec(
-            (config.hidden_dim, config.hidden_dim),
-            weights.u_h.clone(),
-        )
-        .map_err(|e| super::RouterError::InvalidConfig(e.to_string()))?;
+        let u_h =
+            Array2::from_shape_vec((config.hidden_dim, config.hidden_dim), weights.u_h.clone())
+                .map_err(|e| super::RouterError::InvalidConfig(e.to_string()))?;
 
         let b_h = Array1::from_vec(weights.b_h.clone());
 
@@ -534,11 +524,9 @@ impl FastGRNN {
 
         let cell = GRNNCell::new(&config, &weights)?;
 
-        let w_o = Array2::from_shape_vec(
-            (config.output_dim, config.hidden_dim),
-            weights.w_o.clone(),
-        )
-        .map_err(|e| super::RouterError::InvalidConfig(e.to_string()))?;
+        let w_o =
+            Array2::from_shape_vec((config.output_dim, config.hidden_dim), weights.w_o.clone())
+                .map_err(|e| super::RouterError::InvalidConfig(e.to_string()))?;
 
         let b_o = Array1::from_vec(weights.b_o.clone());
 
@@ -591,12 +579,17 @@ impl FastGRNN {
 
     /// Batch forward pass for multiple feature vectors.
     pub fn forward_batch(&self, batch: &[Vec<f32>]) -> RouterResult<Vec<f32>> {
-        batch.iter().map(|features| self.forward(features)).collect()
+        batch
+            .iter()
+            .map(|features| self.forward(features))
+            .collect()
     }
 
     /// Get average inference time in microseconds.
     pub fn avg_inference_time_us(&self) -> f64 {
-        let count = self.inference_count.load(std::sync::atomic::Ordering::Relaxed);
+        let count = self
+            .inference_count
+            .load(std::sync::atomic::Ordering::Relaxed);
         if count == 0 {
             return 0.0;
         }
@@ -736,11 +729,10 @@ impl OnnxFastGRNN {
 
     /// Load ONNX session from file.
     fn load_session(config: &OnnxFastGRNNConfig) -> RouterResult<Session> {
-        let mut builder = Session::builder()
-            .map_err(|e| RouterError::ModelLoad {
-                path: config.model_path.clone(),
-                reason: format!("Failed to create session builder: {}", e),
-            })?;
+        let mut builder = Session::builder().map_err(|e| RouterError::ModelLoad {
+            path: config.model_path.clone(),
+            reason: format!("Failed to create session builder: {}", e),
+        })?;
 
         // Set number of threads
         if config.num_threads > 0 {
@@ -763,12 +755,13 @@ impl OnnxFastGRNN {
         }
 
         // Load model
-        let session = builder
-            .commit_from_file(&config.model_path)
-            .map_err(|e| RouterError::ModelLoad {
-                path: config.model_path.clone(),
-                reason: format!("Failed to load ONNX model: {}", e),
-            })?;
+        let session =
+            builder
+                .commit_from_file(&config.model_path)
+                .map_err(|e| RouterError::ModelLoad {
+                    path: config.model_path.clone(),
+                    reason: format!("Failed to load ONNX model: {}", e),
+                })?;
 
         Ok(session)
     }
@@ -798,9 +791,9 @@ impl OnnxFastGRNN {
 
         // Run inference
         let mut session = self.session.write();
-        let outputs = session.run(inputs).map_err(|e| {
-            RouterError::Inference(format!("ONNX inference failed: {}", e))
-        })?;
+        let outputs = session
+            .run(inputs)
+            .map_err(|e| RouterError::Inference(format!("ONNX inference failed: {}", e)))?;
 
         // Extract output
         let output = outputs
@@ -815,11 +808,7 @@ impl OnnxFastGRNN {
             .map_err(|e| RouterError::Inference(format!("Failed to extract output: {}", e)))?;
 
         // Get the complexity score
-        let complexity = data
-            .first()
-            .copied()
-            .unwrap_or(0.5)
-            .clamp(0.0, 1.0);
+        let complexity = data.first().copied().unwrap_or(0.5).clamp(0.0, 1.0);
 
         // Update statistics
         let elapsed_ns = start.elapsed().as_nanos() as u64;
@@ -854,8 +843,8 @@ impl OnnxFastGRNN {
         let flattened: Vec<f32> = batch.iter().flat_map(|f| f.iter().copied()).collect();
 
         // Create input tensor with shape [batch_size, input_dim]
-        let input_tensor =
-            Tensor::from_array(([batch_size, self.config.input_dim], flattened)).map_err(|e| {
+        let input_tensor = Tensor::from_array(([batch_size, self.config.input_dim], flattened))
+            .map_err(|e| {
                 RouterError::Inference(format!("Failed to create batch input tensor: {}", e))
             })?;
 
@@ -866,9 +855,9 @@ impl OnnxFastGRNN {
 
         // Run inference
         let mut session = self.session.write();
-        let outputs = session.run(inputs).map_err(|e| {
-            RouterError::Inference(format!("ONNX batch inference failed: {}", e))
-        })?;
+        let outputs = session
+            .run(inputs)
+            .map_err(|e| RouterError::Inference(format!("ONNX batch inference failed: {}", e)))?;
 
         // Extract output
         let output = outputs
@@ -877,10 +866,10 @@ impl OnnxFastGRNN {
             .ok_or_else(|| RouterError::Inference("No output tensor found".to_string()))?;
 
         // Extract tensor data
-        let (_, data): (&ort::tensor::Shape, &[f32]) = output
-            .1
-            .try_extract_tensor()
-            .map_err(|e| RouterError::Inference(format!("Failed to extract batch output: {}", e)))?;
+        let (_, data): (&ort::tensor::Shape, &[f32]) =
+            output.1.try_extract_tensor().map_err(|e| {
+                RouterError::Inference(format!("Failed to extract batch output: {}", e))
+            })?;
 
         // Clamp all outputs
         let results: Vec<f32> = data.iter().map(|&v| v.clamp(0.0, 1.0)).collect();
@@ -1093,9 +1082,13 @@ impl FastGRNNBackend {
     /// Check if using ONNX backend.
     pub fn is_onnx(&self) -> bool {
         #[cfg(feature = "onnx-embed")]
-        { matches!(self, Self::Onnx(_)) }
+        {
+            matches!(self, Self::Onnx(_))
+        }
         #[cfg(not(feature = "onnx-embed"))]
-        { false }
+        {
+            false
+        }
     }
 
     /// Check if using native backend.
@@ -1329,11 +1322,8 @@ mod tests {
     fn test_fastgrnn_backend_load_native_fallback() {
         // When ONNX model doesn't exist, should fall back to native
         let config = FastGRNNConfig::default();
-        let backend = FastGRNNBackend::load(
-            Some("nonexistent.onnx"),
-            Some("nonexistent.json"),
-            config,
-        );
+        let backend =
+            FastGRNNBackend::load(Some("nonexistent.onnx"), Some("nonexistent.json"), config);
 
         assert!(backend.is_ok());
         let backend = backend.unwrap();
@@ -1400,7 +1390,11 @@ mod tests {
         // require editing this test).
         let doc: serde_json::Value = serde_json::from_str(TRAINED_WEIGHTS_JSON).unwrap();
         let json_f32 = |key: &str, i: usize| doc["weights"][key][i].as_f64().unwrap() as f32;
-        assert_eq!(weights.w_z[0], json_f32("w_z", 0), "pretrained() should load trained weights");
+        assert_eq!(
+            weights.w_z[0],
+            json_f32("w_z", 0),
+            "pretrained() should load trained weights"
+        );
         assert_eq!(weights.w_h[17], json_f32("w_h", 17));
         assert_eq!(weights.b_o[0], json_f32("b_o", 0));
         assert!(
@@ -1441,7 +1435,10 @@ mod tests {
         // A matching config should succeed
         let config = FastGRNNConfig::default();
         let result = FastGRNNWeights::from_embedded_json(&config);
-        assert!(result.is_ok(), "from_embedded_json should succeed for default config");
+        assert!(
+            result.is_ok(),
+            "from_embedded_json should succeed for default config"
+        );
 
         // A mismatched config should fail
         let bad_config = FastGRNNConfig {
@@ -1449,7 +1446,10 @@ mod tests {
             ..FastGRNNConfig::default()
         };
         let result = FastGRNNWeights::from_embedded_json(&bad_config);
-        assert!(result.is_err(), "from_embedded_json should fail for mismatched config");
+        assert!(
+            result.is_err(),
+            "from_embedded_json should fail for mismatched config"
+        );
     }
 
     #[test]

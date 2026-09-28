@@ -459,14 +459,20 @@ impl ProfDAGProfiler {
 
         let threshold_us = self.config.slow_query_threshold_ms * 1_000;
         if record.duration_us >= threshold_us {
-            self.slow_query_counter.fetch_add(1, AtomicOrdering::Relaxed);
+            self.slow_query_counter
+                .fetch_add(1, AtomicOrdering::Relaxed);
         }
 
         // Track traversal / wormhole hit rate.
         if record.op_type == OperationType::Traversal {
             self.total_traversal_count
                 .fetch_add(1, AtomicOrdering::Relaxed);
-            if record.metadata.get("wormhole_used").map(|v| v == "true").unwrap_or(false) {
+            if record
+                .metadata
+                .get("wormhole_used")
+                .map(|v| v == "true")
+                .unwrap_or(false)
+            {
                 self.wormhole_traversal_count
                     .fetch_add(1, AtomicOrdering::Relaxed);
             }
@@ -476,7 +482,12 @@ impl ProfDAGProfiler {
         if record.op_type == OperationType::StorageRead {
             self.total_cache_access_count
                 .fetch_add(1, AtomicOrdering::Relaxed);
-            if record.metadata.get("cache_hit").map(|v| v == "true").unwrap_or(false) {
+            if record
+                .metadata
+                .get("cache_hit")
+                .map(|v| v == "true")
+                .unwrap_or(false)
+            {
                 self.cache_hit_count.fetch_add(1, AtomicOrdering::Relaxed);
             }
         }
@@ -507,12 +518,7 @@ impl ProfDAGProfiler {
     }
 
     /// Convenience: record a graph traversal.
-    pub fn record_traversal(
-        &self,
-        edges_visited: usize,
-        wormholes_used: usize,
-        latency_us: u64,
-    ) {
+    pub fn record_traversal(&self, edges_visited: usize, wormholes_used: usize, latency_us: u64) {
         if !self.is_enabled() {
             return;
         }
@@ -585,7 +591,10 @@ impl ProfDAGProfiler {
         let mut failure_counts: HashMap<OperationType, u64> = HashMap::new();
 
         for rec in records.iter() {
-            by_type.entry(rec.op_type).or_default().push(rec.duration_us);
+            by_type
+                .entry(rec.op_type)
+                .or_default()
+                .push(rec.duration_us);
             if rec.success {
                 *success_counts.entry(rec.op_type).or_default() += 1;
             } else {
@@ -628,18 +637,14 @@ impl ProfDAGProfiler {
         }
 
         let total_traversals = self.total_traversal_count.load(AtomicOrdering::Relaxed);
-        let wormhole_traversals = self
-            .wormhole_traversal_count
-            .load(AtomicOrdering::Relaxed);
+        let wormhole_traversals = self.wormhole_traversal_count.load(AtomicOrdering::Relaxed);
         let wormhole_hit_rate = if total_traversals > 0 {
             wormhole_traversals as f64 / total_traversals as f64
         } else {
             0.0
         };
 
-        let total_cache = self
-            .total_cache_access_count
-            .load(AtomicOrdering::Relaxed);
+        let total_cache = self.total_cache_access_count.load(AtomicOrdering::Relaxed);
         let cache_hits = self.cache_hit_count.load(AtomicOrdering::Relaxed);
         let cache_hit_rate = if total_cache > 0 {
             cache_hits as f64 / total_cache as f64
@@ -727,13 +732,11 @@ impl ProfDAGProfiler {
 
         // Sort by frequency descending, then by latency descending.
         hot.sort_by(|a, b| {
-            b.frequency
-                .cmp(&a.frequency)
-                .then_with(|| {
-                    b.avg_latency_us
-                        .partial_cmp(&a.avg_latency_us)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
+            b.frequency.cmp(&a.frequency).then_with(|| {
+                b.avg_latency_us
+                    .partial_cmp(&a.avg_latency_us)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
         });
 
         hot.truncate(20);
@@ -747,8 +750,7 @@ impl ProfDAGProfiler {
         self.slow_query_counter.store(0, AtomicOrdering::Relaxed);
         self.wormhole_traversal_count
             .store(0, AtomicOrdering::Relaxed);
-        self.total_traversal_count
-            .store(0, AtomicOrdering::Relaxed);
+        self.total_traversal_count.store(0, AtomicOrdering::Relaxed);
         self.cache_hit_count.store(0, AtomicOrdering::Relaxed);
         self.total_cache_access_count
             .store(0, AtomicOrdering::Relaxed);
@@ -857,7 +859,11 @@ mod tests {
         let search_stats = snapshot.by_type.get(&OperationType::Search).unwrap();
         assert_eq!(search_stats.count, 1);
         // Should have recorded at least 4ms (allowing for timing jitter).
-        assert!(search_stats.min_us >= 3_000, "min_us={} should be >= 3000", search_stats.min_us);
+        assert!(
+            search_stats.min_us >= 3_000,
+            "min_us={} should be >= 3000",
+            search_stats.min_us
+        );
     }
 
     #[test]
@@ -868,7 +874,11 @@ mod tests {
         thread::sleep(Duration::from_millis(2));
         let duration = guard.finish();
 
-        assert!(duration >= 1_000, "duration_us={} should be >= 1000", duration);
+        assert!(
+            duration >= 1_000,
+            "duration_us={} should be >= 1000",
+            duration
+        );
         assert_eq!(profiler.total_operations(), 1);
     }
 
@@ -1031,7 +1041,10 @@ mod tests {
     #[test]
     fn test_operation_type_display() {
         assert_eq!(OperationType::Search.to_string(), "Search");
-        assert_eq!(OperationType::WormholeCreation.to_string(), "WormholeCreation");
+        assert_eq!(
+            OperationType::WormholeCreation.to_string(),
+            "WormholeCreation"
+        );
         assert_eq!(OperationType::LightConeQuery.to_string(), "LightConeQuery");
     }
 

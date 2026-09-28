@@ -191,9 +191,7 @@ impl MigrateCommand {
 
     /// Get the migrations directory path.
     fn migrations_path(&self) -> PathBuf {
-        self.migrations_path
-            .clone()
-            .unwrap_or_else(migrations_dir)
+        self.migrations_path.clone().unwrap_or_else(migrations_dir)
     }
 
     /// Create a database configuration from CLI options.
@@ -727,11 +725,7 @@ impl MigrateCommand {
             db.execute(
                 "UPDATE reasoning_patterns \
                  SET quality_alpha = ?, quality_beta = ? WHERE id = ?",
-                &[
-                    &beta.alpha() as &dyn rusqlite::ToSql,
-                    &beta.beta(),
-                    id,
-                ],
+                &[&beta.alpha() as &dyn rusqlite::ToSql, &beta.beta(), id],
             )
             .await?;
             migrated += 1;
@@ -762,9 +756,8 @@ impl MigrateCommand {
 
         // Ensure embedding_method column exists (idempotent ALTER TABLE)
         db.with_connection(|conn| {
-            let _ = conn.execute_batch(
-                "ALTER TABLE reasoning_patterns ADD COLUMN embedding_method TEXT;",
-            );
+            let _ = conn
+                .execute_batch("ALTER TABLE reasoning_patterns ADD COLUMN embedding_method TEXT;");
             Ok(())
         })
         .await?;
@@ -846,11 +839,7 @@ impl MigrateCommand {
                     }
                 }
                 Err(e) => {
-                    eprintln!(
-                        "  Failed to embed {}: {}",
-                        &id[..id.len().min(12)],
-                        e
-                    );
+                    eprintln!("  Failed to embed {}: {}", &id[..id.len().min(12)], e);
                     errors += 1;
                 }
             }
@@ -941,7 +930,6 @@ impl MigrateCommand {
             }
         }
     }
-
 }
 
 /// Mask password in a database URL for logging.

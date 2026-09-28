@@ -128,7 +128,9 @@ async fn run_create(args: &UserCreateArgs) -> Result<()> {
     let store = UserStore::new(db).await?;
 
     let password = args.password.clone().unwrap_or_else(generate_password);
-    let user = store.create_user(&args.username, &password, &args.role).await?;
+    let user = store
+        .create_user(&args.username, &password, &args.role)
+        .await?;
 
     if args.json {
         let out = serde_json::json!({
@@ -148,7 +150,10 @@ async fn run_create(args: &UserCreateArgs) -> Result<()> {
         println!("  Password: {}", password);
         println!();
         println!("  Save this password now — it will not be shown again.");
-        println!("  Change it via: nagual user create {} --password <new>", user.username);
+        println!(
+            "  Change it via: nagual user create {} --password <new>",
+            user.username
+        );
         println!();
     }
 
@@ -252,7 +257,14 @@ mod tests {
     #[test]
     fn test_parse_create_with_password() {
         let args = vec![
-            "test", "user", "create", "bob", "--role", "viewer", "--password", "secret123",
+            "test",
+            "user",
+            "create",
+            "bob",
+            "--role",
+            "viewer",
+            "--password",
+            "secret123",
         ];
         let cli = TestCli::try_parse_from(args).unwrap();
         match cli.cmd {

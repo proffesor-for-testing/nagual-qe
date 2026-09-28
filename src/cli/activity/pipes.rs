@@ -95,10 +95,7 @@ async fn run_pipes_list(args: &PipesListArgs) -> Result<()> {
         if pipes.is_empty() {
             println!("  No pipes installed.");
         } else {
-            println!(
-                "  {:<30} {:<10} {}",
-                "ID", "Status", "Source"
-            );
+            println!("  {:<30} {:<10} {}", "ID", "Status", "Source");
             println!("  {:-<55}", "");
             for p in &pipes {
                 let status = if p.enabled { "enabled" } else { "disabled" };

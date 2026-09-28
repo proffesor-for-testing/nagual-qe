@@ -749,11 +749,13 @@ impl GCloudAdapter {
 
     /// Verify that an object is encrypted with CMEK.
     async fn verify_encryption(&self, object_name: &str) -> GCloudResult<()> {
-        let enc = self.config.encryption.as_ref().ok_or_else(|| {
-            GCloudError::EncryptionError {
+        let enc = self
+            .config
+            .encryption
+            .as_ref()
+            .ok_or_else(|| GCloudError::EncryptionError {
                 message: "No encryption configured".into(),
-            }
-        })?;
+            })?;
 
         match self.get_object_info(object_name).await {
             Ok(info) => {
@@ -846,14 +848,8 @@ mod tests {
     fn test_full_path() {
         let config = GCloudConfig::new("bucket", "project").with_prefix("nagual/backups");
 
-        assert_eq!(
-            config.full_path("test.gz"),
-            "nagual/backups/test.gz"
-        );
-        assert_eq!(
-            config.full_path("/test.gz"),
-            "nagual/backups/test.gz"
-        );
+        assert_eq!(config.full_path("test.gz"), "nagual/backups/test.gz");
+        assert_eq!(config.full_path("/test.gz"), "nagual/backups/test.gz");
     }
 
     #[test]
@@ -865,7 +861,7 @@ mod tests {
     #[test]
     fn test_encryption_config() {
         let enc = EncryptionConfig::new(
-            "projects/my-project/locations/us-central1/keyRings/my-ring/cryptoKeys/my-key"
+            "projects/my-project/locations/us-central1/keyRings/my-ring/cryptoKeys/my-key",
         );
 
         let components = enc.parse_key_name().unwrap();

@@ -297,8 +297,7 @@ impl ProfDAGOptimizer {
             }
 
             if search_stats.failure_count > 0 {
-                let failure_rate =
-                    search_stats.failure_count as f64 / search_stats.count as f64;
+                let failure_rate = search_stats.failure_count as f64 / search_stats.count as f64;
                 if failure_rate > 0.01 {
                     recommendations.push(Recommendation {
                         id: "search-failures".to_string(),
@@ -320,8 +319,7 @@ impl ProfDAGOptimizer {
 
         // Analyze traversal performance and wormhole efficiency.
         if let Some(trav_stats) = snapshot.by_type.get(&OperationType::Traversal) {
-            let wormhole_rec =
-                self.suggest_wormhole_tuning(snapshot.wormhole_hit_rate, trav_stats);
+            let wormhole_rec = self.suggest_wormhole_tuning(snapshot.wormhole_hit_rate, trav_stats);
 
             if snapshot.wormhole_hit_rate < 0.3 && trav_stats.p95_us > target_p95_us {
                 let mut params = HashMap::new();
@@ -807,7 +805,10 @@ mod tests {
         let optimizer = ProfDAGOptimizer::with_defaults();
         let snapshot = make_snapshot(10, HashMap::new(), 0.0, 0.0);
         let recs = optimizer.analyze(&snapshot);
-        assert!(recs.is_empty(), "Should return no recommendations with too few samples");
+        assert!(
+            recs.is_empty(),
+            "Should return no recommendations with too few samples"
+        );
     }
 
     #[test]
@@ -822,7 +823,10 @@ mod tests {
         let recs = optimizer.analyze(&snapshot);
 
         let hnsw_rec = recs.iter().find(|r| r.id == "hnsw-search-latency");
-        assert!(hnsw_rec.is_some(), "Expected HNSW search latency recommendation");
+        assert!(
+            hnsw_rec.is_some(),
+            "Expected HNSW search latency recommendation"
+        );
         assert_eq!(hnsw_rec.unwrap().impact, Impact::High);
     }
 
@@ -831,10 +835,7 @@ mod tests {
         let optimizer = ProfDAGOptimizer::with_defaults();
 
         let mut by_type = HashMap::new();
-        by_type.insert(
-            OperationType::Traversal,
-            make_stats(200, 80_000, 50_000.0),
-        );
+        by_type.insert(OperationType::Traversal, make_stats(200, 80_000, 50_000.0));
 
         let snapshot = make_snapshot(200, by_type, 0.1, 0.8);
         let recs = optimizer.analyze(&snapshot);
@@ -866,10 +867,7 @@ mod tests {
 
         let mut by_type = HashMap::new();
         by_type.insert(OperationType::Search, make_stats(100, 30_000, 20_000.0)); // Under target
-        by_type.insert(
-            OperationType::Traversal,
-            make_stats(100, 120_000, 80_000.0),
-        ); // Over target
+        by_type.insert(OperationType::Traversal, make_stats(100, 120_000, 80_000.0)); // Over target
 
         let snapshot = make_snapshot(200, by_type, 0.5, 0.8);
         let bottlenecks = optimizer.identify_bottlenecks(&snapshot);
@@ -943,10 +941,7 @@ mod tests {
         let mut by_type = HashMap::new();
         // All slow to trigger multiple recommendations.
         by_type.insert(OperationType::Search, make_stats(200, 120_000, 80_000.0));
-        by_type.insert(
-            OperationType::Traversal,
-            make_stats(200, 120_000, 80_000.0),
-        );
+        by_type.insert(OperationType::Traversal, make_stats(200, 120_000, 80_000.0));
         by_type.insert(
             OperationType::StorageRead,
             make_stats(200, 120_000, 80_000.0),
@@ -974,10 +969,7 @@ mod tests {
 
         let mut by_type = HashMap::new();
         // Extremely over target: 500ms vs 50ms = 10x.
-        by_type.insert(
-            OperationType::Search,
-            make_stats(100, 500_000, 300_000.0),
-        );
+        by_type.insert(OperationType::Search, make_stats(100, 500_000, 300_000.0));
 
         let snapshot = make_snapshot(100, by_type, 0.5, 0.8);
         let bottlenecks = optimizer.identify_bottlenecks(&snapshot);

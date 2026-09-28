@@ -210,7 +210,8 @@ impl LoggingConfig {
     /// Get the log file path for today.
     pub fn log_file_path(&self) -> PathBuf {
         let date = Local::now().format("%Y-%m-%d");
-        self.log_dir.join(format!("{}-{}.log", self.file_prefix, date))
+        self.log_dir
+            .join(format!("{}-{}.log", self.file_prefix, date))
     }
 }
 
@@ -253,10 +254,7 @@ impl DailyRotatingWriter {
 
         if needs_rotation {
             let path = self.config.log_file_path();
-            let file = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&path)?;
+            let file = OpenOptions::new().create(true).append(true).open(&path)?;
 
             *guard = Some(RotatingFile {
                 file: BufWriter::new(file),
@@ -275,8 +273,8 @@ impl DailyRotatingWriter {
 
     /// Clean up old log files based on retention policy.
     fn cleanup_old_files(&self) -> io::Result<usize> {
-        let cutoff = Local::now().date_naive()
-            - chrono::Duration::days(self.config.retention_days as i64);
+        let cutoff =
+            Local::now().date_naive() - chrono::Duration::days(self.config.retention_days as i64);
 
         let mut deleted = 0;
         let prefix = format!("{}-", self.config.file_prefix);
@@ -491,7 +489,8 @@ impl LoggingHandle {
                     "level": "INFO",
                     "message": message,
                     "target": "direct"
-                }).to_string()
+                })
+                .to_string()
             } else {
                 format!("{} INFO direct: {}", timestamp, message)
             };
@@ -547,7 +546,11 @@ impl LogEntry {
     }
 
     /// Add a field.
-    pub fn with_field(mut self, key: impl Into<String>, value: impl Into<serde_json::Value>) -> Self {
+    pub fn with_field(
+        mut self,
+        key: impl Into<String>,
+        value: impl Into<serde_json::Value>,
+    ) -> Self {
         self.fields.insert(key.into(), value.into());
         self
     }
@@ -631,8 +634,7 @@ mod tests {
     #[test]
     fn test_daily_rotating_writer_creation() {
         let temp_dir = TempDir::new().unwrap();
-        let config = LoggingConfig::new()
-            .with_log_dir(temp_dir.path());
+        let config = LoggingConfig::new().with_log_dir(temp_dir.path());
 
         let writer = DailyRotatingWriter::new(config);
         assert!(writer.is_ok());

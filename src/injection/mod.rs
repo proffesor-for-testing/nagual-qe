@@ -93,15 +93,11 @@ pub use attention_surgery::{
     AttentionBias, AttentionSurgery, AttentionSurgeryConfig, BiasMethod, ModelConfig,
 };
 pub use context_builder::{
-    BuiltContext, ContextBuilder, ContextConfig, FewShotMessage, Provider,
-    format_for_anthropic, format_for_local, format_for_openai,
+    format_for_anthropic, format_for_local, format_for_openai, BuiltContext, ContextBuilder,
+    ContextConfig, FewShotMessage, Provider,
 };
-pub use e_nagual::{
-    ENagual, ENagualBuilder, ENagualConfig, Example, TrajectoryHint,
-};
-pub use model_hooks::{
-    AttentionState, ENagualHook, HookRegistry, ModelHook,
-};
+pub use e_nagual::{ENagual, ENagualBuilder, ENagualConfig, Example, TrajectoryHint};
+pub use model_hooks::{AttentionState, ENagualHook, HookRegistry, ModelHook};
 
 /// Injection context combining storage references for E_nagual computation.
 ///

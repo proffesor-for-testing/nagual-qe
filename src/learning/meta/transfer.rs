@@ -102,10 +102,16 @@ impl TransferEngine {
 
         for transfer in transfers.values() {
             if transfer.source_domain == domain {
-                related.push((transfer.target_domain.clone(), transfer.transfer_coefficient));
+                related.push((
+                    transfer.target_domain.clone(),
+                    transfer.transfer_coefficient,
+                ));
             }
             if transfer.target_domain == domain {
-                related.push((transfer.source_domain.clone(), transfer.transfer_coefficient));
+                related.push((
+                    transfer.source_domain.clone(),
+                    transfer.transfer_coefficient,
+                ));
             }
         }
 
@@ -247,9 +253,15 @@ mod tests {
 
     #[test]
     fn test_domain_similarity() {
-        assert_eq!(TransferEngine::calculate_domain_similarity("rust", "rust"), 1.0);
+        assert_eq!(
+            TransferEngine::calculate_domain_similarity("rust", "rust"),
+            1.0
+        );
         assert!(TransferEngine::calculate_domain_similarity("rust.async", "rust.error") > 0.0);
-        assert_eq!(TransferEngine::calculate_domain_similarity("rust", "python"), 0.0);
+        assert_eq!(
+            TransferEngine::calculate_domain_similarity("rust", "python"),
+            0.0
+        );
     }
 
     #[test]

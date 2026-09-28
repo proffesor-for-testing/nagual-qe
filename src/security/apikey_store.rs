@@ -204,7 +204,10 @@ impl ApiKeyStore {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     key_prefix: row.get(2)?,
-                    scopes: scopes_str.split(',').map(|s| s.trim().to_string()).collect(),
+                    scopes: scopes_str
+                        .split(',')
+                        .map(|s| s.trim().to_string())
+                        .collect(),
                     created_at: parse_dt(row.get::<_, String>(4)?),
                     last_used_at: row.get::<_, Option<String>>(5)?.map(parse_dt),
                     revoked_at: row.get::<_, Option<String>>(6)?.map(parse_dt),
@@ -375,8 +378,14 @@ mod tests {
         let db = Arc::new(SqliteDb::open_in_memory().unwrap());
         let store = ApiKeyStore::new(db).await.unwrap();
 
-        store.create_key("key-a", &["read".into()], None).await.unwrap();
-        store.create_key("key-b", &["write".into()], None).await.unwrap();
+        store
+            .create_key("key-a", &["read".into()], None)
+            .await
+            .unwrap();
+        store
+            .create_key("key-b", &["write".into()], None)
+            .await
+            .unwrap();
 
         let active = store.list_keys(false).await.unwrap();
         assert_eq!(active.len(), 2);
@@ -412,7 +421,10 @@ mod tests {
         let db = Arc::new(SqliteDb::open_in_memory().unwrap());
         let store = ApiKeyStore::new(db).await.unwrap();
 
-        store.create_key("unique", &["read".into()], None).await.unwrap();
+        store
+            .create_key("unique", &["read".into()], None)
+            .await
+            .unwrap();
         let result = store.create_key("unique", &["read".into()], None).await;
         assert!(result.is_err());
     }

@@ -7,9 +7,7 @@
 //!
 //! Run with: `cargo bench --bench hyperbolic_vs_euclidean`
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::prelude::*;
 use std::cmp::Ordering;
 
@@ -89,11 +87,7 @@ fn poincare_dist(u: &[f64], v: &[f64]) -> f64 {
 }
 
 /// Brute-force KNN using Poincare distance.
-fn brute_force_poincare_knn(
-    points: &[Vec<f64>],
-    query: &[f64],
-    k: usize,
-) -> Vec<(usize, f64)> {
+fn brute_force_poincare_knn(points: &[Vec<f64>], query: &[f64], k: usize) -> Vec<(usize, f64)> {
     let mut distances: Vec<(usize, f64)> = points
         .iter()
         .enumerate()
@@ -106,11 +100,7 @@ fn brute_force_poincare_knn(
 }
 
 /// Brute-force KNN using Euclidean cosine similarity (returns as distance = 1 - similarity).
-fn brute_force_euclidean_knn(
-    points: &[Vec<f32>],
-    query: &[f32],
-    k: usize,
-) -> Vec<(usize, f32)> {
+fn brute_force_euclidean_knn(points: &[Vec<f32>], query: &[f32], k: usize) -> Vec<(usize, f32)> {
     let mut similarities: Vec<(usize, f32)> = points
         .iter()
         .enumerate()

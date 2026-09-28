@@ -107,7 +107,10 @@ async fn test_profdag_full_e2e_chain() {
     // Verify nodes are stored
     let stats = storage.stats().await.expect("stats after inserts");
     assert_eq!(stats.node_count, 4, "Should have 4 nodes");
-    assert_eq!(stats.nodes_with_embeddings, 4, "All nodes should have embeddings");
+    assert_eq!(
+        stats.nodes_with_embeddings, 4,
+        "All nodes should have embeddings"
+    );
 
     // Verify individual nodes
     let fetched_node1 = storage.get_node(&node1_id).await.expect("get node1");
@@ -145,21 +148,28 @@ async fn test_profdag_full_e2e_chain() {
 
     // Verify neighbor queries
     let neighbors = storage
-        .get_neighbors(&node1_id, &NeighborQuery::outgoing().with_edge_type(EdgeType::LeadsTo))
+        .get_neighbors(
+            &node1_id,
+            &NeighborQuery::outgoing().with_edge_type(EdgeType::LeadsTo),
+        )
         .await
         .expect("get neighbors of node1");
-    assert_eq!(neighbors.len(), 1, "Node1 should have 1 outgoing LeadsTo neighbor");
     assert_eq!(
-        neighbors[0].node.id, node2_id,
-        "Neighbor should be node2"
+        neighbors.len(),
+        1,
+        "Node1 should have 1 outgoing LeadsTo neighbor"
     );
+    assert_eq!(neighbors[0].node.id, node2_id, "Neighbor should be node2");
     assert!(!neighbors[0].is_incoming);
 
     // ------------------------------------------------------------------
     // Step 3: Record a trajectory with storage persistence
     // ------------------------------------------------------------------
     let recorder = TrajectoryRecorder::with_storage(RecorderConfig::default(), storage.clone());
-    assert!(recorder.has_storage(), "Recorder should have storage attached");
+    assert!(
+        recorder.has_storage(),
+        "Recorder should have storage attached"
+    );
 
     let traj_id = recorder.start(
         "How to optimize database queries?",
@@ -172,7 +182,10 @@ async fn test_profdag_full_e2e_chain() {
         .record_step(
             &traj_id,
             TrajectoryStep::pattern_retrieval(
-                vec![PatternId::from_string(&node1_id), PatternId::from_string(&node2_id)],
+                vec![
+                    PatternId::from_string(&node1_id),
+                    PatternId::from_string(&node2_id),
+                ],
                 "database optimization",
                 0.9,
             ),
@@ -205,7 +218,9 @@ async fn test_profdag_full_e2e_chain() {
     assert_eq!(step_idx_2, 2);
 
     // Verify active trajectory state before completion
-    let active_traj = recorder.get_active(&traj_id).expect("get active trajectory");
+    let active_traj = recorder
+        .get_active(&traj_id)
+        .expect("get active trajectory");
     assert_eq!(active_traj.step_count(), 3, "Should have 3 steps recorded");
 
     // Complete with async persistence -- this creates real ProfDAG nodes/edges
@@ -214,7 +229,10 @@ async fn test_profdag_full_e2e_chain() {
         .await
         .expect("complete_async");
 
-    assert!(!recorder.is_active(&traj_id), "Trajectory should no longer be active");
+    assert!(
+        !recorder.is_active(&traj_id),
+        "Trajectory should no longer be active"
+    );
     assert_eq!(result.outcome, Outcome::Success);
     assert!((result.reward - 0.9).abs() < 0.01);
     assert_eq!(result.step_count, 3);
@@ -232,7 +250,10 @@ async fn test_profdag_full_e2e_chain() {
         .get_node(&result.profdag_node_id)
         .await
         .expect("get trajectory node");
-    assert!(traj_node.is_some(), "Trajectory node should exist in storage");
+    assert!(
+        traj_node.is_some(),
+        "Trajectory node should exist in storage"
+    );
     let traj_node = traj_node.unwrap();
     assert_eq!(
         traj_node.node_type,
@@ -264,7 +285,9 @@ async fn test_profdag_full_e2e_chain() {
         "Should find trajectory nodes in storage"
     );
     assert!(
-        trajectory_nodes.iter().any(|n| n.id == result.profdag_node_id),
+        trajectory_nodes
+            .iter()
+            .any(|n| n.id == result.profdag_node_id),
         "Should find our specific trajectory node"
     );
 
@@ -295,7 +318,10 @@ async fn test_profdag_full_e2e_chain() {
         "Should have indexed at least 4 nodes with embeddings, got {}",
         search_stats.indexed_nodes
     );
-    assert!(!search_stats.index_dirty, "Index should be clean after rebuild");
+    assert!(
+        !search_stats.index_dirty,
+        "Index should be clean after rebuild"
+    );
 
     // Search for nodes similar to node1's embedding
     let query_embedding = generate_embedding(128, 1); // Same as node1
@@ -325,10 +351,7 @@ async fn test_profdag_full_e2e_chain() {
         .find_similar_by_type(&query_embedding, 5, NodeType::Pattern, 0.0)
         .await
         .expect("find_similar_by_type");
-    assert!(
-        !pattern_results.is_empty(),
-        "Should find pattern nodes"
-    );
+    assert!(!pattern_results.is_empty(), "Should find pattern nodes");
     for r in &pattern_results {
         assert_eq!(
             r.node.node_type,
@@ -389,14 +412,19 @@ async fn test_profdag_full_e2e_chain() {
     }
 
     // Verify determinism: same input -> same output
-    let complexity_simple_2 = router.forward(&features_simple).expect("forward simple again");
+    let complexity_simple_2 = router
+        .forward(&features_simple)
+        .expect("forward simple again");
     assert!(
         (complexity_simple - complexity_simple_2).abs() < 1e-6,
         "FastGRNN should be deterministic"
     );
 
     // Verify inference metrics
-    assert!(router.inference_count() >= 4, "Should have counted inferences");
+    assert!(
+        router.inference_count() >= 4,
+        "Should have counted inferences"
+    );
     let avg_time = router.avg_inference_time_us();
     assert!(avg_time > 0.0, "Average inference time should be positive");
 
@@ -421,12 +449,21 @@ async fn test_profdag_full_e2e_chain() {
     assert_eq!(e_nagual.query, "How to optimize database queries?");
 
     println!("=== ProfDAG E2E Test Summary ===");
-    println!("  Storage: {} nodes, {} edges", final_stats.node_count, final_stats.edge_count);
-    println!("  Trajectory: {} steps, reward={}", result.step_count, result.reward);
+    println!(
+        "  Storage: {} nodes, {} edges",
+        final_stats.node_count, final_stats.edge_count
+    );
+    println!(
+        "  Trajectory: {} steps, reward={}",
+        result.step_count, result.reward
+    );
     println!("  Edges created by trajectory: {}", result.edges_created);
     println!("  HNSW indexed: {} nodes", search_stats.indexed_nodes);
     println!("  Search results: {} similar nodes", similar.len());
-    println!("  FastGRNN simple={:.4}, complex={:.4}", complexity_simple, complexity_complex);
+    println!(
+        "  FastGRNN simple={:.4}, complex={:.4}",
+        complexity_simple, complexity_complex
+    );
     println!("  FastGRNN avg inference: {:.2}us", avg_time);
     println!("  E_nagual prompt length: {} chars", prompt_prefix.len());
     println!("=== All assertions passed ===");
@@ -447,11 +484,7 @@ async fn test_trajectory_recorder_backward_compat() {
     recorder
         .record_step(
             &traj_id,
-            TrajectoryStep::pattern_retrieval(
-                vec![PatternId::from_string("pat_a")],
-                "search",
-                0.8,
-            ),
+            TrajectoryStep::pattern_retrieval(vec![PatternId::from_string("pat_a")], "search", 0.8),
         )
         .expect("record step");
 
@@ -502,11 +535,7 @@ async fn test_trajectory_creates_real_edges_in_storage() {
     recorder
         .record_step(
             &traj_id,
-            TrajectoryStep::decision(
-                vec![PatternId::from_string(&pat_b_id)],
-                "selected B",
-                0.85,
-            ),
+            TrajectoryStep::decision(vec![PatternId::from_string(&pat_b_id)], "selected B", 0.85),
         )
         .expect("step 1");
 
@@ -700,7 +729,10 @@ async fn test_profiler_wired_into_search_and_storage() {
     search.rebuild_index().await.expect("rebuild index");
 
     let query = generate_embedding(128, 42);
-    let results = search.find_similar(&query, 5, 0.0).await.expect("find_similar");
+    let results = search
+        .find_similar(&query, 5, 0.0)
+        .await
+        .expect("find_similar");
     assert!(!results.is_empty(), "Should find results");
 
     let final_snapshot = profiler.snapshot();

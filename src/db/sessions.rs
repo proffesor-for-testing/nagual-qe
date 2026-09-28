@@ -57,9 +57,8 @@ impl Session {
     /// Calculate the duration of the session in seconds.
     /// Returns None if the session has not ended.
     pub fn duration_secs(&self) -> Option<i64> {
-        self.ended_at.map(|end| {
-            (end - self.started_at).num_seconds()
-        })
+        self.ended_at
+            .map(|end| (end - self.started_at).num_seconds())
     }
 
     /// Calculate token efficiency (patterns learned per 1K tokens).
@@ -139,10 +138,12 @@ impl SessionManager {
         let now = Utc::now();
         let started_at_str = now.to_rfc3339();
 
-        self.db.execute(
-            "INSERT INTO sessions (id, started_at, domain) VALUES (?, ?, ?)",
-            &[&id as &dyn rusqlite::ToSql, &started_at_str, &domain],
-        ).await?;
+        self.db
+            .execute(
+                "INSERT INTO sessions (id, started_at, domain) VALUES (?, ?, ?)",
+                &[&id as &dyn rusqlite::ToSql, &started_at_str, &domain],
+            )
+            .await?;
 
         Ok(Session {
             id,
@@ -162,10 +163,13 @@ impl SessionManager {
     pub async fn end_session(&self, session_id: &str) -> Result<()> {
         let now = Utc::now().to_rfc3339();
 
-        let rows = self.db.execute(
-            "UPDATE sessions SET ended_at = ? WHERE id = ?",
-            &[&now as &dyn rusqlite::ToSql, &session_id],
-        ).await?;
+        let rows = self
+            .db
+            .execute(
+                "UPDATE sessions SET ended_at = ? WHERE id = ?",
+                &[&now as &dyn rusqlite::ToSql, &session_id],
+            )
+            .await?;
 
         if rows == 0 {
             return Err(NagualError::internal(format!(
@@ -185,10 +189,13 @@ impl SessionManager {
     pub async fn record_tokens(&self, session_id: &str, tokens: u64) -> Result<()> {
         let tokens_i64 = tokens as i64;
 
-        let rows = self.db.execute(
-            "UPDATE sessions SET tokens_used = tokens_used + ? WHERE id = ?",
-            &[&tokens_i64 as &dyn rusqlite::ToSql, &session_id],
-        ).await?;
+        let rows = self
+            .db
+            .execute(
+                "UPDATE sessions SET tokens_used = tokens_used + ? WHERE id = ?",
+                &[&tokens_i64 as &dyn rusqlite::ToSql, &session_id],
+            )
+            .await?;
 
         if rows == 0 {
             return Err(NagualError::internal(format!(
@@ -205,10 +212,13 @@ impl SessionManager {
     /// # Arguments
     /// * `session_id` - The session ID.
     pub async fn record_pattern_learned(&self, session_id: &str) -> Result<()> {
-        let rows = self.db.execute(
-            "UPDATE sessions SET patterns_learned = patterns_learned + 1 WHERE id = ?",
-            &[&session_id as &dyn rusqlite::ToSql],
-        ).await?;
+        let rows = self
+            .db
+            .execute(
+                "UPDATE sessions SET patterns_learned = patterns_learned + 1 WHERE id = ?",
+                &[&session_id as &dyn rusqlite::ToSql],
+            )
+            .await?;
 
         if rows == 0 {
             return Err(NagualError::internal(format!(
@@ -225,10 +235,13 @@ impl SessionManager {
     /// # Arguments
     /// * `session_id` - The session ID.
     pub async fn record_pattern_retrieved(&self, session_id: &str) -> Result<()> {
-        let rows = self.db.execute(
-            "UPDATE sessions SET patterns_retrieved = patterns_retrieved + 1 WHERE id = ?",
-            &[&session_id as &dyn rusqlite::ToSql],
-        ).await?;
+        let rows = self
+            .db
+            .execute(
+                "UPDATE sessions SET patterns_retrieved = patterns_retrieved + 1 WHERE id = ?",
+                &[&session_id as &dyn rusqlite::ToSql],
+            )
+            .await?;
 
         if rows == 0 {
             return Err(NagualError::internal(format!(
@@ -344,7 +357,11 @@ impl SessionManager {
     /// # Arguments
     /// * `domain` - Domain to filter by.
     /// * `limit` - Maximum number of sessions to return.
-    pub async fn list_sessions_by_domain(&self, domain: &str, limit: usize) -> Result<Vec<Session>> {
+    pub async fn list_sessions_by_domain(
+        &self,
+        domain: &str,
+        limit: usize,
+    ) -> Result<Vec<Session>> {
         let limit_i64 = limit as i64;
 
         self.db.query(
@@ -376,8 +393,9 @@ impl SessionManager {
 
     /// Get aggregated session statistics.
     pub async fn get_stats(&self) -> Result<SessionStats> {
-        self.db.query_one(
-            r#"SELECT
+        self.db
+            .query_one(
+                r#"SELECT
                 COUNT(*) as total,
                 COALESCE(SUM(tokens_used), 0) as tokens,
                 COALESCE(SUM(patterns_learned), 0) as learned,
@@ -391,36 +409,38 @@ impl SessionManager {
                     ELSE NULL END
                 ), 0) as avg_duration
             FROM sessions"#,
-            &[],
-            |row| {
-                let total: i64 = row.get(0)?;
-                let tokens: i64 = row.get(1)?;
-                let learned: i64 = row.get(2)?;
-                let retrieved: i64 = row.get(3)?;
-                let avg_tokens: f64 = row.get(4)?;
-                let avg_learned: f64 = row.get(5)?;
-                let active: i64 = row.get(6)?;
-                let avg_duration: f64 = row.get(7)?;
+                &[],
+                |row| {
+                    let total: i64 = row.get(0)?;
+                    let tokens: i64 = row.get(1)?;
+                    let learned: i64 = row.get(2)?;
+                    let retrieved: i64 = row.get(3)?;
+                    let avg_tokens: f64 = row.get(4)?;
+                    let avg_learned: f64 = row.get(5)?;
+                    let active: i64 = row.get(6)?;
+                    let avg_duration: f64 = row.get(7)?;
 
-                let efficiency = if tokens > 0 {
-                    (learned as f64 * 1000.0) / tokens as f64
-                } else {
-                    0.0
-                };
+                    let efficiency = if tokens > 0 {
+                        (learned as f64 * 1000.0) / tokens as f64
+                    } else {
+                        0.0
+                    };
 
-                Ok(SessionStats {
-                    total_sessions: total as u32,
-                    total_tokens: tokens as u64,
-                    total_patterns_learned: learned as u32,
-                    total_patterns_retrieved: retrieved as u32,
-                    avg_tokens_per_session: avg_tokens,
-                    avg_patterns_per_session: avg_learned,
-                    efficiency,
-                    active_sessions: active as u32,
-                    avg_duration_secs: avg_duration,
-                })
-            },
-        ).await.map(|opt| opt.unwrap_or_default())
+                    Ok(SessionStats {
+                        total_sessions: total as u32,
+                        total_tokens: tokens as u64,
+                        total_patterns_learned: learned as u32,
+                        total_patterns_retrieved: retrieved as u32,
+                        avg_tokens_per_session: avg_tokens,
+                        avg_patterns_per_session: avg_learned,
+                        efficiency,
+                        active_sessions: active as u32,
+                        avg_duration_secs: avg_duration,
+                    })
+                },
+            )
+            .await
+            .map(|opt| opt.unwrap_or_default())
     }
 
     /// Get statistics for a specific time window.
@@ -483,10 +503,13 @@ impl SessionManager {
     /// # Arguments
     /// * `session_id` - The session ID to delete.
     pub async fn delete_session(&self, session_id: &str) -> Result<bool> {
-        let rows = self.db.execute(
-            "DELETE FROM sessions WHERE id = ?",
-            &[&session_id as &dyn rusqlite::ToSql],
-        ).await?;
+        let rows = self
+            .db
+            .execute(
+                "DELETE FROM sessions WHERE id = ?",
+                &[&session_id as &dyn rusqlite::ToSql],
+            )
+            .await?;
 
         Ok(rows > 0)
     }
@@ -530,7 +553,9 @@ mod tests {
             );
             CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at);
             CREATE INDEX IF NOT EXISTS idx_sessions_domain ON sessions(domain);"#,
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
         Arc::new(db)
     }

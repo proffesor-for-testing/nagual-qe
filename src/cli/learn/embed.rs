@@ -99,7 +99,10 @@ async fn run_hash_embed(args: &EmbedArgs) -> Result<()> {
     let patterns_to_embed: Vec<&Pattern> = if args.force {
         all_patterns.iter().collect()
     } else {
-        all_patterns.iter().filter(|p| p.embedding().is_none()).collect()
+        all_patterns
+            .iter()
+            .filter(|p| p.embedding().is_none())
+            .collect()
     };
 
     let to_embed_count = patterns_to_embed.len();
@@ -151,7 +154,9 @@ async fn run_hash_embed(args: &EmbedArgs) -> Result<()> {
                 }
 
                 match storage.update_pattern(&updated).await {
-                    Ok(()) => { embedded_count += 1; }
+                    Ok(()) => {
+                        embedded_count += 1;
+                    }
                     Err(e) => {
                         error_count += 1;
                         if args.verbose {
@@ -176,7 +181,12 @@ async fn run_hash_embed(args: &EmbedArgs) -> Result<()> {
             } else {
                 0.0
             };
-            print!("\r  Embedded {}/{} ({:.0}/s)", idx + 1, to_embed_count, rate);
+            print!(
+                "\r  Embedded {}/{} ({:.0}/s)",
+                idx + 1,
+                to_embed_count,
+                rate
+            );
         }
     }
     println!();
@@ -193,7 +203,10 @@ async fn run_hash_embed(args: &EmbedArgs) -> Result<()> {
     println!("  Errors: {}", error_count);
     println!("  Duration: {:.1}s", elapsed.as_secs_f64());
     if elapsed.as_secs_f64() > 0.0 {
-        println!("  Rate: {:.0} patterns/s", embedded_count as f64 / elapsed.as_secs_f64());
+        println!(
+            "  Rate: {:.0} patterns/s",
+            embedded_count as f64 / elapsed.as_secs_f64()
+        );
     }
     println!("  Database: {}", args.db_path.display());
 
@@ -222,7 +235,10 @@ async fn run_onnx_embed(args: &EmbedArgs) -> Result<()> {
     let patterns_to_embed: Vec<&Pattern> = if args.force {
         all_patterns.iter().collect()
     } else {
-        all_patterns.iter().filter(|p| p.embedding().is_none()).collect()
+        all_patterns
+            .iter()
+            .filter(|p| p.embedding().is_none())
+            .collect()
     };
 
     let to_embed_count = patterns_to_embed.len();
@@ -264,7 +280,8 @@ async fn run_onnx_embed(args: &EmbedArgs) -> Result<()> {
         Err(e) => {
             eprintln!("Warning: Failed to load ONNX embedder: {}", e);
             eprintln!("Falling back to HashEmbedder (deterministic, no model files needed).");
-            return run_hash_embed_fallback(args, &storage, &all_patterns, &patterns_to_embed).await;
+            return run_hash_embed_fallback(args, &storage, &all_patterns, &patterns_to_embed)
+                .await;
         }
     };
     println!("Model loaded ({}D embeddings)", embedder.embedding_dim());
@@ -287,9 +304,10 @@ async fn run_onnx_embed(args: &EmbedArgs) -> Result<()> {
 
     for (batch_idx, chunk) in patterns_to_embed.chunks(batch_size).enumerate() {
         // Prepare texts: combine problem + solution for richer embeddings
-        let texts: Vec<String> = chunk.iter().map(|p| {
-            format!("{} {}", p.problem(), p.solution())
-        }).collect();
+        let texts: Vec<String> = chunk
+            .iter()
+            .map(|p| format!("{} {}", p.problem(), p.solution()))
+            .collect();
         let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
 
         // Generate embeddings
@@ -353,7 +371,10 @@ async fn run_onnx_embed(args: &EmbedArgs) -> Result<()> {
             Err(e) => {
                 // Fall back to individual embedding
                 if args.verbose {
-                    eprintln!("  Batch {} failed ({}), falling back to individual", batch_idx, e);
+                    eprintln!(
+                        "  Batch {} failed ({}), falling back to individual",
+                        batch_idx, e
+                    );
                 }
                 for pattern in chunk.iter() {
                     let text = format!("{} {}", pattern.problem(), pattern.solution());
@@ -375,7 +396,9 @@ async fn run_onnx_embed(args: &EmbedArgs) -> Result<()> {
                             }
 
                             match storage.update_pattern(&updated).await {
-                                Ok(()) => { embedded_count += 1; }
+                                Ok(()) => {
+                                    embedded_count += 1;
+                                }
                                 Err(e) => {
                                     error_count += 1;
                                     if args.verbose {
@@ -404,7 +427,10 @@ async fn run_onnx_embed(args: &EmbedArgs) -> Result<()> {
         } else {
             0.0
         };
-        print!("\r  Embedded {}/{} ({:.0}/s)", processed, to_embed_count, rate);
+        print!(
+            "\r  Embedded {}/{} ({:.0}/s)",
+            processed, to_embed_count, rate
+        );
     }
     println!();
 
@@ -460,7 +486,10 @@ async fn run_onnx_embed(args: &EmbedArgs) -> Result<()> {
     println!("  Chunk-embedded: {}", chunk_count);
     println!("  Errors: {}", error_count);
     println!("  Duration: {:.1}s", elapsed.as_secs_f64());
-    println!("  Rate: {:.0} patterns/s", embedded_count as f64 / elapsed.as_secs_f64());
+    println!(
+        "  Rate: {:.0} patterns/s",
+        embedded_count as f64 / elapsed.as_secs_f64()
+    );
     println!("  Tokens processed: {}", stats.tokens_processed);
     if stats.truncated_inputs > 0 {
         println!("  Truncated inputs: {}", stats.truncated_inputs);
@@ -515,7 +544,9 @@ async fn run_hash_embed_fallback(
                 }
 
                 match storage.update_pattern(&updated).await {
-                    Ok(()) => { embedded_count += 1; }
+                    Ok(()) => {
+                        embedded_count += 1;
+                    }
                     Err(e) => {
                         error_count += 1;
                         if args.verbose {
@@ -539,7 +570,12 @@ async fn run_hash_embed_fallback(
             } else {
                 0.0
             };
-            print!("\r  Embedded {}/{} ({:.0}/s)", idx + 1, to_embed_count, rate);
+            print!(
+                "\r  Embedded {}/{} ({:.0}/s)",
+                idx + 1,
+                to_embed_count,
+                rate
+            );
         }
     }
     println!();
@@ -555,7 +591,10 @@ async fn run_hash_embed_fallback(
     println!("  Errors: {}", error_count);
     println!("  Duration: {:.1}s", elapsed.as_secs_f64());
     if elapsed.as_secs_f64() > 0.0 {
-        println!("  Rate: {:.0} patterns/s", embedded_count as f64 / elapsed.as_secs_f64());
+        println!(
+            "  Rate: {:.0} patterns/s",
+            embedded_count as f64 / elapsed.as_secs_f64()
+        );
     }
     println!("  Database: {}", args.db_path.display());
 

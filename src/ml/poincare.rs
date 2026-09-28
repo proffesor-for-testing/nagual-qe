@@ -654,7 +654,10 @@ mod tests {
         // Closer to boundary, lambda increases
         let near_boundary = Array1::from_vec(vec![0.9, 0.0]);
         let lambda_near = ball.conformal_factor(&near_boundary.view());
-        assert!(lambda_near > lambda, "Conformal factor should increase near boundary");
+        assert!(
+            lambda_near > lambda,
+            "Conformal factor should increase near boundary"
+        );
     }
 
     #[test]
@@ -763,7 +766,9 @@ mod tests {
         let x = Array1::from_vec(vec![0.1, 0.2, 0.0, 0.0]);
         let v = Array1::from_vec(vec![0.05, -0.03, 0.01, 0.0]);
 
-        let result = model.parallel_transport(&x.view(), &x.view(), &v.view()).unwrap();
+        let result = model
+            .parallel_transport(&x.view(), &x.view(), &v.view())
+            .unwrap();
 
         for (a, b) in v.iter().zip(result.iter()) {
             assert!(
@@ -781,7 +786,10 @@ mod tests {
         let result = model.midpoint(&[p.view()]).unwrap();
 
         for (a, b) in p.iter().zip(result.iter()) {
-            assert!((a - b).abs() < 1e-10, "Midpoint of single point should be itself");
+            assert!(
+                (a - b).abs() < 1e-10,
+                "Midpoint of single point should be itself"
+            );
         }
     }
 
@@ -870,10 +878,17 @@ mod tests {
         let query = Array1::from_vec(vec![0.85, 0.0]);
         let ancestors = knn.search_ancestors(&query.view(), 5);
 
-        assert_eq!(ancestors.len(), 2, "Should find root (0.1) and mid (0.5) as ancestors");
+        assert_eq!(
+            ancestors.len(),
+            2,
+            "Should find root (0.1) and mid (0.5) as ancestors"
+        );
         // Check that they are sorted by distance
         for i in 1..ancestors.len() {
-            assert!(ancestors[i - 1].1 <= ancestors[i].1, "Should be sorted by distance");
+            assert!(
+                ancestors[i - 1].1 <= ancestors[i].1,
+                "Should be sorted by distance"
+            );
         }
     }
 

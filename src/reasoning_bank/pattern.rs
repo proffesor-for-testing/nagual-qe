@@ -163,7 +163,9 @@ impl From<&str> for FailureMode {
     fn from(s: &str) -> Self {
         match s.to_lowercase().replace('-', "_").as_str() {
             "specification_issue" | "specification" | "spec" => FailureMode::SpecificationIssue,
-            "inter_agent_misalignment" | "misalignment" | "coordination" => FailureMode::InterAgentMisalignment,
+            "inter_agent_misalignment" | "misalignment" | "coordination" => {
+                FailureMode::InterAgentMisalignment
+            }
             "task_verification" | "verification" | "output" => FailureMode::TaskVerification,
             "resource_issue" | "resource" | "timeout" | "oom" => FailureMode::ResourceIssue,
             "security_issue" | "security" | "vulnerability" | "leak" => FailureMode::SecurityIssue,
@@ -191,7 +193,10 @@ pub struct BetaParams {
 impl BetaParams {
     /// Create with uniform prior Beta(1, 1).
     pub fn new() -> Self {
-        Self { alpha: 1.0, beta: 1.0 }
+        Self {
+            alpha: 1.0,
+            beta: 1.0,
+        }
     }
 
     /// Create from explicit alpha/beta.
@@ -626,10 +631,7 @@ impl Pattern {
 
     /// Create a new pattern with required fields.
     pub fn new(problem: impl Into<String>, solution: impl Into<String>) -> Self {
-        Self::builder()
-            .problem(problem)
-            .solution(solution)
-            .build()
+        Self::builder().problem(problem).solution(solution).build()
     }
 
     // Getters
@@ -1363,9 +1365,15 @@ mod tests {
 
     #[test]
     fn test_pattern_category_from_str() {
-        assert_eq!(PatternCategory::from("architecture"), PatternCategory::Architecture);
+        assert_eq!(
+            PatternCategory::from("architecture"),
+            PatternCategory::Architecture
+        );
         assert_eq!(PatternCategory::from("SECURITY"), PatternCategory::Security);
-        assert_eq!(PatternCategory::from("custom_domain"), PatternCategory::Custom("custom_domain".to_string()));
+        assert_eq!(
+            PatternCategory::from("custom_domain"),
+            PatternCategory::Custom("custom_domain".to_string())
+        );
     }
 
     #[test]
@@ -1449,8 +1457,8 @@ mod tests {
     fn test_pattern_clamp_values() {
         let pattern = Pattern::builder()
             .effectiveness(1.5) // Should clamp to 1.0
-            .confidence(-0.5)   // Should clamp to 0.0
-            .reward(2.0)        // Should clamp to 1.0
+            .confidence(-0.5) // Should clamp to 0.0
+            .reward(2.0) // Should clamp to 1.0
             .build();
 
         assert!((pattern.effectiveness() - 1.0).abs() < 0.001);
@@ -1520,13 +1528,18 @@ mod tests {
     #[test]
     fn test_generate_title() {
         let pattern = Pattern::builder()
-            .problem("How to implement a rate limiter for API endpoints using token bucket algorithm")
+            .problem(
+                "How to implement a rate limiter for API endpoints using token bucket algorithm",
+            )
             .solution("Use a token bucket implementation")
             .build();
 
         // Should take first 10 words: "How to implement a rate limiter for API endpoints using"
         let generated = pattern.generate_title();
-        assert_eq!(generated, "How to implement a rate limiter for API endpoints using");
+        assert_eq!(
+            generated,
+            "How to implement a rate limiter for API endpoints using"
+        );
 
         // Pattern without explicit title
         assert!(pattern.title().is_none());

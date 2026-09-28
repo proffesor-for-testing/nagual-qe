@@ -37,10 +37,10 @@ fn check_onnx_environment() {
     if std::env::var("ORT_DYLIB_PATH").is_err() {
         // Check common locations
         let common_paths = [
-            "/opt/homebrew/lib/libonnxruntime.dylib",  // macOS ARM
-            "/usr/local/lib/libonnxruntime.dylib",     // macOS Intel
-            "/usr/lib/libonnxruntime.so",              // Linux
-            "/usr/local/lib/libonnxruntime.so",        // Linux alt
+            "/opt/homebrew/lib/libonnxruntime.dylib", // macOS ARM
+            "/usr/local/lib/libonnxruntime.dylib",    // macOS Intel
+            "/usr/lib/libonnxruntime.so",             // Linux
+            "/usr/local/lib/libonnxruntime.so",       // Linux alt
         ];
 
         for path in common_paths {
@@ -90,10 +90,7 @@ async fn async_main(cli: Cli) -> Result<()> {
     // (previously the hard-coded `nagual=info` directive won over RUST_LOG=error).
     tracing_subscriber::registry()
         .with(fmt::layer().json().with_writer(std::io::stderr))
-        .with(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("nagual=info")),
-        )
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("nagual=info")))
         .init();
 
     match cli.command {

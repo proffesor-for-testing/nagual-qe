@@ -11,10 +11,10 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info, instrument, trace};
 
 use crate::drift::DriftMonitor;
+use crate::error::{NagualError, Result};
 use crate::learning::strange_loop::{MetaCognitiveReport, MetaCognitiveTracker};
 use crate::reasoning_bank::pattern::{FailureMode, Pattern, PatternId};
 use crate::reasoning_bank::storage::PatternStorage;
-use crate::error::{NagualError, Result};
 
 /// Resolve the SQLite database path for persisting learning data.
 ///
@@ -95,7 +95,11 @@ pub fn get_meta_cognitive_status() -> Option<MetaCognitiveReport> {
 /// Returns `(avg_quality, health_rate, evaluation_count)`.
 pub fn get_meta_cognitive_stats() -> (f64, f64, usize) {
     let tracker = global_meta_tracker().lock();
-    (tracker.avg_quality(), tracker.health_rate(), tracker.count())
+    (
+        tracker.avg_quality(),
+        tracker.health_rate(),
+        tracker.count(),
+    )
 }
 
 /// Outcome of a pattern application.
@@ -297,9 +301,7 @@ impl RewardModifiers {
 pub fn calculate_reward(outcome: Outcome, modifiers: Option<RewardModifiers>) -> f32 {
     let base = outcome.base_reward();
 
-    let modifier = modifiers
-        .map(|m| m.combined_modifier())
-        .unwrap_or(1.0);
+    let modifier = modifiers.map(|m| m.combined_modifier()).unwrap_or(1.0);
 
     // Apply modifier but keep reward in valid range
     (base * modifier).clamp(0.0, 1.0)
@@ -726,13 +728,13 @@ impl SonaLearner {
         );
 
         // Get the pattern
-        let pattern = self
-            .storage
-            .get_pattern(pattern_id)
-            .await?
-            .ok_or_else(|| NagualError::Internal {
-                message: format!("Pattern not found: {}", pattern_id),
-            })?;
+        let pattern =
+            self.storage
+                .get_pattern(pattern_id)
+                .await?
+                .ok_or_else(|| NagualError::Internal {
+                    message: format!("Pattern not found: {}", pattern_id),
+                })?;
 
         // Record embedding in the drift monitor so we can detect domain drift.
         if let Some(embedding) = pattern.embedding() {
@@ -981,19 +983,31 @@ mod tests {
         assert!(approx(reward_step(Outcome::PartialSuccess, None), 0.05));
         assert!(approx(reward_step(Outcome::Neutral, None), 0.0));
         assert!(approx(reward_step(Outcome::Failure, None), -0.15));
-        assert!(approx(reward_step(Outcome::Failure, Some(FailureMode::TaskVerification)), -0.15));
-        assert!(approx(reward_step(Outcome::Failure, Some(FailureMode::SecurityIssue)), -0.30));
+        assert!(approx(
+            reward_step(Outcome::Failure, Some(FailureMode::TaskVerification)),
+            -0.15
+        ));
+        assert!(approx(
+            reward_step(Outcome::Failure, Some(FailureMode::SecurityIssue)),
+            -0.30
+        ));
         // A failure must cost more than a success earns.
         assert!(reward_step(Outcome::Failure, None).abs() > reward_step(Outcome::Success, None));
         // A failure mode on a non-failure outcome changes nothing.
-        assert!(approx(reward_step(Outcome::Success, Some(FailureMode::SecurityIssue)), 0.10));
+        assert!(approx(
+            reward_step(Outcome::Success, Some(FailureMode::SecurityIssue)),
+            0.10
+        ));
     }
 
     #[test]
     fn test_apply_reward_step_clamps() {
         assert!(approx(apply_reward_step(0.95, Outcome::Success, None), 1.0));
         assert!(approx(apply_reward_step(0.10, Outcome::Failure, None), 0.0));
-        assert!(approx(apply_reward_step(0.20, Outcome::Failure, Some(FailureMode::SecurityIssue)), 0.0));
+        assert!(approx(
+            apply_reward_step(0.20, Outcome::Failure, Some(FailureMode::SecurityIssue)),
+            0.0
+        ));
     }
 
     async fn learner_with_pattern() -> (tempfile::TempDir, SonaLearner, PatternId) {
@@ -1008,7 +1022,13 @@ mod tests {
     }
 
     async fn reward_of(learner: &SonaLearner, id: &PatternId) -> f32 {
-        learner.storage().get_pattern(id).await.unwrap().unwrap().reward()
+        learner
+            .storage()
+            .get_pattern(id)
+            .await
+            .unwrap()
+            .unwrap()
+            .reward()
     }
 
     #[tokio::test]
@@ -1016,11 +1036,23 @@ mod tests {
         let (_dir, learner, id) = learner_with_pattern().await;
         assert!(approx(reward_of(&learner, &id).await, 0.5));
 
-        learner.record_outcome(&id, Outcome::Failure, None).await.unwrap();
-        assert!(approx(reward_of(&learner, &id).await, 0.35), "one failure: 0.50 -> 0.35");
+        learner
+            .record_outcome(&id, Outcome::Failure, None)
+            .await
+            .unwrap();
+        assert!(
+            approx(reward_of(&learner, &id).await, 0.35),
+            "one failure: 0.50 -> 0.35"
+        );
 
-        learner.record_outcome(&id, Outcome::Success, None).await.unwrap();
-        assert!(approx(reward_of(&learner, &id).await, 0.45), "then one success: 0.35 -> 0.45");
+        learner
+            .record_outcome(&id, Outcome::Success, None)
+            .await
+            .unwrap();
+        assert!(
+            approx(reward_of(&learner, &id).await, 0.45),
+            "then one success: 0.35 -> 0.45"
+        );
     }
 
     #[tokio::test]
@@ -1028,12 +1060,21 @@ mod tests {
         let (_dir, learner, id) = learner_with_pattern().await;
 
         learner
-            .record_outcome_classified(&id, Outcome::Failure, None, Some(FailureMode::SecurityIssue))
+            .record_outcome_classified(
+                &id,
+                Outcome::Failure,
+                None,
+                Some(FailureMode::SecurityIssue),
+            )
             .await
             .unwrap();
 
         let p = learner.storage().get_pattern(&id).await.unwrap().unwrap();
-        assert!(approx(p.reward(), 0.20), "security failure: 0.50 -> 0.20, got {}", p.reward());
+        assert!(
+            approx(p.reward(), 0.20),
+            "security failure: 0.50 -> 0.20, got {}",
+            p.reward()
+        );
         assert_eq!(p.failure_mode(), Some(&FailureMode::SecurityIssue));
     }
 

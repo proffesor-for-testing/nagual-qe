@@ -93,9 +93,9 @@ impl PiiGateResult {
     pub fn classification(&self) -> PiiClassification {
         match self {
             PiiGateResult::Allowed { classification, .. } => *classification,
-            PiiGateResult::Redacted { redaction_result, .. } => {
-                redaction_result.highest_classification
-            }
+            PiiGateResult::Redacted {
+                redaction_result, ..
+            } => redaction_result.highest_classification,
             PiiGateResult::Warned { classification, .. } => *classification,
             PiiGateResult::Rejected { classification, .. } => *classification,
         }
@@ -105,7 +105,9 @@ impl PiiGateResult {
     pub fn had_pii(&self) -> bool {
         match self {
             PiiGateResult::Allowed { had_pii, .. } => *had_pii,
-            PiiGateResult::Redacted { redaction_result, .. } => redaction_result.was_redacted(),
+            PiiGateResult::Redacted {
+                redaction_result, ..
+            } => redaction_result.was_redacted(),
             PiiGateResult::Warned { matches, .. } => !matches.is_empty(),
             PiiGateResult::Rejected { matches, .. } => !matches.is_empty(),
         }
@@ -308,7 +310,10 @@ mod tests {
         assert!(result.is_accepted());
         assert!(result.had_pii());
 
-        if let PiiGateResult::Warned { content, matches, .. } = result {
+        if let PiiGateResult::Warned {
+            content, matches, ..
+        } = result
+        {
             assert!(content.contains("456-78-9012")); // Not redacted
             assert!(!matches.is_empty());
         } else {

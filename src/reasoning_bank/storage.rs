@@ -11,10 +11,12 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tracing::{debug, info, warn};
 
-use crate::db::fts::{fts_search, FtsSearchOptions, PatternFts};
 use crate::coherence::{CoherenceAction, CoherenceGate, StoreWithCoherenceResult};
+use crate::db::fts::{fts_search, FtsSearchOptions, PatternFts};
 
-use super::pattern::{BetaParams, FailureMode, Pattern, PatternCategory, PatternId, PatternMetadata};
+use super::pattern::{
+    BetaParams, FailureMode, Pattern, PatternCategory, PatternId, PatternMetadata,
+};
 use crate::db::{DualWritable, DualWriteAdapter};
 use crate::error::{DatabaseError, NagualError, Result};
 
@@ -163,7 +165,8 @@ impl DualWritable for StorablePattern {
             .embedding()
             .map(|e| serde_json::to_string(e).unwrap_or_default());
 
-        let tags_json = serde_json::to_string(self.pattern.tags()).unwrap_or_else(|_| "[]".to_string());
+        let tags_json =
+            serde_json::to_string(self.pattern.tags()).unwrap_or_else(|_| "[]".to_string());
 
         let related_json = serde_json::to_string(self.pattern.related_patterns())
             .unwrap_or_else(|_| "[]".to_string());
@@ -221,7 +224,8 @@ impl DualWritable for StorablePattern {
             .embedding()
             .map(|e| serde_json::to_string(e).unwrap_or_default());
 
-        let tags_json = serde_json::to_string(self.pattern.tags()).unwrap_or_else(|_| "[]".to_string());
+        let tags_json =
+            serde_json::to_string(self.pattern.tags()).unwrap_or_else(|_| "[]".to_string());
 
         let related_json = serde_json::to_string(self.pattern.related_patterns())
             .unwrap_or_else(|_| "[]".to_string());
@@ -525,7 +529,10 @@ impl PatternStorage {
             CREATE INDEX IF NOT EXISTS idx_patterns_session_id ON reasoning_patterns(session_id);
         "#;
 
-        self.adapter.sqlite().execute_batch(create_table_sql).await?;
+        self.adapter
+            .sqlite()
+            .execute_batch(create_table_sql)
+            .await?;
 
         // Migrate: add new columns if they don't exist (safe to run multiple times)
         let migrate_sql = r#"
@@ -676,12 +683,14 @@ impl PatternStorage {
         let id = pattern.id().to_string();
 
         // Check coherence and get extracted beliefs
-        let (coherence, beliefs) = gate.check_with_beliefs(
-            &id,
-            pattern.problem(),
-            pattern.solution(),
-            &pattern.category().to_string(),
-        ).await?;
+        let (coherence, beliefs) = gate
+            .check_with_beliefs(
+                &id,
+                pattern.problem(),
+                pattern.solution(),
+                &pattern.category().to_string(),
+            )
+            .await?;
 
         info!(
             pattern_id = %id,
@@ -780,12 +789,14 @@ impl PatternStorage {
         let id = pattern.id().to_string();
 
         // Check coherence but don't enforce - also get beliefs for persistence
-        let (coherence, beliefs) = gate.check_with_beliefs(
-            &id,
-            pattern.problem(),
-            pattern.solution(),
-            &pattern.category().to_string(),
-        ).await?;
+        let (coherence, beliefs) = gate
+            .check_with_beliefs(
+                &id,
+                pattern.problem(),
+                pattern.solution(),
+                &pattern.category().to_string(),
+            )
+            .await?;
 
         // Always store the pattern
         self.store_pattern(pattern).await?;
@@ -801,7 +812,9 @@ impl PatternStorage {
             );
             Ok(StoreWithCoherenceResult::Stored { pattern_id: id })
         } else {
-            let warnings: Vec<String> = coherence.conflicts.iter()
+            let warnings: Vec<String> = coherence
+                .conflicts
+                .iter()
                 .map(|c| c.description.clone())
                 .collect();
 
@@ -883,7 +896,9 @@ impl PatternStorage {
             .adapter
             .sqlite()
             .with_connection(|conn| {
-                let mut stmt = conn.prepare(sql).map_err(crate::error::DatabaseError::from)?;
+                let mut stmt = conn
+                    .prepare(sql)
+                    .map_err(crate::error::DatabaseError::from)?;
                 let mut rows = stmt
                     .query(rusqlite::params![id_str])
                     .map_err(crate::error::DatabaseError::from)?;
@@ -980,9 +995,7 @@ impl PatternStorage {
         let patterns = self
             .adapter
             .sqlite()
-            .query(sql, &[&limit_i64], |row| {
-                Self::pattern_from_row(row)
-            })
+            .query(sql, &[&limit_i64], |row| Self::pattern_from_row(row))
             .await?;
 
         Ok(patterns)
@@ -1001,9 +1014,7 @@ impl PatternStorage {
         let patterns = self
             .adapter
             .sqlite()
-            .query(sql, &[&limit_i64], |row| {
-                Self::pattern_from_row(row)
-            })
+            .query(sql, &[&limit_i64], |row| Self::pattern_from_row(row))
             .await?;
 
         Ok(patterns)
@@ -1019,9 +1030,7 @@ impl PatternStorage {
         let patterns = self
             .adapter
             .sqlite()
-            .query(sql, &[], |row| {
-                Self::pattern_from_row(row)
-            })
+            .query(sql, &[], |row| Self::pattern_from_row(row))
             .await?;
 
         Ok(patterns)
@@ -1051,7 +1060,11 @@ impl PatternStorage {
             with_snippets: false,
             snippet_tokens: 10,
             snippet_markers: ("<mark>".to_string(), "</mark>".to_string()),
-            search_columns: vec!["problem".to_string(), "solution".to_string(), "category".to_string()],
+            search_columns: vec![
+                "problem".to_string(),
+                "solution".to_string(),
+                "category".to_string(),
+            ],
             min_rank: None,
         };
 
@@ -1078,29 +1091,33 @@ impl PatternStorage {
                     let pattern_fts = PatternFts::with_config(
                         crate::db::fts::Fts5Config::new(
                             content_table,
-                            vec!["problem".to_string(), "solution".to_string(), "category".to_string()],
+                            vec![
+                                "problem".to_string(),
+                                "solution".to_string(),
+                                "category".to_string(),
+                            ],
                         )
                         .with_fts_table(fts_table)
                         .with_content_rowid("rowid"),
                     );
                     pattern_fts.create_fts_table(conn).map_err(|e| {
-                        DatabaseError::Sqlite(rusqlite::Error::ToSqlConversionFailure(
-                            Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
-                        ))
+                        DatabaseError::Sqlite(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                            std::io::Error::new(std::io::ErrorKind::Other, e.to_string()),
+                        )))
                     })?;
                     // Rebuild to index existing data
                     pattern_fts.rebuild_index(conn).map_err(|e| {
-                        DatabaseError::Sqlite(rusqlite::Error::ToSqlConversionFailure(
-                            Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
-                        ))
+                        DatabaseError::Sqlite(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                            std::io::Error::new(std::io::ErrorKind::Other, e.to_string()),
+                        )))
                     })?;
                 }
 
                 // Call fts_search and convert error
                 fts_search(conn, fts_table, &query_owned, &options).map_err(|e| {
-                    DatabaseError::Sqlite(rusqlite::Error::ToSqlConversionFailure(
-                        Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
-                    ))
+                    DatabaseError::Sqlite(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                        std::io::Error::new(std::io::ErrorKind::Other, e.to_string()),
+                    )))
                 })
             })
             .await?;
@@ -1134,11 +1151,12 @@ impl PatternStorage {
                 let mut stmt = conn.prepare(&sql).map_err(DatabaseError::from)?;
 
                 // Create params for the query
-                let params: Vec<&dyn rusqlite::ToSql> = rowids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+                let params: Vec<&dyn rusqlite::ToSql> =
+                    rowids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
 
                 let pattern_iter = stmt
                     .query_map(params.as_slice(), |row| {
-                        let rowid: i64 = row.get(0)?;  // First column is rowid
+                        let rowid: i64 = row.get(0)?; // First column is rowid
                         let pattern = Self::pattern_from_row_with_offset(row, 1)?;
                         Ok((rowid, pattern))
                     })
@@ -1157,7 +1175,9 @@ impl PatternStorage {
         sorted.sort_by(|a, b| {
             let rank_a = rank_map.get(&a.0).unwrap_or(&f64::MAX);
             let rank_b = rank_map.get(&b.0).unwrap_or(&f64::MAX);
-            rank_a.partial_cmp(rank_b).unwrap_or(std::cmp::Ordering::Equal)
+            rank_a
+                .partial_cmp(rank_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         let patterns: Vec<Pattern> = sorted.into_iter().map(|(_, p)| p).collect();
@@ -1173,7 +1193,10 @@ impl PatternStorage {
 
     /// Convert a database row to a Pattern with column offset.
     /// Used when the query includes additional columns before the pattern data.
-    fn pattern_from_row_with_offset(row: &rusqlite::Row<'_>, _offset: usize) -> rusqlite::Result<Pattern> {
+    fn pattern_from_row_with_offset(
+        row: &rusqlite::Row<'_>,
+        _offset: usize,
+    ) -> rusqlite::Result<Pattern> {
         // Use named columns to avoid offset issues
         Self::pattern_from_row(row)
     }
@@ -1205,22 +1228,35 @@ impl PatternStorage {
         let reuse_count: i32 = row.get("reuse_count")?;
         let reward: f64 = row.get("reward")?;
         let success: bool = row.get::<_, i32>("success")? != 0;
-        let critique: String = row.get::<_, Option<String>>("critique")?.unwrap_or_default();
+        let critique: String = row
+            .get::<_, Option<String>>("critique")?
+            .unwrap_or_default();
         let agent_id: Option<String> = row.get("agent_id")?;
         let session_id: Option<String> = row.get("session_id")?;
         let confidence: f64 = row.get("confidence")?;
         let embedding_json: Option<String> = row.get("embedding")?;
-        let tags_json: String = row.get::<_, Option<String>>("tags")?.unwrap_or_else(|| "[]".to_string());
-        let related_json: String = row.get::<_, Option<String>>("related_patterns")?.unwrap_or_else(|| "[]".to_string());
-        let metadata_json: String = row.get::<_, Option<String>>("metadata")?.unwrap_or_else(|| "{}".to_string());
+        let tags_json: String = row
+            .get::<_, Option<String>>("tags")?
+            .unwrap_or_else(|| "[]".to_string());
+        let related_json: String = row
+            .get::<_, Option<String>>("related_patterns")?
+            .unwrap_or_else(|| "[]".to_string());
+        let metadata_json: String = row
+            .get::<_, Option<String>>("metadata")?
+            .unwrap_or_else(|| "{}".to_string());
 
         // New columns (safe to fail if migration hasn't run yet)
         let surprise_score: f64 = row.get::<_, Option<f64>>("surprise_score")?.unwrap_or(0.0);
         let failure_mode_str: Option<String> = row.get::<_, Option<String>>("failure_mode")?;
-        let chunk_embeddings_json: Option<String> = row.get::<_, Option<String>>("chunk_embeddings")?;
+        let chunk_embeddings_json: Option<String> =
+            row.get::<_, Option<String>>("chunk_embeddings")?;
         // Software Factory enhancements (Week 1 WS-A)
-        let satisfaction_score: f64 = row.get::<_, Option<f64>>("satisfaction_score")?.unwrap_or(0.5);
-        let satisfaction_trials: i32 = row.get::<_, Option<i32>>("satisfaction_trials")?.unwrap_or(0);
+        let satisfaction_score: f64 = row
+            .get::<_, Option<f64>>("satisfaction_score")?
+            .unwrap_or(0.5);
+        let satisfaction_trials: i32 = row
+            .get::<_, Option<i32>>("satisfaction_trials")?
+            .unwrap_or(0);
         let content_hash: Option<String> = row.get::<_, Option<String>>("content_hash")?;
         // Pyramid summary fields (Week 1 WS-C)
         let title: Option<String> = row.get::<_, Option<String>>("title")?;
@@ -1229,7 +1265,9 @@ impl PatternStorage {
         let quality_alpha: f64 = row.get::<_, Option<f64>>("quality_alpha")?.unwrap_or(1.0);
         let quality_beta: f64 = row.get::<_, Option<f64>>("quality_beta")?.unwrap_or(1.0);
         // Embedding method (hash or onnx)
-        let embedding_method: Option<String> = row.get::<_, Option<String>>("embedding_method").unwrap_or(None);
+        let embedding_method: Option<String> = row
+            .get::<_, Option<String>>("embedding_method")
+            .unwrap_or(None);
 
         // Parse timestamps
         let timestamp = DateTime::parse_from_rfc3339(&timestamp_str)
@@ -1241,21 +1279,23 @@ impl PatternStorage {
             .unwrap_or_else(|_| Utc::now());
 
         // Parse embedding
-        let embedding: Option<Vec<f32>> = embedding_json
-            .and_then(|json| serde_json::from_str(&json).ok());
+        let embedding: Option<Vec<f32>> =
+            embedding_json.and_then(|json| serde_json::from_str(&json).ok());
 
         // Parse chunk embeddings
-        let chunk_embeddings: Option<Vec<Vec<f32>>> = chunk_embeddings_json
-            .and_then(|json| serde_json::from_str(&json).ok());
+        let chunk_embeddings: Option<Vec<Vec<f32>>> =
+            chunk_embeddings_json.and_then(|json| serde_json::from_str(&json).ok());
 
         // Parse failure mode
-        let failure_mode: Option<FailureMode> = failure_mode_str.map(|s| FailureMode::from(s.as_str()));
+        let failure_mode: Option<FailureMode> =
+            failure_mode_str.map(|s| FailureMode::from(s.as_str()));
 
         // Parse tags
         let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
 
         // Parse related patterns
-        let related_patterns: Vec<PatternId> = serde_json::from_str(&related_json).unwrap_or_default();
+        let related_patterns: Vec<PatternId> =
+            serde_json::from_str(&related_json).unwrap_or_default();
 
         // Parse metadata
         let metadata: PatternMetadata = serde_json::from_str(&metadata_json).unwrap_or_default();
@@ -1438,8 +1478,10 @@ impl PatternStorage {
         );
 
         let tier_strings: Vec<String> = tiers.iter().map(|t| t.to_string()).collect();
-        let params: Vec<&dyn rusqlite::types::ToSql> =
-            tier_strings.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect();
+        let params: Vec<&dyn rusqlite::types::ToSql> = tier_strings
+            .iter()
+            .map(|s| s as &dyn rusqlite::types::ToSql)
+            .collect();
 
         self.adapter
             .sqlite()
@@ -1477,7 +1519,9 @@ mod tests {
     #[tokio::test]
     async fn test_storage_new() {
         let adapter = Arc::new(DualWriteAdapter::new_for_testing().unwrap());
-        let storage = PatternStorage::new(adapter, StorageConfig::default()).await.unwrap();
+        let storage = PatternStorage::new(adapter, StorageConfig::default())
+            .await
+            .unwrap();
 
         assert_eq!(storage.config().embedding_dim, 128);
     }
@@ -1485,7 +1529,9 @@ mod tests {
     #[tokio::test]
     async fn test_store_and_retrieve_pattern() {
         let adapter = Arc::new(DualWriteAdapter::new_for_testing().unwrap());
-        let storage = PatternStorage::new(adapter, StorageConfig::default()).await.unwrap();
+        let storage = PatternStorage::new(adapter, StorageConfig::default())
+            .await
+            .unwrap();
 
         let pattern = Pattern::builder()
             .problem("How to cache data efficiently")
@@ -1510,7 +1556,9 @@ mod tests {
     #[tokio::test]
     async fn test_validation_empty_problem() {
         let adapter = Arc::new(DualWriteAdapter::new_for_testing().unwrap());
-        let storage = PatternStorage::new(adapter, StorageConfig::default()).await.unwrap();
+        let storage = PatternStorage::new(adapter, StorageConfig::default())
+            .await
+            .unwrap();
 
         let pattern = Pattern::builder()
             .problem("")
@@ -1524,7 +1572,9 @@ mod tests {
     #[tokio::test]
     async fn test_validation_wrong_embedding_dim() {
         let adapter = Arc::new(DualWriteAdapter::new_for_testing().unwrap());
-        let storage = PatternStorage::new(adapter, StorageConfig::default()).await.unwrap();
+        let storage = PatternStorage::new(adapter, StorageConfig::default())
+            .await
+            .unwrap();
 
         let pattern = Pattern::builder()
             .problem("Test")
@@ -1539,7 +1589,9 @@ mod tests {
     #[tokio::test]
     async fn test_get_by_category() {
         let adapter = Arc::new(DualWriteAdapter::new_for_testing().unwrap());
-        let storage = PatternStorage::new(adapter, StorageConfig::default()).await.unwrap();
+        let storage = PatternStorage::new(adapter, StorageConfig::default())
+            .await
+            .unwrap();
 
         // Store patterns in different categories
         let perf_pattern = Pattern::builder()
@@ -1558,7 +1610,10 @@ mod tests {
         storage.store_pattern(&sec_pattern).await.unwrap();
 
         // Query by category
-        let perf_patterns = storage.get_by_category(&PatternCategory::Performance, 10).await.unwrap();
+        let perf_patterns = storage
+            .get_by_category(&PatternCategory::Performance, 10)
+            .await
+            .unwrap();
         assert_eq!(perf_patterns.len(), 1);
         assert_eq!(perf_patterns[0].problem(), "Slow queries");
     }
@@ -1566,7 +1621,9 @@ mod tests {
     #[tokio::test]
     async fn test_increment_reuse_count() {
         let adapter = Arc::new(DualWriteAdapter::new_for_testing().unwrap());
-        let storage = PatternStorage::new(adapter, StorageConfig::default()).await.unwrap();
+        let storage = PatternStorage::new(adapter, StorageConfig::default())
+            .await
+            .unwrap();
 
         let pattern = Pattern::builder()
             .problem("Test")
@@ -1587,12 +1644,20 @@ mod tests {
     #[tokio::test]
     async fn test_count_patterns() {
         let adapter = Arc::new(DualWriteAdapter::new_for_testing().unwrap());
-        let storage = PatternStorage::new(adapter, StorageConfig::default()).await.unwrap();
+        let storage = PatternStorage::new(adapter, StorageConfig::default())
+            .await
+            .unwrap();
 
         assert_eq!(storage.count().await.unwrap(), 0);
 
-        storage.store_pattern(&Pattern::new("P1", "S1")).await.unwrap();
-        storage.store_pattern(&Pattern::new("P2", "S2")).await.unwrap();
+        storage
+            .store_pattern(&Pattern::new("P1", "S1"))
+            .await
+            .unwrap();
+        storage
+            .store_pattern(&Pattern::new("P2", "S2"))
+            .await
+            .unwrap();
 
         assert_eq!(storage.count().await.unwrap(), 2);
     }

@@ -41,7 +41,11 @@ impl CoherenceGate {
 
     /// Create with an embedder for semantic similarity
     #[cfg(feature = "onnx-embed")]
-    pub fn with_embedder(db: Arc<SqliteDb>, config: CoherenceConfig, embedder: Arc<Embedder>) -> Self {
+    pub fn with_embedder(
+        db: Arc<SqliteDb>,
+        config: CoherenceConfig,
+        embedder: Arc<Embedder>,
+    ) -> Self {
         Self {
             db,
             config,
@@ -88,8 +92,14 @@ impl CoherenceGate {
         // Model and tokenizer path pairs to try
         let paths = [
             ("models/all-MiniLM-L6-v2.onnx", "models/tokenizer.json"),
-            ("../models/all-MiniLM-L6-v2.onnx", "../models/tokenizer.json"),
-            ("nagual-rs/models/all-MiniLM-L6-v2.onnx", "nagual-rs/models/tokenizer.json"),
+            (
+                "../models/all-MiniLM-L6-v2.onnx",
+                "../models/tokenizer.json",
+            ),
+            (
+                "nagual-rs/models/all-MiniLM-L6-v2.onnx",
+                "nagual-rs/models/tokenizer.json",
+            ),
         ];
 
         for (model_path, tokenizer_path) in &paths {
@@ -143,9 +153,13 @@ impl CoherenceGate {
     /// Check if embedder is available
     pub fn has_embedder(&self) -> bool {
         #[cfg(feature = "onnx-embed")]
-        { self.embedder.is_some() }
+        {
+            self.embedder.is_some()
+        }
         #[cfg(not(feature = "onnx-embed"))]
-        { false }
+        {
+            false
+        }
     }
 
     /// Get the current configuration
@@ -169,7 +183,8 @@ impl CoherenceGate {
             )
             "#,
             &[],
-        ).await?;
+        )
+        .await?;
 
         // Beliefs table (no foreign key to allow independent operation)
         db.execute(
@@ -185,19 +200,24 @@ impl CoherenceGate {
             )
             "#,
             &[],
-        ).await?;
+        )
+        .await?;
 
         // Create index on pattern_id for efficient lookups
-        let _ = db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_beliefs_pattern_id ON beliefs(pattern_id)",
-            &[],
-        ).await;
+        let _ = db
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_beliefs_pattern_id ON beliefs(pattern_id)",
+                &[],
+            )
+            .await;
 
         // Create index on domain for efficient filtering
-        let _ = db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_beliefs_domain ON beliefs(domain)",
-            &[],
-        ).await;
+        let _ = db
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_beliefs_domain ON beliefs(domain)",
+                &[],
+            )
+            .await;
 
         // Belief edges table (no foreign keys to allow independent operation)
         db.execute(
@@ -213,18 +233,23 @@ impl CoherenceGate {
             )
             "#,
             &[],
-        ).await?;
+        )
+        .await?;
 
         // Create index on belief edges
-        let _ = db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_belief_edges_from ON belief_edges(from_belief_id)",
-            &[],
-        ).await;
+        let _ = db
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_belief_edges_from ON belief_edges(from_belief_id)",
+                &[],
+            )
+            .await;
 
-        let _ = db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_belief_edges_to ON belief_edges(to_belief_id)",
-            &[],
-        ).await;
+        let _ = db
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_belief_edges_to ON belief_edges(to_belief_id)",
+                &[],
+            )
+            .await;
 
         debug!("Coherence schema initialized");
         Ok(())
@@ -233,9 +258,9 @@ impl CoherenceGate {
     /// Load configuration from database
     async fn load_config(db: &SqliteDb) -> Result<Option<CoherenceConfig>, NagualError> {
         let sql = "SELECT key, value FROM coherence_config";
-        let rows: Vec<(String, String)> = db.query(sql, &[], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        }).await?;
+        let rows: Vec<(String, String)> = db
+            .query(sql, &[], |row| Ok((row.get(0)?, row.get(1)?)))
+            .await?;
 
         if rows.is_empty() {
             return Ok(None);
@@ -279,18 +304,18 @@ impl CoherenceGate {
             FROM beliefs
         "#;
 
-        let beliefs: Vec<(String, String, String, String, f64, Option<String>)> = db.query(
-            beliefs_sql,
-            &[],
-            |row| Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-                row.get(4)?,
-                row.get(5)?,
-            )),
-        ).await?;
+        let beliefs: Vec<(String, String, String, String, f64, Option<String>)> = db
+            .query(beliefs_sql, &[], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            })
+            .await?;
 
         for (id, pattern_id, statement, domain, confidence, embedding_json) in beliefs {
             let belief = Belief {
@@ -317,16 +342,11 @@ impl CoherenceGate {
             FROM belief_edges
         "#;
 
-        let edges: Vec<(String, String, String, f64)> = db.query(
-            edges_sql,
-            &[],
-            |row| Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-            )),
-        ).await?;
+        let edges: Vec<(String, String, String, f64)> = db
+            .query(edges_sql, &[], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .await?;
 
         for (from_id, to_id, relation_str, weight) in edges {
             let relation = match relation_str.as_str() {
@@ -345,7 +365,11 @@ impl CoherenceGate {
             });
         }
 
-        debug!("Loaded belief graph: {} beliefs, {} edges", graph.beliefs.len(), graph.edges.len());
+        debug!(
+            "Loaded belief graph: {} beliefs, {} edges",
+            graph.beliefs.len(),
+            graph.edges.len()
+        );
         Ok(graph)
     }
 
@@ -355,16 +379,21 @@ impl CoherenceGate {
 
         let config_items = [
             ("energy_threshold", self.config.energy_threshold.to_string()),
-            ("similarity_threshold", self.config.similarity_threshold.to_string()),
+            (
+                "similarity_threshold",
+                self.config.similarity_threshold.to_string(),
+            ),
             ("max_conflicts", self.config.max_conflicts.to_string()),
             ("check_enabled", self.config.check_enabled.to_string()),
         ];
 
         for (key, value) in &config_items {
-            self.db.execute(
-                "INSERT OR REPLACE INTO coherence_config (key, value) VALUES (?, ?)",
-                &[key, value],
-            ).await?;
+            self.db
+                .execute(
+                    "INSERT OR REPLACE INTO coherence_config (key, value) VALUES (?, ?)",
+                    &[key, value],
+                )
+                .await?;
         }
 
         info!("Coherence configuration saved to database");
@@ -372,7 +401,10 @@ impl CoherenceGate {
     }
 
     /// Update configuration and persist it
-    pub async fn update_config(&mut self, updates: CoherenceConfigUpdate) -> Result<(), NagualError> {
+    pub async fn update_config(
+        &mut self,
+        updates: CoherenceConfigUpdate,
+    ) -> Result<(), NagualError> {
         if let Some(e) = updates.energy_threshold {
             self.config.energy_threshold = e.clamp(0.0, 1.0);
         }
@@ -390,7 +422,11 @@ impl CoherenceGate {
     }
 
     /// Store a belief in the database
-    pub async fn store_belief(&mut self, belief: &Belief, embedding: Option<&[f32]>) -> Result<(), NagualError> {
+    pub async fn store_belief(
+        &mut self,
+        belief: &Belief,
+        embedding: Option<&[f32]>,
+    ) -> Result<(), NagualError> {
         Self::init_schema(&self.db).await?;
 
         let embedding_json = embedding.map(|e| serde_json::to_string(e).unwrap_or_default());
@@ -413,7 +449,10 @@ impl CoherenceGate {
         // Add to in-memory graph
         self.belief_graph.add_belief(belief.clone());
 
-        debug!("Stored belief {} for pattern {}", belief.id, belief.pattern_id);
+        debug!(
+            "Stored belief {} for pattern {}",
+            belief.id, belief.pattern_id
+        );
         Ok(())
     }
 
@@ -423,46 +462,58 @@ impl CoherenceGate {
 
         let relation_str = edge.relation.to_string();
 
-        self.db.execute(
-            r#"
+        self.db
+            .execute(
+                r#"
             INSERT OR REPLACE INTO belief_edges (from_belief_id, to_belief_id, relation, weight)
             VALUES (?, ?, ?, ?)
             "#,
-            &[
-                &edge.from,
-                &edge.to,
-                &relation_str,
-                &edge.weight.to_string(),
-            ],
-        ).await?;
+                &[
+                    &edge.from,
+                    &edge.to,
+                    &relation_str,
+                    &edge.weight.to_string(),
+                ],
+            )
+            .await?;
 
         // Add to in-memory graph
         self.belief_graph.add_edge(edge.clone());
 
-        debug!("Stored edge: {} --[{}]--> {}", edge.from, relation_str, edge.to);
+        debug!(
+            "Stored edge: {} --[{}]--> {}",
+            edge.from, relation_str, edge.to
+        );
         Ok(())
     }
 
     /// Delete beliefs for a pattern
-    pub async fn delete_beliefs_for_pattern(&mut self, pattern_id: &str) -> Result<(), NagualError> {
+    pub async fn delete_beliefs_for_pattern(
+        &mut self,
+        pattern_id: &str,
+    ) -> Result<(), NagualError> {
         // Delete edges first (foreign key constraint)
-        self.db.execute(
-            r#"
+        self.db
+            .execute(
+                r#"
             DELETE FROM belief_edges
             WHERE from_belief_id IN (SELECT id FROM beliefs WHERE pattern_id = ?)
                OR to_belief_id IN (SELECT id FROM beliefs WHERE pattern_id = ?)
             "#,
-            &[&pattern_id, &pattern_id],
-        ).await?;
+                &[&pattern_id, &pattern_id],
+            )
+            .await?;
 
         // Delete beliefs
-        self.db.execute(
-            "DELETE FROM beliefs WHERE pattern_id = ?",
-            &[&pattern_id],
-        ).await?;
+        self.db
+            .execute("DELETE FROM beliefs WHERE pattern_id = ?", &[&pattern_id])
+            .await?;
 
         // Remove from in-memory graph
-        let belief_ids: Vec<String> = self.belief_graph.beliefs.values()
+        let belief_ids: Vec<String> = self
+            .belief_graph
+            .beliefs
+            .values()
             .filter(|b| b.pattern_id == pattern_id)
             .map(|b| b.id.clone())
             .collect();
@@ -470,7 +521,9 @@ impl CoherenceGate {
         for id in &belief_ids {
             self.belief_graph.beliefs.remove(id);
         }
-        self.belief_graph.edges.retain(|e| !belief_ids.contains(&e.from) && !belief_ids.contains(&e.to));
+        self.belief_graph
+            .edges
+            .retain(|e| !belief_ids.contains(&e.from) && !belief_ids.contains(&e.to));
 
         debug!("Deleted beliefs for pattern {}", pattern_id);
         Ok(())
@@ -480,15 +533,15 @@ impl CoherenceGate {
     fn generate_embedding(&self, text: &str) -> Option<Vec<f32>> {
         #[cfg(feature = "onnx-embed")]
         {
-            self.embedder.as_ref().and_then(|embedder| {
-                match embedder.embed(text) {
+            self.embedder
+                .as_ref()
+                .and_then(|embedder| match embedder.embed(text) {
                     Ok(result) => Some(result.embedding),
                     Err(e) => {
                         warn!("Failed to generate embedding: {}", e);
                         None
                     }
-                }
-            })
+                })
         }
         #[cfg(not(feature = "onnx-embed"))]
         {
@@ -516,12 +569,22 @@ impl CoherenceGate {
         domain: &str,
     ) -> Result<CoherenceResult, NagualError> {
         if !self.config.check_enabled {
-            return Ok(CoherenceResult::coherent(1.0, self.config.energy_threshold, 0));
+            return Ok(CoherenceResult::coherent(
+                1.0,
+                self.config.energy_threshold,
+                0,
+            ));
         }
 
-        info!("Checking coherence for new pattern in domain '{}' (embedder: {})",
-              domain,
-              if self.has_embedder() { "enabled" } else { "disabled" });
+        info!(
+            "Checking coherence for new pattern in domain '{}' (embedder: {})",
+            domain,
+            if self.has_embedder() {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        );
 
         // 1. Generate embedding for new content if embedder available
         let new_text = format!("{} {}", problem, solution);
@@ -533,18 +596,27 @@ impl CoherenceGate {
 
         // 3. Find potentially conflicting patterns
         let candidates = if new_embedding.is_some() {
-            self.find_similar_patterns_by_embedding(domain, problem, solution, new_embedding.as_deref()).await?
+            self.find_similar_patterns_by_embedding(
+                domain,
+                problem,
+                solution,
+                new_embedding.as_deref(),
+            )
+            .await?
         } else {
-            self.find_similar_patterns_by_keywords(domain, problem, solution).await?
+            self.find_similar_patterns_by_keywords(domain, problem, solution)
+                .await?
         };
         debug!("Found {} candidate patterns", candidates.len());
 
         // 4. Check for contradictions using embeddings when available
-        let conflicts = self.detect_conflicts(&new_beliefs, &candidates, new_embedding.as_deref())?;
+        let conflicts =
+            self.detect_conflicts(&new_beliefs, &candidates, new_embedding.as_deref())?;
         debug!("Detected {} potential conflicts", conflicts.len());
 
         // 5. Count supporting patterns
-        let supporting = self.count_supporting_patterns(&new_beliefs, &candidates, new_embedding.as_deref())?;
+        let supporting =
+            self.count_supporting_patterns(&new_beliefs, &candidates, new_embedding.as_deref())?;
         debug!("Found {} supporting patterns", supporting);
 
         // 6. Calculate coherence energy
@@ -557,7 +629,11 @@ impl CoherenceGate {
 
         info!(
             "Coherence check complete: {} (energy={:.3}, conflicts={}, supporting={})",
-            if is_coherent { "COHERENT" } else { "INCOHERENT" },
+            if is_coherent {
+                "COHERENT"
+            } else {
+                "INCOHERENT"
+            },
             energy,
             conflicts.len(),
             supporting
@@ -587,12 +663,22 @@ impl CoherenceGate {
     ) -> Result<(CoherenceResult, Vec<Belief>), NagualError> {
         if !self.config.check_enabled {
             let beliefs = self.extract_beliefs(pattern_id, problem, solution, domain);
-            return Ok((CoherenceResult::coherent(1.0, self.config.energy_threshold, 0), beliefs));
+            return Ok((
+                CoherenceResult::coherent(1.0, self.config.energy_threshold, 0),
+                beliefs,
+            ));
         }
 
-        info!("Checking coherence for pattern '{}' in domain '{}' (embedder: {})",
-              pattern_id, domain,
-              if self.has_embedder() { "enabled" } else { "disabled" });
+        info!(
+            "Checking coherence for pattern '{}' in domain '{}' (embedder: {})",
+            pattern_id,
+            domain,
+            if self.has_embedder() {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        );
 
         // 1. Generate embedding for new content if embedder available
         let new_text = format!("{} {}", problem, solution);
@@ -600,22 +686,35 @@ impl CoherenceGate {
 
         // 2. Extract beliefs from the new pattern (with actual pattern_id)
         let new_beliefs = self.extract_beliefs(pattern_id, problem, solution, domain);
-        debug!("Extracted {} beliefs from pattern {}", new_beliefs.len(), pattern_id);
+        debug!(
+            "Extracted {} beliefs from pattern {}",
+            new_beliefs.len(),
+            pattern_id
+        );
 
         // 3. Find potentially conflicting patterns
         let candidates = if new_embedding.is_some() {
-            self.find_similar_patterns_by_embedding(domain, problem, solution, new_embedding.as_deref()).await?
+            self.find_similar_patterns_by_embedding(
+                domain,
+                problem,
+                solution,
+                new_embedding.as_deref(),
+            )
+            .await?
         } else {
-            self.find_similar_patterns_by_keywords(domain, problem, solution).await?
+            self.find_similar_patterns_by_keywords(domain, problem, solution)
+                .await?
         };
         debug!("Found {} candidate patterns", candidates.len());
 
         // 4. Check for contradictions using embeddings when available
-        let conflicts = self.detect_conflicts(&new_beliefs, &candidates, new_embedding.as_deref())?;
+        let conflicts =
+            self.detect_conflicts(&new_beliefs, &candidates, new_embedding.as_deref())?;
         debug!("Detected {} potential conflicts", conflicts.len());
 
         // 5. Count supporting patterns
-        let supporting = self.count_supporting_patterns(&new_beliefs, &candidates, new_embedding.as_deref())?;
+        let supporting =
+            self.count_supporting_patterns(&new_beliefs, &candidates, new_embedding.as_deref())?;
         debug!("Found {} supporting patterns", supporting);
 
         // 6. Calculate coherence energy
@@ -629,7 +728,11 @@ impl CoherenceGate {
         info!(
             "Coherence check complete for {}: {} (energy={:.3}, conflicts={}, supporting={})",
             pattern_id,
-            if is_coherent { "COHERENT" } else { "INCOHERENT" },
+            if is_coherent {
+                "COHERENT"
+            } else {
+                "INCOHERENT"
+            },
             energy,
             conflicts.len(),
             supporting
@@ -657,7 +760,11 @@ impl CoherenceGate {
         pattern_id: &str,
         beliefs: Vec<Belief>,
     ) -> Result<usize, NagualError> {
-        info!("Persisting {} beliefs for pattern {}", beliefs.len(), pattern_id);
+        info!(
+            "Persisting {} beliefs for pattern {}",
+            beliefs.len(),
+            pattern_id
+        );
 
         let mut persisted_count = 0;
 
@@ -670,10 +777,14 @@ impl CoherenceGate {
             persisted_count += 1;
 
             // Detect and store relationships with existing beliefs
-            self.detect_and_store_relationships(belief, embedding.as_deref()).await?;
+            self.detect_and_store_relationships(belief, embedding.as_deref())
+                .await?;
         }
 
-        info!("Persisted {} beliefs for pattern {}", persisted_count, pattern_id);
+        info!(
+            "Persisted {} beliefs for pattern {}",
+            persisted_count, pattern_id
+        );
         Ok(persisted_count)
     }
 
@@ -685,7 +796,8 @@ impl CoherenceGate {
     ) -> Result<(), NagualError> {
         // Clone domain beliefs to avoid borrow checker issues
         // (we need to call &mut self methods inside the loop)
-        let domain_beliefs: Vec<Belief> = self.belief_graph
+        let domain_beliefs: Vec<Belief> = self
+            .belief_graph
             .beliefs_in_domain(&new_belief.domain)
             .into_iter()
             .cloned()
@@ -737,8 +849,10 @@ impl CoherenceGate {
         // Now store all the edges
         for (edge, relation_type, similarity) in edges_to_store {
             self.store_edge(&edge).await?;
-            debug!("Stored {} edge: {} -> {} (sim: {:.3})",
-                   relation_type, edge.from, edge.to, similarity);
+            debug!(
+                "Stored {} edge: {} -> {} (sim: {:.3})",
+                relation_type, edge.from, edge.to, similarity
+            );
         }
 
         Ok(())
@@ -778,11 +892,10 @@ impl CoherenceGate {
     /// Get the embedding for an existing belief from the database
     async fn get_belief_embedding(&self, belief_id: &str) -> Result<Option<Vec<f32>>, NagualError> {
         let sql = "SELECT embedding FROM beliefs WHERE id = ?";
-        let result: Option<Option<String>> = self.db.query_one(
-            sql,
-            &[&belief_id],
-            |row| row.get(0),
-        ).await?;
+        let result: Option<Option<String>> = self
+            .db
+            .query_one(sql, &[&belief_id], |row| row.get(0))
+            .await?;
 
         if let Some(Some(embedding_json)) = result {
             if !embedding_json.is_empty() {
@@ -803,22 +916,19 @@ impl CoherenceGate {
             WHERE id = ?
         "#;
 
-        let result = self.db.query_one(
-            sql,
-            &[&pattern_id],
-            |row| {
+        let result = self
+            .db
+            .query_one(sql, &[&pattern_id], |row| {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
                 ))
-            },
-        ).await?;
+            })
+            .await?;
 
         match result {
-            Some((problem, solution, domain)) => {
-                self.check(&problem, &solution, &domain).await
-            }
+            Some((problem, solution, domain)) => self.check(&problem, &solution, &domain).await,
             None => Err(NagualError::Internal {
                 message: format!("Pattern not found: {}", pattern_id),
             }),
@@ -836,19 +946,14 @@ impl CoherenceGate {
         let mut beliefs = Vec::new();
 
         // Extract problem belief
-        let problem_belief = Belief::new(pattern_id, problem, domain)
-            .with_confidence(0.7);
+        let problem_belief = Belief::new(pattern_id, problem, domain).with_confidence(0.7);
         beliefs.push(problem_belief);
 
         // Extract solution beliefs (split on sentences)
         for (i, sentence) in solution.split('.').enumerate() {
             let sentence = sentence.trim();
             if sentence.len() > 10 {
-                let belief = Belief::new(
-                    pattern_id,
-                    sentence,
-                    domain,
-                ).with_confidence(0.8);
+                let belief = Belief::new(pattern_id, sentence, domain).with_confidence(0.8);
                 beliefs.push(belief);
             }
 
@@ -881,10 +986,9 @@ impl CoherenceGate {
             LIMIT 100
         "#;
 
-        let patterns: Vec<CandidatePattern> = self.db.query(
-            sql,
-            &[&domain_pattern],
-            |row| {
+        let patterns: Vec<CandidatePattern> = self
+            .db
+            .query(sql, &[&domain_pattern], |row| {
                 Ok(CandidatePattern {
                     id: row.get(0)?,
                     problem: row.get(1)?,
@@ -893,17 +997,20 @@ impl CoherenceGate {
                     reward: row.get(4)?,
                     embedding: row.get::<_, Option<String>>(5)?,
                 })
-            },
-        ).await?;
+            })
+            .await?;
 
         if patterns.is_empty() {
-            return self.find_similar_patterns_by_keywords(domain, problem, solution).await;
+            return self
+                .find_similar_patterns_by_keywords(domain, problem, solution)
+                .await;
         }
 
         let combined_text = format!("{} {}", problem, solution);
 
         // Filter by similarity
-        let filtered: Vec<CandidatePattern> = patterns.into_iter()
+        let filtered: Vec<CandidatePattern> = patterns
+            .into_iter()
             .filter(|p| {
                 // Use embedding similarity if we have both embeddings
                 if let (Some(new_emb), Some(ref emb_str)) = (new_embedding, &p.embedding) {
@@ -942,10 +1049,9 @@ impl CoherenceGate {
             LIMIT 50
         "#;
 
-        let patterns: Vec<CandidatePattern> = self.db.query(
-            sql,
-            &[&domain_pattern],
-            |row| {
+        let patterns: Vec<CandidatePattern> = self
+            .db
+            .query(sql, &[&domain_pattern], |row| {
                 Ok(CandidatePattern {
                     id: row.get(0)?,
                     problem: row.get(1)?,
@@ -954,10 +1060,11 @@ impl CoherenceGate {
                     reward: row.get(4)?,
                     embedding: None,
                 })
-            },
-        ).await?;
+            })
+            .await?;
 
-        let filtered: Vec<_> = patterns.into_iter()
+        let filtered: Vec<_> = patterns
+            .into_iter()
             .filter(|p| self.has_keyword_overlap(problem, solution, &p.problem, &p.solution))
             .collect();
 
@@ -1015,7 +1122,9 @@ impl CoherenceGate {
                 );
 
                 // Parse candidate embedding once
-                let candidate_emb: Option<Vec<f32>> = candidate.embedding.as_ref()
+                let candidate_emb: Option<Vec<f32>> = candidate
+                    .embedding
+                    .as_ref()
                     .and_then(|s| serde_json::from_str(s).ok());
 
                 for existing in &candidate_beliefs {
@@ -1065,11 +1174,12 @@ impl CoherenceGate {
         let b_lower = b.statement.to_lowercase();
 
         // Calculate similarity - prefer embedding similarity if available
-        let similarity = if let (Some(new_emb), Some(cand_emb)) = (new_embedding, candidate_embedding) {
-            self.embedding_similarity(new_emb, cand_emb)
-        } else {
-            self.calculate_text_similarity(&a_lower, &b_lower)
-        };
+        let similarity =
+            if let (Some(new_emb), Some(cand_emb)) = (new_embedding, candidate_embedding) {
+                self.embedding_similarity(new_emb, cand_emb)
+            } else {
+                self.calculate_text_similarity(&a_lower, &b_lower)
+            };
 
         // Check for explicit contradiction markers
         let contradiction_pairs = [
@@ -1146,11 +1256,53 @@ impl CoherenceGate {
 
     /// Extract subject words from a statement
     fn extract_subjects(&self, text: &str) -> std::collections::HashSet<String> {
-        let stop_words = ["the", "a", "an", "is", "are", "was", "were", "be", "been",
-            "being", "have", "has", "had", "do", "does", "did", "will", "would",
-            "could", "should", "may", "might", "must", "shall", "can", "for",
-            "and", "but", "or", "nor", "so", "yet", "to", "of", "in", "on", "at",
-            "by", "with", "from", "use", "prefer", "choose", "implement", "apply"];
+        let stop_words = [
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "shall",
+            "can",
+            "for",
+            "and",
+            "but",
+            "or",
+            "nor",
+            "so",
+            "yet",
+            "to",
+            "of",
+            "in",
+            "on",
+            "at",
+            "by",
+            "with",
+            "from",
+            "use",
+            "prefer",
+            "choose",
+            "implement",
+            "apply",
+        ];
 
         text.split_whitespace()
             .filter(|w| w.len() > 3)
@@ -1192,14 +1344,18 @@ impl CoherenceGate {
             );
 
             // Parse candidate embedding once
-            let candidate_emb: Option<Vec<f32>> = candidate.embedding.as_ref()
+            let candidate_emb: Option<Vec<f32>> = candidate
+                .embedding
+                .as_ref()
                 .and_then(|s| serde_json::from_str(s).ok());
 
             // Check if any beliefs are reinforcing (similar + high reward)
             for new_belief in new_beliefs {
                 for existing in &candidate_beliefs {
                     // Use embedding similarity if available
-                    let similarity = if let (Some(new_emb), Some(ref cand_emb)) = (new_embedding, &candidate_emb) {
+                    let similarity = if let (Some(new_emb), Some(ref cand_emb)) =
+                        (new_embedding, &candidate_emb)
+                    {
                         self.embedding_similarity(new_emb, cand_emb)
                     } else {
                         self.calculate_text_similarity(
@@ -1222,7 +1378,8 @@ impl CoherenceGate {
     /// Calculate coherence energy using belief relationships
     fn calculate_energy(&self, conflicts: &[Conflict], supporting: usize) -> f64 {
         // Energy formula: E = (1 - conflict_penalty) * (1 + support_bonus)
-        let conflict_penalty: f64 = conflicts.iter()
+        let conflict_penalty: f64 = conflicts
+            .iter()
             .map(|c| match c.severity {
                 ConflictSeverity::Minor => 0.1,
                 ConflictSeverity::Moderate => 0.25,
@@ -1242,7 +1399,8 @@ impl CoherenceGate {
             return CoherenceAction::Accept;
         }
 
-        let major_conflicts = conflicts.iter()
+        let major_conflicts = conflicts
+            .iter()
             .filter(|c| matches!(c.severity, ConflictSeverity::Major))
             .count();
 
@@ -1272,8 +1430,14 @@ impl CoherenceGate {
     /// Analyze coherence across the entire knowledge base
     #[instrument(skip(self))]
     pub async fn analyze_global_coherence(&self) -> Result<GlobalCoherenceReport, NagualError> {
-        info!("Analyzing global coherence (embedder: {})",
-              if self.has_embedder() { "enabled" } else { "disabled" });
+        info!(
+            "Analyzing global coherence (embedder: {})",
+            if self.has_embedder() {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        );
 
         // Get pattern count per domain
         let sql = r#"
@@ -1284,19 +1448,18 @@ impl CoherenceGate {
             LIMIT 20
         "#;
 
-        let domain_counts: Vec<(String, i64)> = self.db.query(
-            sql,
-            &[],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        ).await?;
+        let domain_counts: Vec<(String, i64)> = self
+            .db
+            .query(sql, &[], |row| Ok((row.get(0)?, row.get(1)?)))
+            .await?;
 
         // Get total pattern count
         let total_sql = "SELECT COUNT(*) FROM reasoning_patterns";
-        let total_patterns: i64 = self.db.query_one(
-            total_sql,
-            &[],
-            |row| row.get(0),
-        ).await?.unwrap_or(0);
+        let total_patterns: i64 = self
+            .db
+            .query_one(total_sql, &[], |row| row.get(0))
+            .await?
+            .unwrap_or(0);
 
         // Sample patterns for conflict analysis
         let sample_sql = r#"
@@ -1307,10 +1470,9 @@ impl CoherenceGate {
             LIMIT 100
         "#;
 
-        let samples: Vec<CandidatePattern> = self.db.query(
-            sample_sql,
-            &[],
-            |row| {
+        let samples: Vec<CandidatePattern> = self
+            .db
+            .query(sample_sql, &[], |row| {
                 Ok(CandidatePattern {
                     id: row.get(0)?,
                     problem: row.get(1)?,
@@ -1319,8 +1481,8 @@ impl CoherenceGate {
                     reward: 0.5,
                     embedding: row.get::<_, Option<String>>(4)?,
                 })
-            },
-        ).await?;
+            })
+            .await?;
 
         let sampled_count = samples.len();
 
@@ -1337,7 +1499,9 @@ impl CoherenceGate {
             );
 
             // Parse sample embedding once
-            let sample_emb: Option<Vec<f32>> = sample.embedding.as_ref()
+            let sample_emb: Option<Vec<f32>> = sample
+                .embedding
+                .as_ref()
                 .and_then(|s| serde_json::from_str(s).ok());
 
             for other in samples.iter().skip(i + 1) {
@@ -1351,13 +1515,17 @@ impl CoherenceGate {
                     );
 
                     // Parse other embedding
-                    let other_emb: Option<Vec<f32>> = other.embedding.as_ref()
+                    let other_emb: Option<Vec<f32>> = other
+                        .embedding
+                        .as_ref()
                         .and_then(|s| serde_json::from_str(s).ok());
 
                     for a in &beliefs {
                         for b in &other_beliefs {
                             if let Some(conflict) = self.check_contradiction(
-                                a, b, other,
+                                a,
+                                b,
+                                other,
                                 sample_emb.as_deref(),
                                 other_emb.as_deref(),
                             ) {
@@ -1387,7 +1555,8 @@ impl CoherenceGate {
             comparisons_made,
             conflicts_detected: all_conflicts.len(),
             overall_coherence,
-            top_domains: domain_counts.into_iter()
+            top_domains: domain_counts
+                .into_iter()
                 .take(10)
                 .map(|(d, c)| (d, c as usize))
                 .collect(),
@@ -1397,7 +1566,10 @@ impl CoherenceGate {
 
     /// Get belief graph statistics
     pub fn graph_stats(&self) -> (usize, usize) {
-        (self.belief_graph.beliefs.len(), self.belief_graph.edges.len())
+        (
+            self.belief_graph.beliefs.len(),
+            self.belief_graph.edges.len(),
+        )
     }
 }
 
@@ -1448,10 +1620,7 @@ mod tests {
         );
         assert!(sim > 0.5);
 
-        let sim_low = gate.calculate_text_similarity(
-            "use tokio",
-            "prefer blocking io",
-        );
+        let sim_low = gate.calculate_text_similarity("use tokio", "prefer blocking io");
         assert!(sim_low < 0.3);
     }
 
@@ -1554,7 +1723,9 @@ mod tests {
             similarity_threshold: Some(0.9),
             max_conflicts: Some(5),
             check_enabled: Some(true),
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
 
         // Create new gate and load config
         let gate2 = CoherenceGate::with_persisted_config(db).await.unwrap();
@@ -1567,11 +1738,13 @@ mod tests {
     #[tokio::test]
     async fn test_belief_persistence() {
         let db = Arc::new(SqliteDb::open_in_memory().unwrap());
-        let mut gate = CoherenceGate::with_persisted_config(db.clone()).await.unwrap();
+        let mut gate = CoherenceGate::with_persisted_config(db.clone())
+            .await
+            .unwrap();
 
         // Store a belief
-        let belief = Belief::new("pattern-1", "Use async for I/O", "rust.async")
-            .with_confidence(0.9);
+        let belief =
+            Belief::new("pattern-1", "Use async for I/O", "rust.async").with_confidence(0.9);
 
         gate.store_belief(&belief, None).await.unwrap();
 
@@ -1594,7 +1767,9 @@ mod tests {
     #[tokio::test]
     async fn test_delete_beliefs_for_pattern() {
         let db = Arc::new(SqliteDb::open_in_memory().unwrap());
-        let mut gate = CoherenceGate::with_persisted_config(db.clone()).await.unwrap();
+        let mut gate = CoherenceGate::with_persisted_config(db.clone())
+            .await
+            .unwrap();
 
         // Store beliefs for two patterns
         let b1 = Belief::new("pattern-1", "Statement 1", "rust");

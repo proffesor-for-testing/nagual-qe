@@ -285,7 +285,9 @@ impl ScenarioBuilder {
         Scenario {
             id: self.id.unwrap_or_else(ScenarioId::new),
             domain: self.domain,
-            description: self.description.unwrap_or_else(|| "Unnamed scenario".to_string()),
+            description: self
+                .description
+                .unwrap_or_else(|| "Unnamed scenario".to_string()),
             input_context: self.input_context.unwrap_or_default(),
             expected_behavior: self.expected_behavior.unwrap_or_default(),
             difficulty: self.difficulty.unwrap_or_default(),
@@ -530,7 +532,11 @@ impl ScenarioEvaluator {
             pattern_id: pattern.id().to_string(),
             scenarios_evaluated: scenarios.len() as u32,
             scenarios_passed: passed_count,
-            avg_score: if count > 0.0 { total_score / count } else { 0.0 },
+            avg_score: if count > 0.0 {
+                total_score / count
+            } else {
+                0.0
+            },
             holdout_pass_rate: if holdout_count > 0 {
                 holdout_passed as f32 / holdout_count as f32
             } else {
@@ -1068,21 +1074,14 @@ mod tests {
 
     #[test]
     fn test_scenario_evaluation() {
-        let eval = ScenarioEvaluation::new(
-            ScenarioId::from_string("scen_test"),
-            "pat_123",
-            0.85,
-        );
+        let eval = ScenarioEvaluation::new(ScenarioId::from_string("scen_test"), "pat_123", 0.85);
 
         assert!(eval.passed);
         assert!((eval.score - 0.85).abs() < 0.001);
 
         // Test custom threshold
-        let eval_low = ScenarioEvaluation::new(
-            ScenarioId::from_string("scen_test"),
-            "pat_123",
-            0.65,
-        );
+        let eval_low =
+            ScenarioEvaluation::new(ScenarioId::from_string("scen_test"), "pat_123", 0.65);
         assert!(!eval_low.passed);
 
         let eval_low_custom = eval_low.with_threshold(0.5);

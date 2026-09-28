@@ -78,10 +78,7 @@ impl MaTTS {
             };
         }
 
-        info!(
-            "Aggregating {} trajectories with MaTTS",
-            trajectories.len()
-        );
+        info!("Aggregating {} trajectories with MaTTS", trajectories.len());
 
         // Calculate attention weights based on quality scores
         let weights = self.calculate_attention_weights(trajectories);
@@ -166,7 +163,10 @@ impl MaTTS {
             .iter()
             .cloned()
             .fold(f64::NEG_INFINITY, f64::max);
-        let exp_scores: Vec<f64> = scaled_scores.iter().map(|s| (s - max_score).exp()).collect();
+        let exp_scores: Vec<f64> = scaled_scores
+            .iter()
+            .map(|s| (s - max_score).exp())
+            .collect();
         let sum_exp: f64 = exp_scores.iter().sum();
 
         exp_scores.iter().map(|e| e / sum_exp).collect()
@@ -292,7 +292,11 @@ impl MaTTS {
 mod tests {
     use super::*;
 
-    fn make_trajectory(agent_type: AgentType, findings: Vec<&str>, quality: f64) -> ResearchTrajectory {
+    fn make_trajectory(
+        agent_type: AgentType,
+        findings: Vec<&str>,
+        quality: f64,
+    ) -> ResearchTrajectory {
         let mut traj = ResearchTrajectory::new(agent_type);
         for f in findings {
             traj.add_finding(ResearchFinding::new(f, "test").with_confidence(0.8));

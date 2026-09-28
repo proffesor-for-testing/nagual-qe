@@ -59,22 +59,22 @@ pub mod pathfinding;
 pub mod pressure;
 
 pub use auto_edges::{
-    AutoEdgeConfig, AutoEdgeCreator, AutoEdgeResult, CoRetrievalCandidate,
-    CoRetrievalRecord, EdgeCreationReason, PatternEdge, PatternEdgeType,
+    AutoEdgeConfig, AutoEdgeCreator, AutoEdgeResult, CoRetrievalCandidate, CoRetrievalRecord,
+    EdgeCreationReason, PatternEdge, PatternEdgeType,
 };
 pub use edges::{EdgeCreateResult, GraphStats, GraphStorage, GraphStorageConfig};
 pub use maintenance::{
-    EdgeMaintenanceConfig, EdgeMaintenanceJob, EdgeMaintenanceResult,
-    MaintenanceSchedulerHandle, PruneResult, start_maintenance_scheduler,
-};
-pub use neighbors::{Direction, NeighborQuery, NeighborResult};
-pub use pathfinding::{GraphPath, PathFinder, PathQuery};
-pub use pressure::{
-    propagate_pressure, GraphProvider, InMemoryGraph, PressureConfig,
-    PressureError, PressureResult, PropagationStats,
+    start_maintenance_scheduler, EdgeMaintenanceConfig, EdgeMaintenanceJob, EdgeMaintenanceResult,
+    MaintenanceSchedulerHandle, PruneResult,
 };
 #[cfg(feature = "mincut")]
 pub use mincut::{Cluster, MinCutGraph};
+pub use neighbors::{Direction, NeighborQuery, NeighborResult};
+pub use pathfinding::{GraphPath, PathFinder, PathQuery};
+pub use pressure::{
+    propagate_pressure, GraphProvider, InMemoryGraph, PressureConfig, PressureError,
+    PressureResult, PropagationStats,
+};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -626,10 +626,7 @@ mod tests {
     #[test]
     fn test_entity_type_from_str() {
         assert_eq!(EntityType::from_str("pattern"), Some(EntityType::Pattern));
-        assert_eq!(
-            EntityType::from_str("LEARNING"),
-            Some(EntityType::Learning)
-        );
+        assert_eq!(EntityType::from_str("LEARNING"), Some(EntityType::Learning));
         assert_eq!(
             EntityType::from_str("prediction"),
             Some(EntityType::Prediction)

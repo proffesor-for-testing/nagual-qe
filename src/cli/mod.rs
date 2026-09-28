@@ -21,8 +21,8 @@ mod migrate;
 mod patterns;
 mod plan;
 mod predict;
-pub mod research;
 mod pulse;
+pub mod research;
 mod session;
 mod status;
 mod sync;
@@ -50,8 +50,8 @@ pub use migrate::MigrateCommand;
 pub use patterns::PatternsCommand;
 pub use plan::PlanCommand;
 pub use predict::PredictCommand;
-pub use research::ResearchCommand;
 pub use pulse::PulseCommand;
+pub use research::ResearchCommand;
 pub use session::SessionCommand;
 pub use status::StatusCommand;
 pub use sync::SyncCommand;
@@ -447,7 +447,14 @@ mod tests {
 
     #[test]
     fn test_cli_parse_learn_recommendations() {
-        let args = vec!["nagual", "learn", "recommendations", "--domain", "rust", "--demo"];
+        let args = vec![
+            "nagual",
+            "learn",
+            "recommendations",
+            "--domain",
+            "rust",
+            "--demo",
+        ];
         let cli = Cli::try_parse_from(args);
         assert!(cli.is_ok());
     }
@@ -476,13 +483,7 @@ mod tests {
     #[test]
     fn test_cli_parse_predict_list() {
         let args = vec![
-            "nagual",
-            "predict",
-            "list",
-            "--status",
-            "pending",
-            "--limit",
-            "10",
+            "nagual", "predict", "list", "--status", "pending", "--limit", "10",
         ];
         let cli = Cli::try_parse_from(args);
         assert!(cli.is_ok());
@@ -786,9 +787,18 @@ mod tests {
     #[test]
     fn test_constitution_mode_arg_to_enforcement_mode() {
         use crate::constitution::EnforcementMode;
-        assert_eq!(EnforcementMode::from(ConstitutionModeArg::Audit), EnforcementMode::Audit);
-        assert_eq!(EnforcementMode::from(ConstitutionModeArg::Warn), EnforcementMode::Warn);
-        assert_eq!(EnforcementMode::from(ConstitutionModeArg::Block), EnforcementMode::Block);
+        assert_eq!(
+            EnforcementMode::from(ConstitutionModeArg::Audit),
+            EnforcementMode::Audit
+        );
+        assert_eq!(
+            EnforcementMode::from(ConstitutionModeArg::Warn),
+            EnforcementMode::Warn
+        );
+        assert_eq!(
+            EnforcementMode::from(ConstitutionModeArg::Block),
+            EnforcementMode::Block
+        );
     }
 
     #[test]
@@ -892,13 +902,7 @@ mod tests {
 
     #[test]
     fn test_cli_parse_migrate_rewards_with_db_path() {
-        let args = vec![
-            "nagual",
-            "migrate",
-            "rewards",
-            "--db-path",
-            "custom.db",
-        ];
+        let args = vec!["nagual", "migrate", "rewards", "--db-path", "custom.db"];
         let cli = Cli::try_parse_from(args);
         assert!(cli.is_ok());
     }

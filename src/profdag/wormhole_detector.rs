@@ -116,15 +116,33 @@ pub struct DetectorConfig {
     pub min_trajectory_reward: f32,
 }
 
-fn default_min_frequency() -> u32 { 3 }
-fn default_min_path_distance() -> u32 { 3 }
-fn default_min_savings() -> f32 { 0.5 }
-fn default_max_candidates() -> usize { 1000 }
-fn default_time_window_hours() -> u32 { 168 }
-fn default_frequency_weight() -> f32 { 0.6 }
-fn default_savings_weight() -> f32 { 0.4 }
-fn default_completed_only() -> bool { true }
-fn default_min_trajectory_reward() -> f32 { 0.5 }
+fn default_min_frequency() -> u32 {
+    3
+}
+fn default_min_path_distance() -> u32 {
+    3
+}
+fn default_min_savings() -> f32 {
+    0.5
+}
+fn default_max_candidates() -> usize {
+    1000
+}
+fn default_time_window_hours() -> u32 {
+    168
+}
+fn default_frequency_weight() -> f32 {
+    0.6
+}
+fn default_savings_weight() -> f32 {
+    0.4
+}
+fn default_completed_only() -> bool {
+    true
+}
+fn default_min_trajectory_reward() -> f32 {
+    0.5
+}
 
 impl Default for DetectorConfig {
     fn default() -> Self {
@@ -210,15 +228,17 @@ impl WormholeCandidate {
             0.0
         };
 
-        self.score = frequency_weight * normalized_frequency
-            + savings_weight * self.traversal_savings;
+        self.score =
+            frequency_weight * normalized_frequency + savings_weight * self.traversal_savings;
     }
 
     /// Check if this candidate meets the minimum requirements.
     pub fn meets_requirements(&self, config: &DetectorConfig) -> bool {
         self.co_access_count >= config.min_frequency
             && self.traversal_savings >= config.min_traversal_savings
-            && self.path_distance.map_or(true, |d| d >= config.min_path_distance)
+            && self
+                .path_distance
+                .map_or(true, |d| d >= config.min_path_distance)
     }
 }
 
@@ -397,7 +417,11 @@ impl WormholeDetector {
         candidates.retain(|c| c.meets_requirements(&self.config));
         let passed_savings = candidates.len();
 
-        candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        candidates.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         candidates.truncate(self.config.max_candidates);
 
         // Update stats
@@ -509,8 +533,7 @@ impl WormholeDetector {
             ORDER BY ca.count DESC
             LIMIT {}
             "#,
-            self.config.min_frequency,
-            limit
+            self.config.min_frequency, limit
         );
 
         let candidates: Vec<WormholeCandidate> = self
@@ -545,7 +568,9 @@ impl WormholeDetector {
                 })
             })
             .await
-            .map_err(|e| NagualError::internal(format!("Failed to get pending candidates: {}", e)))?;
+            .map_err(|e| {
+                NagualError::internal(format!("Failed to get pending candidates: {}", e))
+            })?;
 
         Ok(candidates)
     }
@@ -632,9 +657,7 @@ impl WormholeDetector {
         let rows: Vec<(String, String)> = self
             .adapter
             .sqlite()
-            .query(&sql, &params, |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            })
+            .query(&sql, &params, |row| Ok((row.get(0)?, row.get(1)?)))
             .await
             .map_err(|e| {
                 NagualError::internal(format!("Failed to lookup pattern domains: {}", e))
@@ -670,31 +693,35 @@ impl WormholeDetector {
         let records: Vec<CoAccessRecord> = self
             .adapter
             .sqlite()
-            .query(sql, &[&since.to_rfc3339(), &(self.config.min_frequency as i64)], |row| {
-                let pattern_a: String = row.get(0)?;
-                let pattern_b: String = row.get(1)?;
-                let count: i64 = row.get(2)?;
-                let first_accessed_str: String = row.get(3)?;
-                let last_accessed_str: String = row.get(4)?;
+            .query(
+                sql,
+                &[&since.to_rfc3339(), &(self.config.min_frequency as i64)],
+                |row| {
+                    let pattern_a: String = row.get(0)?;
+                    let pattern_b: String = row.get(1)?;
+                    let count: i64 = row.get(2)?;
+                    let first_accessed_str: String = row.get(3)?;
+                    let last_accessed_str: String = row.get(4)?;
 
-                let first_accessed = DateTime::parse_from_rfc3339(&first_accessed_str)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now());
+                    let first_accessed = DateTime::parse_from_rfc3339(&first_accessed_str)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .unwrap_or_else(|_| Utc::now());
 
-                let last_accessed = DateTime::parse_from_rfc3339(&last_accessed_str)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now());
+                    let last_accessed = DateTime::parse_from_rfc3339(&last_accessed_str)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .unwrap_or_else(|_| Utc::now());
 
-                Ok(CoAccessRecord {
-                    pattern_a,
-                    pattern_b,
-                    count: count as u32,
-                    first_accessed,
-                    last_accessed,
-                    session_ids: Vec::new(),
-                    trajectory_ids: Vec::new(),
-                })
-            })
+                    Ok(CoAccessRecord {
+                        pattern_a,
+                        pattern_b,
+                        count: count as u32,
+                        first_accessed,
+                        last_accessed,
+                        session_ids: Vec::new(),
+                        trajectory_ids: Vec::new(),
+                    })
+                },
+            )
             .await
             .map_err(|e| NagualError::internal(format!("Failed to collect co-accesses: {}", e)))?;
 
@@ -767,11 +794,7 @@ impl WormholeDetector {
     }
 
     /// Find shortest path between two nodes using BFS.
-    async fn find_shortest_path(
-        &self,
-        source_id: &str,
-        target_id: &str,
-    ) -> Result<Option<u32>> {
+    async fn find_shortest_path(&self, source_id: &str, target_id: &str) -> Result<Option<u32>> {
         // Simple BFS implementation for path finding
         // Limited to MAX_DEPTH to avoid performance issues
         const MAX_DEPTH: u32 = 10;
@@ -1068,20 +1091,24 @@ mod tests {
 
         let result = filter_cross_domain_candidates(candidates, &domain_map);
 
-        assert_eq!(result.len(), 2, "Only cross-domain candidates should remain");
+        assert_eq!(
+            result.len(),
+            2,
+            "Only cross-domain candidates should remain"
+        );
 
         // Verify the same-domain pair (p3-p4, both rust.*) was filtered out
         assert!(
-            result.iter().all(|c| !(c.source_id == "p3" && c.target_id == "p4")),
+            result
+                .iter()
+                .all(|c| !(c.source_id == "p3" && c.target_id == "p4")),
             "Same-domain candidate should be filtered out"
         );
     }
 
     #[test]
     fn test_filter_cross_domain_applies_boost() {
-        let candidates = vec![
-            make_candidate("p1", "p2", 0.8),
-        ];
+        let candidates = vec![make_candidate("p1", "p2", 0.8)];
 
         let mut domain_map = HashMap::new();
         domain_map.insert("p1".to_string(), "rust.async".to_string());
@@ -1103,9 +1130,7 @@ mod tests {
 
     #[test]
     fn test_filter_cross_domain_excludes_unknown_patterns() {
-        let candidates = vec![
-            make_candidate("p1", "p_unknown", 0.8),
-        ];
+        let candidates = vec![make_candidate("p1", "p_unknown", 0.8)];
 
         let mut domain_map = HashMap::new();
         domain_map.insert("p1".to_string(), "rust".to_string());
@@ -1165,9 +1190,7 @@ mod tests {
     #[test]
     fn test_filter_cross_domain_same_root_different_sub() {
         // Both patterns have root domain "rust" even though sub-domains differ
-        let candidates = vec![
-            make_candidate("p1", "p2", 0.8),
-        ];
+        let candidates = vec![make_candidate("p1", "p2", 0.8)];
 
         let mut domain_map = HashMap::new();
         domain_map.insert("p1".to_string(), "rust.async.tokio".to_string());

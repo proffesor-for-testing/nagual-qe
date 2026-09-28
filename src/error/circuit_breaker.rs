@@ -192,10 +192,7 @@ impl CircuitBreaker {
     }
 
     /// Execute an async operation protected by the circuit breaker.
-    pub async fn call<F, Fut, T, E>(
-        &self,
-        operation: F,
-    ) -> Result<T, CircuitBreakerError>
+    pub async fn call<F, Fut, T, E>(&self, operation: F) -> Result<T, CircuitBreakerError>
     where
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<T, E>>,
@@ -468,10 +465,7 @@ impl CircuitBreakerRegistry {
     }
 
     /// Get or create a circuit breaker with custom config.
-    pub fn get_or_create_with_config(
-        &self,
-        config: CircuitBreakerConfig,
-    ) -> Arc<CircuitBreaker> {
+    pub fn get_or_create_with_config(&self, config: CircuitBreakerConfig) -> Arc<CircuitBreaker> {
         let mut breakers = self.breakers.write();
         breakers
             .entry(config.service_name.clone())
@@ -510,8 +504,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_circuit_breaker_opens_on_failures() {
-        let config = CircuitBreakerConfig::new("test")
-            .with_failure_threshold(3);
+        let config = CircuitBreakerConfig::new("test").with_failure_threshold(3);
         let cb = CircuitBreaker::new(config);
 
         // Simulate failures
@@ -604,8 +597,7 @@ mod tests {
 
     #[test]
     fn test_circuit_breaker_manual_reset() {
-        let config = CircuitBreakerConfig::new("test")
-            .with_failure_threshold(1);
+        let config = CircuitBreakerConfig::new("test").with_failure_threshold(1);
         let cb = CircuitBreaker::new(config);
 
         cb.trip();

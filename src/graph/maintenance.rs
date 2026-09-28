@@ -348,11 +348,10 @@ impl EdgeMaintenanceJob {
     /// Prune a single edge with audit logging.
     async fn prune_single_edge(&self, edge: &PrunedEdgeInfo, job_id: &str) -> Result<()> {
         // Start a transaction
-        let mut tx = self
-            .pool
-            .begin()
-            .await
-            .map_err(|e| NagualError::internal(format!("Failed to start transaction: {}", e)))?;
+        let mut tx =
+            self.pool.begin().await.map_err(|e| {
+                NagualError::internal(format!("Failed to start transaction: {}", e))
+            })?;
 
         // Log to audit trail first
         sqlx::query(
@@ -370,9 +369,7 @@ impl EdgeMaintenanceJob {
         .bind(edge.strength)
         .bind(format!(
             "Weak edge pruned: strength {:.4} < {} and age > {} days",
-            edge.strength,
-            self.config.weak_edge_threshold,
-            self.config.min_age_days
+            edge.strength, self.config.weak_edge_threshold, self.config.min_age_days
         ))
         .bind(job_id)
         .execute(&mut *tx)
@@ -427,7 +424,9 @@ impl EdgeMaintenanceJob {
         Ok(PruneStats {
             total_weak_edges: row.get::<i64, _>("total_weak") as usize,
             auto_created_weak_edges: row.get::<i64, _>("auto_weak") as usize,
-            avg_weak_strength: row.get::<Option<f64>, _>("avg_weak_strength").unwrap_or(0.0),
+            avg_weak_strength: row
+                .get::<Option<f64>, _>("avg_weak_strength")
+                .unwrap_or(0.0),
         })
     }
 }

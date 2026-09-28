@@ -17,9 +17,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 mod common;
-use common::{
-    cosine_similarity, normalized_embedding, similar_embeddings,
-};
+use common::{cosine_similarity, normalized_embedding, similar_embeddings};
 
 // ============================================================================
 // Integrated Types (combining schema, search, trajectory)
@@ -106,7 +104,8 @@ impl Node {
 
     pub fn record_usage(&mut self, success: bool) {
         self.usage_count += 1;
-        let success_count = (self.success_rate * (self.usage_count - 1) as f32) + if success { 1.0 } else { 0.0 };
+        let success_count =
+            (self.success_rate * (self.usage_count - 1) as f32) + if success { 1.0 } else { 0.0 };
         self.success_rate = success_count / self.usage_count as f32;
         self.updated_at = Utc::now();
     }
@@ -125,7 +124,12 @@ pub struct Edge {
 }
 
 impl Edge {
-    pub fn new(source: impl Into<String>, target: impl Into<String>, edge_type: EdgeType, weight: f64) -> Self {
+    pub fn new(
+        source: impl Into<String>,
+        target: impl Into<String>,
+        edge_type: EdgeType,
+        weight: f64,
+    ) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             source_id: source.into(),
@@ -176,7 +180,12 @@ impl Trajectory {
         }
     }
 
-    pub fn add_step(&mut self, action: impl Into<String>, input: impl Into<String>, node_ids: Vec<String>) {
+    pub fn add_step(
+        &mut self,
+        action: impl Into<String>,
+        input: impl Into<String>,
+        node_ids: Vec<String>,
+    ) {
         let step = TrajectoryStep {
             step_number: self.steps.len() + 1,
             action: action.into(),
@@ -195,7 +204,8 @@ impl Trajectory {
     }
 
     pub fn all_used_nodes(&self) -> Vec<String> {
-        self.steps.iter()
+        self.steps
+            .iter()
             .flat_map(|s| s.node_ids_used.clone())
             .collect::<HashSet<_>>()
             .into_iter()
@@ -282,9 +292,14 @@ impl ProfDagSystem {
     }
 
     pub fn get_neighbors(&self, node_id: &str, edge_type: Option<EdgeType>) -> Vec<&Node> {
-        let edge_ids = self.outgoing_edges.get(node_id).map(|v| v.as_slice()).unwrap_or(&[]);
+        let edge_ids = self
+            .outgoing_edges
+            .get(node_id)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[]);
 
-        edge_ids.iter()
+        edge_ids
+            .iter()
             .filter_map(|edge_id| self.edges.get(edge_id))
             .filter(|edge| edge_type.map_or(true, |t| edge.edge_type == t))
             .filter_map(|edge| self.nodes.get(&edge.target_id))
@@ -322,15 +337,21 @@ impl ProfDagSystem {
 
     // ========== Search Operations ==========
 
-    pub fn search(&self, query_embedding: &[f32], k: usize, node_type: Option<NodeType>) -> Vec<SearchResult> {
-        let mut results: Vec<SearchResult> = self.nodes
+    pub fn search(
+        &self,
+        query_embedding: &[f32],
+        k: usize,
+        node_type: Option<NodeType>,
+    ) -> Vec<SearchResult> {
+        let mut results: Vec<SearchResult> = self
+            .nodes
             .values()
             .filter(|node| {
-                node.embedding.is_some() &&
-                node_type.map_or(true, |t| node.node_type == t)
+                node.embedding.is_some() && node_type.map_or(true, |t| node.node_type == t)
             })
             .map(|node| {
-                let similarity = cosine_similarity(query_embedding, node.embedding.as_ref().unwrap());
+                let similarity =
+                    cosine_similarity(query_embedding, node.embedding.as_ref().unwrap());
                 SearchResult {
                     node_id: node.id.clone(),
                     similarity,
@@ -351,18 +372,26 @@ impl ProfDagSystem {
     ) -> Vec<(SearchResult, Vec<String>)> {
         let initial_results = self.search(query_embedding, k, None);
 
-        initial_results.into_iter().map(|result| {
-            let related_ids: Vec<String> = self.get_related_nodes(&result.node_id, graph_depth)
-                .into_iter()
-                .map(|(node, _)| node.id.clone())
-                .collect();
-            (result, related_ids)
-        }).collect()
+        initial_results
+            .into_iter()
+            .map(|result| {
+                let related_ids: Vec<String> = self
+                    .get_related_nodes(&result.node_id, graph_depth)
+                    .into_iter()
+                    .map(|(node, _)| node.id.clone())
+                    .collect();
+                (result, related_ids)
+            })
+            .collect()
     }
 
     // ========== Trajectory Operations ==========
 
-    pub fn start_trajectory(&mut self, session_id: impl Into<String>, task: impl Into<String>) -> String {
+    pub fn start_trajectory(
+        &mut self,
+        session_id: impl Into<String>,
+        task: impl Into<String>,
+    ) -> String {
         let trajectory = Trajectory::new(session_id, task);
         let id = trajectory.id.clone();
         self.trajectories.insert(id.clone(), trajectory);
@@ -376,14 +405,22 @@ impl ProfDagSystem {
         input: impl Into<String>,
         node_ids: Vec<String>,
     ) -> Result<(), String> {
-        let trajectory = self.trajectories.get_mut(trajectory_id)
+        let trajectory = self
+            .trajectories
+            .get_mut(trajectory_id)
             .ok_or("Trajectory not found")?;
         trajectory.add_step(action, input, node_ids);
         Ok(())
     }
 
-    pub fn complete_trajectory(&mut self, trajectory_id: &str, outcome: Outcome) -> Result<&Trajectory, String> {
-        let trajectory = self.trajectories.get_mut(trajectory_id)
+    pub fn complete_trajectory(
+        &mut self,
+        trajectory_id: &str,
+        outcome: Outcome,
+    ) -> Result<&Trajectory, String> {
+        let trajectory = self
+            .trajectories
+            .get_mut(trajectory_id)
             .ok_or("Trajectory not found")?;
         trajectory.complete(outcome);
 
@@ -409,7 +446,9 @@ impl ProfDagSystem {
     pub fn apply_learning(&mut self, trajectory_id: &str) -> Result<LearningResult, String> {
         // Extract data from trajectory first to avoid borrow issues
         let (outcome, reward, used_nodes, steps_data, task) = {
-            let trajectory = self.trajectories.get(trajectory_id)
+            let trajectory = self
+                .trajectories
+                .get(trajectory_id)
                 .ok_or("Trajectory not found")?;
 
             if trajectory.outcome.is_none() {
@@ -419,7 +458,9 @@ impl ProfDagSystem {
             let outcome = trajectory.outcome.unwrap();
             let reward = trajectory.reward.unwrap_or(0.0);
             let used_nodes = trajectory.all_used_nodes();
-            let steps_data: Vec<Vec<String>> = trajectory.steps.iter()
+            let steps_data: Vec<Vec<String>> = trajectory
+                .steps
+                .iter()
                 .map(|s| s.node_ids_used.clone())
                 .collect();
             let task = trajectory.task.clone();
@@ -437,7 +478,11 @@ impl ProfDagSystem {
                 if let Some(ref prev) = prev_node_id {
                     if prev != node_id {
                         // Create leads_to edge
-                        let weight = if outcome == Outcome::Success { 0.9 } else { 0.5 };
+                        let weight = if outcome == Outcome::Success {
+                            0.9
+                        } else {
+                            0.5
+                        };
                         let edge = Edge::new(prev, node_id, EdgeType::LeadsTo, weight);
                         if let Ok(edge_id) = self.create_edge(edge) {
                             created_edges.push(edge_id);
@@ -487,8 +532,11 @@ impl ProfDagSystem {
     }
 
     pub fn successful_trajectory_count(&self) -> usize {
-        self.trajectories.values()
-            .filter(|t| t.outcome == Some(Outcome::Success) || t.outcome == Some(Outcome::PartialSuccess))
+        self.trajectories
+            .values()
+            .filter(|t| {
+                t.outcome == Some(Outcome::Success) || t.outcome == Some(Outcome::PartialSuccess)
+            })
             .count()
     }
 }
@@ -536,8 +584,11 @@ mod e2e_flow_tests {
             .with_embedding(similar_embeddings(&base_embedding, 1, 0.1)[0].clone());
         let node1_id = system.create_node(node1);
 
-        let node2 = Node::new(NodeType::Pattern, "Implement retry with exponential backoff")
-            .with_embedding(similar_embeddings(&base_embedding, 1, 0.15)[0].clone());
+        let node2 = Node::new(
+            NodeType::Pattern,
+            "Implement retry with exponential backoff",
+        )
+        .with_embedding(similar_embeddings(&base_embedding, 1, 0.15)[0].clone());
         let node2_id = system.create_node(node2);
 
         // Step 2: Search for similar patterns
@@ -545,27 +596,35 @@ mod e2e_flow_tests {
         let results = system.search(&query, 5, Some(NodeType::Pattern));
 
         assert!(!results.is_empty());
-        assert!(results.iter().any(|r| r.node_id == node1_id || r.node_id == node2_id));
+        assert!(results
+            .iter()
+            .any(|r| r.node_id == node1_id || r.node_id == node2_id));
 
         // Step 3: Start trajectory using found patterns
         let traj_id = system.start_trajectory("session-1", "Fix database timeout issue");
 
-        system.add_trajectory_step(
-            &traj_id,
-            "query",
-            "Search for timeout solutions",
-            vec![node1_id.clone()],
-        ).unwrap();
+        system
+            .add_trajectory_step(
+                &traj_id,
+                "query",
+                "Search for timeout solutions",
+                vec![node1_id.clone()],
+            )
+            .unwrap();
 
-        system.add_trajectory_step(
-            &traj_id,
-            "apply",
-            "Apply retry pattern",
-            vec![node2_id.clone()],
-        ).unwrap();
+        system
+            .add_trajectory_step(
+                &traj_id,
+                "apply",
+                "Apply retry pattern",
+                vec![node2_id.clone()],
+            )
+            .unwrap();
 
         // Step 4: Complete trajectory
-        let trajectory = system.complete_trajectory(&traj_id, Outcome::Success).unwrap();
+        let trajectory = system
+            .complete_trajectory(&traj_id, Outcome::Success)
+            .unwrap();
 
         assert!(trajectory.outcome.is_some());
         assert_eq!(trajectory.outcome, Some(Outcome::Success));
@@ -583,11 +642,15 @@ mod e2e_flow_tests {
 
         // Create initial patterns
         let base_embedding = normalized_embedding(128);
-        let patterns: Vec<String> = (0..5).map(|i| {
-            let node = Node::new(NodeType::Pattern, format!("Pattern {} solution", i))
-                .with_embedding(similar_embeddings(&base_embedding, 1, 0.1 + i as f32 * 0.05)[0].clone());
-            system.create_node(node)
-        }).collect();
+        let patterns: Vec<String> = (0..5)
+            .map(|i| {
+                let node = Node::new(NodeType::Pattern, format!("Pattern {} solution", i))
+                    .with_embedding(
+                        similar_embeddings(&base_embedding, 1, 0.1 + i as f32 * 0.05)[0].clone(),
+                    );
+                system.create_node(node)
+            })
+            .collect();
 
         // Run multiple trajectories
         for i in 0..3 {
@@ -595,15 +658,21 @@ mod e2e_flow_tests {
 
             // Use some patterns
             for j in 0..2 {
-                system.add_trajectory_step(
-                    &traj_id,
-                    "use_pattern",
-                    format!("Using pattern {}", j),
-                    vec![patterns[j + i].clone()],
-                ).unwrap();
+                system
+                    .add_trajectory_step(
+                        &traj_id,
+                        "use_pattern",
+                        format!("Using pattern {}", j),
+                        vec![patterns[j + i].clone()],
+                    )
+                    .unwrap();
             }
 
-            let outcome = if i == 2 { Outcome::Failure } else { Outcome::Success };
+            let outcome = if i == 2 {
+                Outcome::Failure
+            } else {
+                Outcome::Success
+            };
             system.complete_trajectory(&traj_id, outcome).unwrap();
 
             // Apply learning
@@ -625,9 +694,7 @@ mod e2e_flow_tests {
         let mut system = ProfDagSystem::new();
 
         // Setup: Create a rich pattern database
-        let embeddings: Vec<Vec<f32>> = (0..10)
-            .map(|_| normalized_embedding(128))
-            .collect();
+        let embeddings: Vec<Vec<f32>> = (0..10).map(|_| normalized_embedding(128)).collect();
 
         for (i, emb) in embeddings.iter().enumerate() {
             let node = Node::new(NodeType::Pattern, format!("Pattern content {}", i))
@@ -645,15 +712,19 @@ mod e2e_flow_tests {
         let traj_id = system.start_trajectory("search-session", "Apply search results");
 
         for result in &search_results {
-            system.add_trajectory_step(
-                &traj_id,
-                "apply_result",
-                format!("Applying pattern with similarity {:.2}", result.similarity),
-                vec![result.node_id.clone()],
-            ).unwrap();
+            system
+                .add_trajectory_step(
+                    &traj_id,
+                    "apply_result",
+                    format!("Applying pattern with similarity {:.2}", result.similarity),
+                    vec![result.node_id.clone()],
+                )
+                .unwrap();
         }
 
-        system.complete_trajectory(&traj_id, Outcome::Success).unwrap();
+        system
+            .complete_trajectory(&traj_id, Outcome::Success)
+            .unwrap();
 
         // Learning phase
         let learning = system.apply_learning(&traj_id).unwrap();
@@ -680,9 +751,12 @@ mod graph_integration_tests {
         let mut system = ProfDagSystem::new();
 
         // Create patterns
-        let node1 = Node::new(NodeType::Pattern, "Pattern A").with_embedding(normalized_embedding(128));
-        let node2 = Node::new(NodeType::Pattern, "Pattern B").with_embedding(normalized_embedding(128));
-        let node3 = Node::new(NodeType::Pattern, "Pattern C").with_embedding(normalized_embedding(128));
+        let node1 =
+            Node::new(NodeType::Pattern, "Pattern A").with_embedding(normalized_embedding(128));
+        let node2 =
+            Node::new(NodeType::Pattern, "Pattern B").with_embedding(normalized_embedding(128));
+        let node3 =
+            Node::new(NodeType::Pattern, "Pattern C").with_embedding(normalized_embedding(128));
 
         let id1 = system.create_node(node1);
         let id2 = system.create_node(node2);
@@ -690,11 +764,19 @@ mod graph_integration_tests {
 
         // Create trajectory that uses patterns in sequence
         let traj_id = system.start_trajectory("session", "Sequential task");
-        system.add_trajectory_step(&traj_id, "step1", "Using A", vec![id1.clone()]).unwrap();
-        system.add_trajectory_step(&traj_id, "step2", "Using B", vec![id2.clone()]).unwrap();
-        system.add_trajectory_step(&traj_id, "step3", "Using C", vec![id3.clone()]).unwrap();
+        system
+            .add_trajectory_step(&traj_id, "step1", "Using A", vec![id1.clone()])
+            .unwrap();
+        system
+            .add_trajectory_step(&traj_id, "step2", "Using B", vec![id2.clone()])
+            .unwrap();
+        system
+            .add_trajectory_step(&traj_id, "step3", "Using C", vec![id3.clone()])
+            .unwrap();
 
-        system.complete_trajectory(&traj_id, Outcome::Success).unwrap();
+        system
+            .complete_trajectory(&traj_id, Outcome::Success)
+            .unwrap();
 
         let initial_edge_count = system.edge_count();
 
@@ -747,15 +829,17 @@ mod graph_integration_tests {
         // Create interconnected nodes
         let base_emb = normalized_embedding(128);
 
-        let main_node = Node::new(NodeType::Pattern, "Main pattern")
-            .with_embedding(base_emb.clone());
+        let main_node =
+            Node::new(NodeType::Pattern, "Main pattern").with_embedding(base_emb.clone());
         let main_id = system.create_node(main_node);
 
-        let related_nodes: Vec<String> = (0..3).map(|i| {
-            let node = Node::new(NodeType::Pattern, format!("Related pattern {}", i))
-                .with_embedding(similar_embeddings(&base_emb, 1, 0.2)[0].clone());
-            system.create_node(node)
-        }).collect();
+        let related_nodes: Vec<String> = (0..3)
+            .map(|i| {
+                let node = Node::new(NodeType::Pattern, format!("Related pattern {}", i))
+                    .with_embedding(similar_embeddings(&base_emb, 1, 0.2)[0].clone());
+                system.create_node(node)
+            })
+            .collect();
 
         // Link main to related nodes
         for related_id in &related_nodes {
@@ -778,15 +862,21 @@ mod graph_integration_tests {
     fn test_bidirectional_edges() {
         let mut system = ProfDagSystem::new();
 
-        let node1 = Node::new(NodeType::Pattern, "Node 1").with_embedding(normalized_embedding(128));
-        let node2 = Node::new(NodeType::Pattern, "Node 2").with_embedding(normalized_embedding(128));
+        let node1 =
+            Node::new(NodeType::Pattern, "Node 1").with_embedding(normalized_embedding(128));
+        let node2 =
+            Node::new(NodeType::Pattern, "Node 2").with_embedding(normalized_embedding(128));
 
         let id1 = system.create_node(node1);
         let id2 = system.create_node(node2);
 
         // Create bidirectional similar_to edges
-        system.create_edge(Edge::new(&id1, &id2, EdgeType::SimilarTo, 0.9)).unwrap();
-        system.create_edge(Edge::new(&id2, &id1, EdgeType::SimilarTo, 0.9)).unwrap();
+        system
+            .create_edge(Edge::new(&id1, &id2, EdgeType::SimilarTo, 0.9))
+            .unwrap();
+        system
+            .create_edge(Edge::new(&id2, &id1, EdgeType::SimilarTo, 0.9))
+            .unwrap();
 
         // Both should be neighbors of each other
         let neighbors1 = system.get_neighbors(&id1, Some(EdgeType::SimilarTo));
@@ -839,16 +929,24 @@ mod learning_integration_tests {
 
         // Successful trajectory
         let traj_id = system.start_trajectory("s1", "Success task");
-        system.add_trajectory_step(&traj_id, "use", "Using pattern", vec![id.clone()]).unwrap();
-        system.complete_trajectory(&traj_id, Outcome::Success).unwrap();
+        system
+            .add_trajectory_step(&traj_id, "use", "Using pattern", vec![id.clone()])
+            .unwrap();
+        system
+            .complete_trajectory(&traj_id, Outcome::Success)
+            .unwrap();
 
         let node_after = system.get_node(&id).unwrap();
         assert_eq!(node_after.success_rate, 1.0);
 
         // Failed trajectory
         let traj_id2 = system.start_trajectory("s2", "Failure task");
-        system.add_trajectory_step(&traj_id2, "use", "Using pattern", vec![id.clone()]).unwrap();
-        system.complete_trajectory(&traj_id2, Outcome::Failure).unwrap();
+        system
+            .add_trajectory_step(&traj_id2, "use", "Using pattern", vec![id.clone()])
+            .unwrap();
+        system
+            .complete_trajectory(&traj_id2, Outcome::Failure)
+            .unwrap();
 
         let node_after2 = system.get_node(&id).unwrap();
         assert!((node_after2.success_rate - 0.5).abs() < 0.01);
@@ -866,8 +964,12 @@ mod learning_integration_tests {
 
         // Create and complete trajectory
         let traj_id = system.start_trajectory("session", "Task");
-        system.add_trajectory_step(&traj_id, "use", "Using", vec![pattern_id.clone()]).unwrap();
-        system.complete_trajectory(&traj_id, Outcome::Success).unwrap();
+        system
+            .add_trajectory_step(&traj_id, "use", "Using", vec![pattern_id.clone()])
+            .unwrap();
+        system
+            .complete_trajectory(&traj_id, Outcome::Success)
+            .unwrap();
 
         // Apply learning
         let learning = system.apply_learning(&traj_id).unwrap();
@@ -883,11 +985,14 @@ mod learning_integration_tests {
     fn test_learning_incomplete_trajectory_fails() {
         let mut system = ProfDagSystem::new();
 
-        let pattern = Node::new(NodeType::Pattern, "Pattern").with_embedding(normalized_embedding(128));
+        let pattern =
+            Node::new(NodeType::Pattern, "Pattern").with_embedding(normalized_embedding(128));
         let pattern_id = system.create_node(pattern);
 
         let traj_id = system.start_trajectory("session", "Incomplete task");
-        system.add_trajectory_step(&traj_id, "step", "Input", vec![pattern_id]).unwrap();
+        system
+            .add_trajectory_step(&traj_id, "step", "Input", vec![pattern_id])
+            .unwrap();
 
         // Don't complete the trajectory
         let result = system.apply_learning(&traj_id);
@@ -900,18 +1005,29 @@ mod learning_integration_tests {
         let mut system = ProfDagSystem::new();
 
         // Create patterns with different initial states
-        let patterns: Vec<String> = (0..3).map(|i| {
-            let node = Node::new(NodeType::Pattern, format!("Pattern {}", i))
-                .with_embedding(normalized_embedding(128));
-            system.create_node(node)
-        }).collect();
+        let patterns: Vec<String> = (0..3)
+            .map(|i| {
+                let node = Node::new(NodeType::Pattern, format!("Pattern {}", i))
+                    .with_embedding(normalized_embedding(128));
+                system.create_node(node)
+            })
+            .collect();
 
         // Successful trajectory using all patterns
         let traj_id = system.start_trajectory("session", "Full success");
         for (i, pattern_id) in patterns.iter().enumerate() {
-            system.add_trajectory_step(&traj_id, format!("step-{}", i), "Input", vec![pattern_id.clone()]).unwrap();
+            system
+                .add_trajectory_step(
+                    &traj_id,
+                    format!("step-{}", i),
+                    "Input",
+                    vec![pattern_id.clone()],
+                )
+                .unwrap();
         }
-        system.complete_trajectory(&traj_id, Outcome::Success).unwrap();
+        system
+            .complete_trajectory(&traj_id, Outcome::Success)
+            .unwrap();
 
         // Apply learning
         let learning = system.apply_learning(&traj_id).unwrap();
@@ -943,8 +1059,7 @@ mod performance_tests {
         // Create 1000 nodes
         for i in 0..1000 {
             let emb = similar_embeddings(&base_emb, 1, 0.3)[0].clone();
-            let node = Node::new(NodeType::Pattern, format!("Pattern {}", i))
-                .with_embedding(emb);
+            let node = Node::new(NodeType::Pattern, format!("Pattern {}", i)).with_embedding(emb);
             system.create_node(node);
         }
 
@@ -969,11 +1084,13 @@ mod performance_tests {
         let mut system = ProfDagSystem::new();
 
         // Create patterns
-        let patterns: Vec<String> = (0..100).map(|i| {
-            let node = Node::new(NodeType::Pattern, format!("Pattern {}", i))
-                .with_embedding(normalized_embedding(128));
-            system.create_node(node)
-        }).collect();
+        let patterns: Vec<String> = (0..100)
+            .map(|i| {
+                let node = Node::new(NodeType::Pattern, format!("Pattern {}", i))
+                    .with_embedding(normalized_embedding(128));
+                system.create_node(node)
+            })
+            .collect();
 
         let start = Instant::now();
 
@@ -982,15 +1099,21 @@ mod performance_tests {
             let traj_id = system.start_trajectory(format!("session-{}", i), format!("Task {}", i));
 
             for j in 0..10 {
-                system.add_trajectory_step(
-                    &traj_id,
-                    format!("step-{}", j),
-                    format!("Input {}", j),
-                    vec![patterns[(i * 10 + j) % 100].clone()],
-                ).unwrap();
+                system
+                    .add_trajectory_step(
+                        &traj_id,
+                        format!("step-{}", j),
+                        format!("Input {}", j),
+                        vec![patterns[(i * 10 + j) % 100].clone()],
+                    )
+                    .unwrap();
             }
 
-            let outcome = if i % 3 == 0 { Outcome::Failure } else { Outcome::Success };
+            let outcome = if i % 3 == 0 {
+                Outcome::Failure
+            } else {
+                Outcome::Success
+            };
             system.complete_trajectory(&traj_id, outcome).unwrap();
         }
 
@@ -1010,28 +1133,36 @@ mod performance_tests {
         let mut system = ProfDagSystem::new();
 
         // Create patterns
-        let patterns: Vec<String> = (0..50).map(|i| {
-            let node = Node::new(NodeType::Pattern, format!("Pattern {}", i))
-                .with_embedding(normalized_embedding(128));
-            system.create_node(node)
-        }).collect();
+        let patterns: Vec<String> = (0..50)
+            .map(|i| {
+                let node = Node::new(NodeType::Pattern, format!("Pattern {}", i))
+                    .with_embedding(normalized_embedding(128));
+                system.create_node(node)
+            })
+            .collect();
 
         // Create trajectories
-        let traj_ids: Vec<String> = (0..20).map(|i| {
-            let traj_id = system.start_trajectory(format!("s-{}", i), format!("Task {}", i));
+        let traj_ids: Vec<String> = (0..20)
+            .map(|i| {
+                let traj_id = system.start_trajectory(format!("s-{}", i), format!("Task {}", i));
 
-            for j in 0..5 {
-                system.add_trajectory_step(
-                    &traj_id,
-                    "step",
-                    "Input",
-                    vec![patterns[(i * 5 + j) % 50].clone()],
-                ).unwrap();
-            }
+                for j in 0..5 {
+                    system
+                        .add_trajectory_step(
+                            &traj_id,
+                            "step",
+                            "Input",
+                            vec![patterns[(i * 5 + j) % 50].clone()],
+                        )
+                        .unwrap();
+                }
 
-            system.complete_trajectory(&traj_id, Outcome::Success).unwrap();
-            traj_id
-        }).collect();
+                system
+                    .complete_trajectory(&traj_id, Outcome::Success)
+                    .unwrap();
+                traj_id
+            })
+            .collect();
 
         // Measure learning application time
         let start = Instant::now();
@@ -1052,11 +1183,13 @@ mod performance_tests {
         let mut system = ProfDagSystem::new();
 
         // Create a graph with 100 nodes and many edges
-        let nodes: Vec<String> = (0..100).map(|i| {
-            let node = Node::new(NodeType::Pattern, format!("Node {}", i))
-                .with_embedding(normalized_embedding(128));
-            system.create_node(node)
-        }).collect();
+        let nodes: Vec<String> = (0..100)
+            .map(|i| {
+                let node = Node::new(NodeType::Pattern, format!("Node {}", i))
+                    .with_embedding(normalized_embedding(128));
+                system.create_node(node)
+            })
+            .collect();
 
         // Create edges (sparse graph)
         for i in 0..100 {
@@ -1097,7 +1230,9 @@ mod edge_cases {
         let mut system = ProfDagSystem::new();
 
         let traj_id = system.start_trajectory("session", "Empty task");
-        system.complete_trajectory(&traj_id, Outcome::Success).unwrap();
+        system
+            .complete_trajectory(&traj_id, Outcome::Success)
+            .unwrap();
 
         let learning = system.apply_learning(&traj_id).unwrap();
         assert!(learning.updated_nodes.is_empty());
@@ -1121,18 +1256,23 @@ mod edge_cases {
     fn test_duplicate_node_ids_in_step() {
         let mut system = ProfDagSystem::new();
 
-        let node = Node::new(NodeType::Pattern, "Pattern").with_embedding(normalized_embedding(128));
+        let node =
+            Node::new(NodeType::Pattern, "Pattern").with_embedding(normalized_embedding(128));
         let id = system.create_node(node);
 
         let traj_id = system.start_trajectory("session", "Duplicate test");
-        system.add_trajectory_step(
-            &traj_id,
-            "step",
-            "Input",
-            vec![id.clone(), id.clone(), id.clone()],
-        ).unwrap();
+        system
+            .add_trajectory_step(
+                &traj_id,
+                "step",
+                "Input",
+                vec![id.clone(), id.clone(), id.clone()],
+            )
+            .unwrap();
 
-        system.complete_trajectory(&traj_id, Outcome::Success).unwrap();
+        system
+            .complete_trajectory(&traj_id, Outcome::Success)
+            .unwrap();
 
         // Node should only be counted once for usage
         let node = system.get_node(&id).unwrap();
@@ -1143,7 +1283,8 @@ mod edge_cases {
     fn test_self_referential_edge() {
         let mut system = ProfDagSystem::new();
 
-        let node = Node::new(NodeType::Pattern, "Self ref").with_embedding(normalized_embedding(128));
+        let node =
+            Node::new(NodeType::Pattern, "Self ref").with_embedding(normalized_embedding(128));
         let id = system.create_node(node);
 
         // Wormhole edges can be self-referential
@@ -1156,11 +1297,13 @@ mod edge_cases {
     fn test_circular_graph() {
         let mut system = ProfDagSystem::new();
 
-        let nodes: Vec<String> = (0..5).map(|i| {
-            let node = Node::new(NodeType::Pattern, format!("Circular {}", i))
-                .with_embedding(normalized_embedding(128));
-            system.create_node(node)
-        }).collect();
+        let nodes: Vec<String> = (0..5)
+            .map(|i| {
+                let node = Node::new(NodeType::Pattern, format!("Circular {}", i))
+                    .with_embedding(normalized_embedding(128));
+                system.create_node(node)
+            })
+            .collect();
 
         // Create circular edges: 0 -> 1 -> 2 -> 3 -> 4 -> 0
         for i in 0..5 {
@@ -1179,16 +1322,21 @@ mod edge_cases {
     fn test_very_long_trajectory() {
         let mut system = ProfDagSystem::new();
 
-        let node = Node::new(NodeType::Pattern, "Pattern").with_embedding(normalized_embedding(128));
+        let node =
+            Node::new(NodeType::Pattern, "Pattern").with_embedding(normalized_embedding(128));
         let id = system.create_node(node);
 
         let traj_id = system.start_trajectory("session", "Long trajectory");
 
         for i in 0..1000 {
-            system.add_trajectory_step(&traj_id, format!("step-{}", i), "Input", vec![id.clone()]).unwrap();
+            system
+                .add_trajectory_step(&traj_id, format!("step-{}", i), "Input", vec![id.clone()])
+                .unwrap();
         }
 
-        system.complete_trajectory(&traj_id, Outcome::Success).unwrap();
+        system
+            .complete_trajectory(&traj_id, Outcome::Success)
+            .unwrap();
 
         let trajectory = system.get_trajectory(&traj_id).unwrap();
         assert_eq!(trajectory.steps.len(), 1000);

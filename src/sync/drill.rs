@@ -53,10 +53,7 @@ impl Default for RestoreDrillConfig {
 
 impl RestoreDrillConfig {
     /// Create a new drill configuration.
-    pub fn new(
-        production_db: impl Into<PathBuf>,
-        backup_dir: impl Into<PathBuf>,
-    ) -> Self {
+    pub fn new(production_db: impl Into<PathBuf>, backup_dir: impl Into<PathBuf>) -> Self {
         Self {
             production_db_path: production_db.into(),
             backup_dir: backup_dir.into(),
@@ -282,10 +279,10 @@ impl RestoreDrill {
         debug!(backup_id = %backup.id, "Using backup for drill");
 
         // Create drill database path
-        let drill_db_path = self.config.drill_directory.join(format!(
-            "drill-{}.db",
-            Utc::now().format("%Y%m%d-%H%M%S")
-        ));
+        let drill_db_path = self
+            .config
+            .drill_directory
+            .join(format!("drill-{}.db", Utc::now().format("%Y%m%d-%H%M%S")));
 
         // Perform the restore
         match self.perform_restore(&backup, &drill_db_path).await {
@@ -508,17 +505,15 @@ impl RestoreDrill {
     // Private helper methods
 
     fn find_suitable_backup(&self) -> Result<BackupMetadata> {
-        let backup_config = BackupConfig::new(&self.config.production_db_path, &self.config.backup_dir);
+        let backup_config =
+            BackupConfig::new(&self.config.production_db_path, &self.config.backup_dir);
         let backup_manager = BackupManager::new(backup_config)?;
 
         let backups = backup_manager.list_backups()?;
         let cutoff = Utc::now() - Duration::hours(self.config.max_backup_age_hours as i64);
 
         // Prefer full backups within the time window
-        let suitable: Vec<_> = backups
-            .iter()
-            .filter(|b| b.created_at >= cutoff)
-            .collect();
+        let suitable: Vec<_> = backups.iter().filter(|b| b.created_at >= cutoff).collect();
 
         if suitable.is_empty() {
             return Err(NagualError::config(format!(
@@ -535,18 +530,21 @@ impl RestoreDrill {
         Ok(suitable[0].clone())
     }
 
-    async fn perform_restore(&self, backup: &BackupMetadata, target: &Path) -> Result<RestoreResult> {
-        let restore_config = RestoreConfig::new(target, &self.config.backup_dir)
-            .with_backup_before_restore(false);
+    async fn perform_restore(
+        &self,
+        backup: &BackupMetadata,
+        target: &Path,
+    ) -> Result<RestoreResult> {
+        let restore_config =
+            RestoreConfig::new(target, &self.config.backup_dir).with_backup_before_restore(false);
 
         let restore_manager = RestoreManager::with_config(restore_config)?;
         restore_manager.restore_from_backup(&backup.path).await
     }
 
     fn verify_integrity(&self, db_path: &Path) -> Result<bool> {
-        let conn = rusqlite::Connection::open(db_path).map_err(|e| {
-            NagualError::config(format!("Failed to open drill database: {}", e))
-        })?;
+        let conn = rusqlite::Connection::open(db_path)
+            .map_err(|e| NagualError::config(format!("Failed to open drill database: {}", e)))?;
 
         let result: String = conn
             .query_row("PRAGMA integrity_check", [], |row| row.get(0))
@@ -566,13 +564,14 @@ impl RestoreDrill {
     }
 
     fn count_records(&self, db_path: &Path) -> Result<u64> {
-        let conn = rusqlite::Connection::open(db_path).map_err(|e| {
-            NagualError::config(format!("Failed to open database: {}", e))
-        })?;
+        let conn = rusqlite::Connection::open(db_path)
+            .map_err(|e| NagualError::config(format!("Failed to open database: {}", e)))?;
 
         // Get list of tables
         let mut stmt = conn
-            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            .prepare(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+            )
             .map_err(|e| NagualError::config(format!("Failed to list tables: {}", e)))?;
 
         let tables: Vec<String> = stmt

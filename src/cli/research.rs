@@ -9,8 +9,7 @@ use tracing::info;
 use crate::db::SqliteDb;
 use crate::error::NagualError;
 use crate::research::{
-    ResearchBudget, ResearchCoordinator, ResearchDepth, ResearchRequest,
-    ResearchStrategy,
+    ResearchBudget, ResearchCoordinator, ResearchDepth, ResearchRequest, ResearchStrategy,
 };
 
 #[derive(Debug, Args)]
@@ -131,9 +130,10 @@ pub async fn run(args: ResearchCommand) -> Result<(), NagualError> {
     };
 
     // Parse depth
-    let depth: ResearchDepth = args.depth.parse().map_err(|e| NagualError::Internal {
-        message: e,
-    })?;
+    let depth: ResearchDepth = args
+        .depth
+        .parse()
+        .map_err(|e| NagualError::Internal { message: e })?;
 
     // Parse strategy
     let strategy = parse_strategy(&args.strategy, &args.urls, &args.repo)?;
@@ -187,7 +187,10 @@ pub async fn run(args: ResearchCommand) -> Result<(), NagualError> {
 
     // Print results
     if args.json {
-        println!("{}", serde_json::to_string_pretty(&result).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result).unwrap_or_default()
+        );
     } else {
         print_result(&result);
     }
@@ -206,7 +209,9 @@ fn parse_strategy(
             if urls.is_empty() {
                 Ok(ResearchStrategy::WebSearch) // Fallback to web search
             } else {
-                Ok(ResearchStrategy::DocFetch { urls: urls.to_vec() })
+                Ok(ResearchStrategy::DocFetch {
+                    urls: urls.to_vec(),
+                })
             }
         }
         "code" => {
@@ -280,14 +285,22 @@ fn print_result(result: &crate::research::ResearchResult) {
     println!();
 
     // Consensus
-    println!("Consensus (confidence: {:.0}%)", result.consensus.confidence * 100.0);
+    println!(
+        "Consensus (confidence: {:.0}%)",
+        result.consensus.confidence * 100.0
+    );
     println!("─────────────────────────────");
     if result.consensus.key_findings.is_empty() {
         println!("  No significant findings");
     } else {
         for (i, finding) in result.consensus.key_findings.iter().enumerate() {
             let truncated: String = finding.chars().take(100).collect();
-            println!("  {}. {}{}", i + 1, truncated, if finding.len() > 100 { "..." } else { "" });
+            println!(
+                "  {}. {}{}",
+                i + 1,
+                truncated,
+                if finding.len() > 100 { "..." } else { "" }
+            );
         }
     }
     println!();
@@ -329,13 +342,21 @@ async fn run_external_research(
     let domain = args.domain.clone().unwrap_or_else(|| {
         // Try to infer domain from topic
         let topic_lower = topic.to_lowercase();
-        if topic_lower.contains("rust") { "rust".to_string() }
-        else if topic_lower.contains("python") { "python".to_string() }
-        else if topic_lower.contains("kubernetes") || topic_lower.contains("k8s") { "kubernetes".to_string() }
-        else if topic_lower.contains("docker") { "docker".to_string() }
-        else if topic_lower.contains("api") { "api".to_string() }
-        else if topic_lower.contains("database") || topic_lower.contains("sql") { "database".to_string() }
-        else { "general".to_string() }
+        if topic_lower.contains("rust") {
+            "rust".to_string()
+        } else if topic_lower.contains("python") {
+            "python".to_string()
+        } else if topic_lower.contains("kubernetes") || topic_lower.contains("k8s") {
+            "kubernetes".to_string()
+        } else if topic_lower.contains("docker") {
+            "docker".to_string()
+        } else if topic_lower.contains("api") {
+            "api".to_string()
+        } else if topic_lower.contains("database") || topic_lower.contains("sql") {
+            "database".to_string()
+        } else {
+            "general".to_string()
+        }
     });
 
     if args.json {
@@ -382,14 +403,20 @@ async fn run_external_research(
     println!("  prompt: `Research \"{}\" using WebSearch.", topic);
     println!("Find authoritative information and store findings as patterns using:");
     println!();
-    println!("nagual knowledge store \"PROBLEM\" --solution \"SOLUTION\" --domain {} --tags \"TAGS\"", domain);
+    println!(
+        "nagual knowledge store \"PROBLEM\" --solution \"SOLUTION\" --domain {} --tags \"TAGS\"",
+        domain
+    );
     println!();
     println!("Focus on:");
     for area in generate_focus_areas(topic) {
         println!("- {}", area);
     }
     println!();
-    println!("Create up to {} high-quality patterns from your research.`,", request.budget.max_patterns);
+    println!(
+        "Create up to {} high-quality patterns from your research.`,",
+        request.budget.max_patterns
+    );
     println!("  subagent_type: \"researcher\"");
     println!("}})");
     println!("```");
@@ -480,7 +507,11 @@ async fn fill_gaps(
 
     println!("Found {} gaps to fill:", gaps.len());
     for (i, gap) in gaps.iter().enumerate() {
-        let domain = gap.affected_domains.first().map(|s| s.as_str()).unwrap_or("unknown");
+        let domain = gap
+            .affected_domains
+            .first()
+            .map(|s| s.as_str())
+            .unwrap_or("unknown");
         println!("  {}. {} ({:?} severity)", i + 1, domain, gap.severity);
     }
     println!();
@@ -489,7 +520,11 @@ async fn fill_gaps(
     let coordinator = ResearchCoordinator::with_defaults(db);
 
     for gap in gaps {
-        let domain = gap.affected_domains.first().map(|s| s.as_str()).unwrap_or("general");
+        let domain = gap
+            .affected_domains
+            .first()
+            .map(|s| s.as_str())
+            .unwrap_or("general");
         let topic = format!("{} best practices", domain);
         println!("Researching: {}", topic);
 
@@ -533,11 +568,11 @@ async fn show_history(db: Arc<SqliteDb>, limit: usize, json: bool) -> Result<(),
     "#;
 
     let limit_str = limit.to_string();
-    let patterns: Vec<(String, String, String, String)> = db.query(
-        sql,
-        &[&limit_str],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-    ).await?;
+    let patterns: Vec<(String, String, String, String)> = db
+        .query(sql, &[&limit_str], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
+        .await?;
 
     if json {
         let items: Vec<_> = patterns
@@ -551,7 +586,10 @@ async fn show_history(db: Arc<SqliteDb>, limit: usize, json: bool) -> Result<(),
                 })
             })
             .collect();
-        println!("{}", serde_json::to_string_pretty(&items).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&items).unwrap_or_default()
+        );
         return Ok(());
     }
 

@@ -33,7 +33,6 @@ pub enum KosSubcommand {
     Status,
 
     // -- P0: Lineage ----------------------------------------------------------
-
     /// Query pattern lineage (derivation tree)
     Lineage {
         #[command(subcommand)]
@@ -41,7 +40,6 @@ pub enum KosSubcommand {
     },
 
     // -- P1: Witness Chains ---------------------------------------------------
-
     /// Witness chain operations (tamper-evident log)
     Witness {
         #[command(subcommand)]
@@ -49,7 +47,6 @@ pub enum KosSubcommand {
     },
 
     // -- P2: Delta Event Sourcing ---------------------------------------------
-
     /// Delta event sourcing (field-level change tracking)
     Delta {
         #[command(subcommand)]
@@ -57,7 +54,6 @@ pub enum KosSubcommand {
     },
 
     // -- Coherence Scoring ----------------------------------------------------
-
     /// Coherence scoring (contradiction detection)
     Scoring {
         #[command(subcommand)]
@@ -65,7 +61,6 @@ pub enum KosSubcommand {
     },
 
     // -- P4: Domain Transfer --------------------------------------------------
-
     /// Cross-domain knowledge transfer
     Transfer {
         #[command(subcommand)]
@@ -73,7 +68,6 @@ pub enum KosSubcommand {
     },
 
     // -- P5: Epochs -----------------------------------------------------------
-
     /// Knowledge epoch management (versioning)
     Epoch {
         #[command(subcommand)]
@@ -81,7 +75,6 @@ pub enum KosSubcommand {
     },
 
     // -- Tiering --------------------------------------------------------------
-
     /// Hot/warm/cold pattern tiering
     Tiering {
         #[command(subcommand)]
@@ -89,7 +82,6 @@ pub enum KosSubcommand {
     },
 
     // -- Agent Views ----------------------------------------------------------
-
     /// Per-agent pattern visibility management
     Views {
         #[command(subcommand)]
@@ -97,7 +89,6 @@ pub enum KosSubcommand {
     },
 
     // -- EWC ------------------------------------------------------------------
-
     /// Elastic Weight Consolidation
     Ewc {
         #[command(subcommand)]
@@ -105,7 +96,6 @@ pub enum KosSubcommand {
     },
 
     // -- Routing Ladder -------------------------------------------------------
-
     /// Compute routing ladder (reflex/retrieval/heavy)
     Ladder {
         #[command(subcommand)]
@@ -113,7 +103,6 @@ pub enum KosSubcommand {
     },
 
     // -- Hyperbolic Index -----------------------------------------------------
-
     /// Hyperbolic-space similarity index
     Hyperbolic {
         #[command(subcommand)]
@@ -384,7 +373,10 @@ pub enum HyperbolicCmd {
 impl KosCommand {
     pub async fn run(self) -> crate::error::Result<()> {
         // Destructure to avoid partial-move of `self` in match arms.
-        let KosCommand { subcommand, db_path } = self;
+        let KosCommand {
+            subcommand,
+            db_path,
+        } = self;
         // Reconstruct a "shell" KosCommand with Status placeholder so we can call
         // &self helper methods that only need db_path.
         let shell = KosCommand {
@@ -820,11 +812,7 @@ impl KosCommand {
                 if scores.is_empty() {
                     println!("No coherence issues found in domain '{}'", domain);
                 } else {
-                    println!(
-                        "Coherence scan for '{}' ({} pairs):",
-                        domain,
-                        scores.len()
-                    );
+                    println!("Coherence scan for '{}' ({} pairs):", domain, scores.len());
                     for s in &scores {
                         println!(
                             "  {} <-> {}  sim={:.3} contra={:.3} type={}",
@@ -841,7 +829,10 @@ impl KosCommand {
                 let health = scorer.system_health().await?;
                 println!("Coherence Health:");
                 println!("  Total pairs checked:      {}", health.total_pairs_checked);
-                println!("  Contradictions found:     {}", health.contradictions_found);
+                println!(
+                    "  Contradictions found:     {}",
+                    health.contradictions_found
+                );
                 println!(
                     "  Contradiction rate:       {:.1}%",
                     health.contradiction_rate * 100.0
@@ -850,9 +841,16 @@ impl KosCommand {
                     "  Entailment consistency:   {:.3}",
                     health.entailment_consistency
                 );
-                println!("  Domains scanned:          {}", health.domains_scanned.len());
+                println!(
+                    "  Domains scanned:          {}",
+                    health.domains_scanned.len()
+                );
                 if let Some((domain, rate)) = &health.worst_domain {
-                    println!("  Worst domain:             {} ({:.1}%)", domain, rate * 100.0);
+                    println!(
+                        "  Worst domain:             {} ({:.1}%)",
+                        domain,
+                        rate * 100.0
+                    );
                 }
             }
         }
@@ -941,9 +939,7 @@ impl KosCommand {
 
         match cmd {
             EpochCmd::Create { name, description } => {
-                let epoch = em
-                    .create_epoch(&name, description.as_deref())
-                    .await?;
+                let epoch = em.create_epoch(&name, description.as_deref()).await?;
                 println!("Created epoch '{}':", epoch.name);
                 println!("  ID:           {}", epoch.id);
                 println!("  Patterns:     {}", epoch.pattern_count);
@@ -987,16 +983,17 @@ impl KosCommand {
                         "  {:<20} {:>8} {:>8} {:>10}  {}",
                         "Name", "Patterns", "Domains", "Parent", "Created"
                     );
-                    println!("  {:-<20} {:->8} {:->8} {:->10}  {:-<19}", "", "", "", "", "");
+                    println!(
+                        "  {:-<20} {:->8} {:->8} {:->10}  {:-<19}",
+                        "", "", "", "", ""
+                    );
                     for e in &epochs {
                         println!(
                             "  {:<20} {:>8} {:>8} {:>10}  {}",
                             e.name,
                             e.pattern_count,
                             e.domain_count,
-                            e.parent_epoch
-                                .as_deref()
-                                .unwrap_or("-"),
+                            e.parent_epoch.as_deref().unwrap_or("-"),
                             e.created_at.format("%Y-%m-%d %H:%M:%S"),
                         );
                     }
@@ -1139,27 +1136,22 @@ impl KosCommand {
                     }
                 };
                 vm.register_agent(&agent_id, view_mode).await?;
-                println!(
-                    "Registered agent '{}' with mode '{}'",
-                    agent_id, mode
-                );
+                println!("Registered agent '{}' with mode '{}'", agent_id, mode);
             }
-            ViewsCmd::Get { agent_id } => {
-                match vm.get_view(&agent_id).await? {
-                    Some(view) => {
-                        println!("Agent '{}' view:", agent_id);
-                        println!("  Mode:         {}", view.view_mode.as_str());
-                        println!("  Grants:       {}", view.pattern_grants.len());
-                        println!("  Excludes:     {}", view.pattern_excludes.len());
-                        if !view.domain_filters.is_empty() {
-                            println!("  Domains:      {:?}", view.domain_filters);
-                        }
-                    }
-                    None => {
-                        println!("Agent '{}' not found", agent_id);
+            ViewsCmd::Get { agent_id } => match vm.get_view(&agent_id).await? {
+                Some(view) => {
+                    println!("Agent '{}' view:", agent_id);
+                    println!("  Mode:         {}", view.view_mode.as_str());
+                    println!("  Grants:       {}", view.pattern_grants.len());
+                    println!("  Excludes:     {}", view.pattern_excludes.len());
+                    if !view.domain_filters.is_empty() {
+                        println!("  Domains:      {:?}", view.domain_filters);
                     }
                 }
-            }
+                None => {
+                    println!("Agent '{}' not found", agent_id);
+                }
+            },
         }
         Ok(())
     }
@@ -1242,7 +1234,10 @@ impl KosCommand {
                 let stats = ladder.stats().await?;
                 println!("Routing Ladder Statistics:");
                 println!("  Cache size:         {}", stats.cache_size);
-                println!("  Reflex hit rate:    {:.1}%", stats.reflex_hit_rate * 100.0);
+                println!(
+                    "  Reflex hit rate:    {:.1}%",
+                    stats.reflex_hit_rate * 100.0
+                );
                 println!("  Total requests:     {}", stats.total_requests);
                 println!("  Reflex hits:        {}", stats.reflex_hits);
                 println!("  Reflex misses:      {}", stats.reflex_misses);
@@ -1265,19 +1260,17 @@ impl KosCommand {
                 println!("  Confidence:   {:.3}", decision.confidence);
                 println!("  Reasoning:    {}", decision.reasoning);
             }
-            LadderCmd::Reflex { query } => {
-                match ladder.check_reflex(&query) {
-                    Some(entry) => {
-                        println!("Reflex HIT for query:");
-                        println!("  Response:     {}", entry.response);
-                        println!("  Confidence:   {:.3}", entry.confidence);
-                        println!("  Hit count:    {}", entry.hit_count);
-                    }
-                    None => {
-                        println!("No reflex entry for query '{}'", query);
-                    }
+            LadderCmd::Reflex { query } => match ladder.check_reflex(&query) {
+                Some(entry) => {
+                    println!("Reflex HIT for query:");
+                    println!("  Response:     {}", entry.response);
+                    println!("  Confidence:   {:.3}", entry.confidence);
+                    println!("  Hit count:    {}", entry.hit_count);
                 }
-            }
+                None => {
+                    println!("No reflex entry for query '{}'", query);
+                }
+            },
         }
         Ok(())
     }
@@ -1357,7 +1350,11 @@ mod tests {
     fn test_kos_db_path() {
         let args = vec!["nagual", "kos", "--db-path", "/tmp/test.db", "status"];
         let cli = TestCli::try_parse_from(args);
-        assert!(cli.is_ok(), "Failed to parse kos with db-path: {:?}", cli.err());
+        assert!(
+            cli.is_ok(),
+            "Failed to parse kos with db-path: {:?}",
+            cli.err()
+        );
     }
 
     #[test]
@@ -1418,7 +1415,16 @@ mod tests {
 
     #[test]
     fn test_kos_transfer_candidates() {
-        let args = vec!["nagual", "kos", "transfer", "candidates", "rust", "python", "--limit", "5"];
+        let args = vec![
+            "nagual",
+            "kos",
+            "transfer",
+            "candidates",
+            "rust",
+            "python",
+            "--limit",
+            "5",
+        ];
         let cli = TestCli::try_parse_from(args);
         assert!(cli.is_ok());
     }
@@ -1432,7 +1438,15 @@ mod tests {
 
     #[test]
     fn test_kos_epoch_create() {
-        let args = vec!["nagual", "kos", "epoch", "create", "v1.0", "--description", "First release"];
+        let args = vec![
+            "nagual",
+            "kos",
+            "epoch",
+            "create",
+            "v1.0",
+            "--description",
+            "First release",
+        ];
         let cli = TestCli::try_parse_from(args);
         assert!(cli.is_ok());
     }
@@ -1474,7 +1488,9 @@ mod tests {
 
     #[test]
     fn test_kos_views_register() {
-        let args = vec!["nagual", "kos", "views", "register", "agent-1", "--mode", "include"];
+        let args = vec![
+            "nagual", "kos", "views", "register", "agent-1", "--mode", "include",
+        ];
         let cli = TestCli::try_parse_from(args);
         assert!(cli.is_ok());
     }
@@ -1509,7 +1525,15 @@ mod tests {
 
     #[test]
     fn test_kos_ladder_route() {
-        let args = vec!["nagual", "kos", "ladder", "route", "how to fix timeout", "--complexity", "0.7"];
+        let args = vec![
+            "nagual",
+            "kos",
+            "ladder",
+            "route",
+            "how to fix timeout",
+            "--complexity",
+            "0.7",
+        ];
         let cli = TestCli::try_parse_from(args);
         assert!(cli.is_ok());
     }

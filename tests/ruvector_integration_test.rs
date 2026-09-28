@@ -19,16 +19,14 @@ use common::{normalized_embedding, similar_embeddings};
 
 mod hnsw_integration {
     use super::*;
+    use nagual::db::DualWriteAdapter;
     use nagual::profdag::search::{ProfDAGSearch, SearchConfig};
     use nagual::profdag::storage::{ProfDAGStorage, ProfDAGStorageConfig};
     use nagual::profdag::{NodeType, ProfDAGNode};
-    use nagual::db::DualWriteAdapter;
 
     async fn setup_storage() -> Arc<ProfDAGStorage> {
-        let adapter = Arc::new(
-            DualWriteAdapter::new_for_testing()
-                .expect("Failed to create test adapter"),
-        );
+        let adapter =
+            Arc::new(DualWriteAdapter::new_for_testing().expect("Failed to create test adapter"));
         Arc::new(
             ProfDAGStorage::new(adapter, ProfDAGStorageConfig::default())
                 .await
@@ -63,10 +61,7 @@ mod hnsw_integration {
         // Search with base embedding - near nodes should rank higher
         let results = search.find_similar(&base, 5, 0.0).await.expect("search");
 
-        assert!(
-            !results.is_empty(),
-            "HNSW search returned no results"
-        );
+        assert!(!results.is_empty(), "HNSW search returned no results");
 
         // Top result should have high similarity (near node)
         assert!(
@@ -90,7 +85,9 @@ mod hnsw_integration {
         }
 
         // Force index build
-        let _ = search.find_similar(&normalized_embedding(128), 1, 0.0).await;
+        let _ = search
+            .find_similar(&normalized_embedding(128), 1, 0.0)
+            .await;
 
         // Benchmark
         let query = normalized_embedding(128);
@@ -159,15 +156,13 @@ mod hnsw_integration {
 
 mod storage_integration {
     use super::*;
+    use nagual::db::DualWriteAdapter;
     use nagual::profdag::storage::{ProfDAGStorage, ProfDAGStorageConfig};
     use nagual::profdag::{EdgeType, NodeType, ProfDAGEdge, ProfDAGNode};
-    use nagual::db::DualWriteAdapter;
 
     #[tokio::test]
     async fn test_node_crud_roundtrip() {
-        let adapter = Arc::new(
-            DualWriteAdapter::new_for_testing().expect("adapter"),
-        );
+        let adapter = Arc::new(DualWriteAdapter::new_for_testing().expect("adapter"));
         let storage = ProfDAGStorage::new(adapter, ProfDAGStorageConfig::default())
             .await
             .expect("storage");
@@ -189,9 +184,7 @@ mod storage_integration {
 
     #[tokio::test]
     async fn test_edge_crud_and_neighbor_query() {
-        let adapter = Arc::new(
-            DualWriteAdapter::new_for_testing().expect("adapter"),
-        );
+        let adapter = Arc::new(DualWriteAdapter::new_for_testing().expect("adapter"));
         let storage = ProfDAGStorage::new(adapter, ProfDAGStorageConfig::default())
             .await
             .expect("storage");
@@ -211,11 +204,11 @@ mod storage_integration {
 
         // Query neighbors
         let query = nagual::profdag::NeighborQuery::outgoing();
-        let neighbors = storage.get_neighbors(&id1, &query).await.expect("neighbors");
-        assert!(
-            !neighbors.is_empty(),
-            "No neighbors found for source node"
-        );
+        let neighbors = storage
+            .get_neighbors(&id1, &query)
+            .await
+            .expect("neighbors");
+        assert!(!neighbors.is_empty(), "No neighbors found for source node");
     }
 }
 
@@ -224,18 +217,15 @@ mod storage_integration {
 // ============================================================================
 
 mod trajectory_integration {
-    use nagual::profdag::{TrajectoryRecorder, RecordingSession};
     use nagual::learning::{Outcome, StepType, TrajectoryStep};
+    use nagual::profdag::{RecordingSession, TrajectoryRecorder};
 
     #[test]
     fn test_trajectory_record_complete_replay() {
         let recorder = TrajectoryRecorder::new();
 
         // Start trajectory
-        let traj_id = recorder.start(
-            "Fix database timeout",
-            Some("test-session".to_string()),
-        );
+        let traj_id = recorder.start("Fix database timeout", Some("test-session".to_string()));
 
         // Record steps (sync, no async)
         let step1 = TrajectoryStep::new(
@@ -244,7 +234,9 @@ mod trajectory_integration {
             "Finding timeout patterns",
             0.8,
         );
-        recorder.record_step(&traj_id, step1).expect("record step 1");
+        recorder
+            .record_step(&traj_id, step1)
+            .expect("record step 1");
 
         let step2 = TrajectoryStep::new(
             StepType::PatternApplication,
@@ -252,14 +244,17 @@ mod trajectory_integration {
             "Applying retry backoff",
             0.9,
         );
-        recorder.record_step(&traj_id, step2).expect("record step 2");
+        recorder
+            .record_step(&traj_id, step2)
+            .expect("record step 2");
 
         // Verify active
         assert!(recorder.is_active(&traj_id));
         assert_eq!(recorder.active_count(), 1);
 
         // Complete
-        let result = recorder.complete(&traj_id, Outcome::Success, 1.0)
+        let result = recorder
+            .complete(&traj_id, Outcome::Success, 1.0)
             .expect("complete trajectory");
 
         assert_eq!(result.outcome, Outcome::Success);
@@ -279,12 +274,7 @@ mod trajectory_integration {
         let recorder = TrajectoryRecorder::new();
         let traj_id = recorder.start("Abortable task", None);
 
-        let step = TrajectoryStep::new(
-            StepType::Decision,
-            vec![],
-            "Some decision",
-            0.5,
-        );
+        let step = TrajectoryStep::new(StepType::Decision, vec![], "Some decision", 0.5);
         recorder.record_step(&traj_id, step).unwrap();
 
         assert!(recorder.abort(&traj_id));
@@ -350,7 +340,10 @@ mod fastgrnn_integration {
         )
         .expect("backend should fall back to native");
 
-        assert!(backend.is_native(), "Should have fallen back to native backend");
+        assert!(
+            backend.is_native(),
+            "Should have fallen back to native backend"
+        );
 
         let score = backend
             .forward(&[0.5, 0.5, 0.5, 0.5, 0.5])
@@ -360,18 +353,11 @@ mod fastgrnn_integration {
 
     #[test]
     fn test_json_weights_loading() {
-        let json_path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/models/fastgrnn_router.json"
-        );
+        let json_path = concat!(env!("CARGO_MANIFEST_DIR"), "/models/fastgrnn_router.json");
 
         if std::path::Path::new(json_path).exists() {
-            let backend = FastGRNNBackend::load(
-                None,
-                Some(json_path),
-                FastGRNNConfig::default(),
-            )
-            .expect("load from JSON");
+            let backend = FastGRNNBackend::load(None, Some(json_path), FastGRNNConfig::default())
+                .expect("load from JSON");
 
             assert!(backend.is_native(), "JSON loads into native backend");
 

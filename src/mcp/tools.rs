@@ -922,7 +922,10 @@ mod tests {
     #[test]
     fn test_outcome_type() {
         assert_eq!(OutcomeType::Success.to_outcome_string(), "success");
-        assert_eq!(OutcomeType::PartialSuccess.to_outcome_string(), "partial_success");
+        assert_eq!(
+            OutcomeType::PartialSuccess.to_outcome_string(),
+            "partial_success"
+        );
         assert_eq!(OutcomeType::Neutral.to_outcome_string(), "neutral");
         assert_eq!(OutcomeType::Failure.to_outcome_string(), "failure");
     }

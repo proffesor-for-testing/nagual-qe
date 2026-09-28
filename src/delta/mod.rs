@@ -307,8 +307,7 @@ impl DeltaStore {
             None
         };
 
-        let diffs_json = serde_json::to_string(&field_diffs)
-            .unwrap_or_else(|_| "[]".to_string());
+        let diffs_json = serde_json::to_string(&field_diffs).unwrap_or_else(|_| "[]".to_string());
         let snapshot_json: Option<String> = snapshot
             .as_ref()
             .map(|s| serde_json::to_string(s).unwrap_or_else(|_| "{}".to_string()));
@@ -481,11 +480,7 @@ impl DeltaStore {
 
     /// Compute aggregate change velocity: number of field changes per day
     /// within the specified window.
-    pub async fn change_velocity(
-        &self,
-        pattern_id: &str,
-        window_days: u32,
-    ) -> Result<f64> {
+    pub async fn change_velocity(&self, pattern_id: &str, window_days: u32) -> Result<f64> {
         let pid = pattern_id.to_string();
 
         let diffs_strings: Vec<String> = if window_days == 0 {
@@ -516,8 +511,7 @@ impl DeltaStore {
         let total_changes: usize = diffs_strings
             .iter()
             .map(|diffs_str| {
-                let diffs: Vec<FieldDiff> =
-                    serde_json::from_str(diffs_str).unwrap_or_default();
+                let diffs: Vec<FieldDiff> = serde_json::from_str(diffs_str).unwrap_or_default();
                 diffs.len()
             })
             .sum();
@@ -566,7 +560,9 @@ impl DeltaStore {
                     let first_ts: Option<String> = row.get(4)?;
                     let last_ts: Option<String> = row.get(5)?;
                     let snapshots: i64 = row.get(6)?;
-                    Ok((total, creates, updates, deletes, first_ts, last_ts, snapshots))
+                    Ok((
+                        total, creates, updates, deletes, first_ts, last_ts, snapshots,
+                    ))
                 },
             )
             .await?;
@@ -663,8 +659,7 @@ fn row_to_delta(row: &rusqlite::Row<'_>) -> rusqlite::Result<PatternDelta> {
 
     let operation = DeltaOperation::from(op_str.as_str());
 
-    let field_diffs: Vec<FieldDiff> =
-        serde_json::from_str(&diffs_str).unwrap_or_default();
+    let field_diffs: Vec<FieldDiff> = serde_json::from_str(&diffs_str).unwrap_or_default();
 
     let snapshot = snapshot_str
         .filter(|s| !s.is_empty())
@@ -826,7 +821,11 @@ mod tests {
     #[test]
     fn test_apply_diffs_modify_field() {
         let state = serde_json::json!({"a": 1, "b": 2});
-        let diffs = vec![FieldDiff::new("a", serde_json::json!(1), serde_json::json!(10))];
+        let diffs = vec![FieldDiff::new(
+            "a",
+            serde_json::json!(1),
+            serde_json::json!(10),
+        )];
         let result = apply_diffs(&state, &diffs);
         assert_eq!(result, serde_json::json!({"a": 10, "b": 2}));
     }
@@ -883,9 +882,11 @@ mod tests {
             seq: 0,
             timestamp: Utc::now(),
             operation: DeltaOperation::Create,
-            field_diffs: vec![
-                FieldDiff::new("problem", serde_json::Value::Null, serde_json::json!("test")),
-            ],
+            field_diffs: vec![FieldDiff::new(
+                "problem",
+                serde_json::Value::Null,
+                serde_json::json!("test"),
+            )],
             agent_id: Some("agent-1".to_string()),
             snapshot: Some(serde_json::json!({"problem": "test"})),
         };
@@ -922,7 +923,13 @@ mod tests {
         let state = serde_json::json!({"problem": "test", "reward": 0.5});
 
         let delta = store
-            .record("pat-1", None, &state, DeltaOperation::Create, Some("agent-1"))
+            .record(
+                "pat-1",
+                None,
+                &state,
+                DeltaOperation::Create,
+                Some("agent-1"),
+            )
             .await
             .unwrap();
 
@@ -1149,10 +1156,7 @@ mod tests {
             .unwrap();
 
         // Reconstruct should return the create state
-        let result = store
-            .reconstruct_at("pat-1", Utc::now())
-            .await
-            .unwrap();
+        let result = store.reconstruct_at("pat-1", Utc::now()).await.unwrap();
         assert!(result.is_some());
         let state = result.unwrap();
         assert_eq!(state["problem"], "v1");
@@ -1181,10 +1185,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result = store
-            .reconstruct_at("pat-1", Utc::now())
-            .await
-            .unwrap();
+        let result = store.reconstruct_at("pat-1", Utc::now()).await.unwrap();
         assert!(result.is_some());
         let state = result.unwrap();
         assert_eq!(state["problem"], "v2");
@@ -1213,10 +1214,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result = store
-            .reconstruct_at("pat-1", Utc::now())
-            .await
-            .unwrap();
+        let result = store.reconstruct_at("pat-1", Utc::now()).await.unwrap();
         assert!(result.is_none());
     }
 

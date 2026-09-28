@@ -218,10 +218,7 @@ pub fn link_evidence(pattern_id: impl Into<String>, relevance_score: f64) -> Evi
 }
 
 /// Persist an evidence link to the database.
-pub async fn store_evidence_link(
-    db: Arc<SqliteDb>,
-    link: &EvidenceLink,
-) -> PredictionResult<()> {
+pub async fn store_evidence_link(db: Arc<SqliteDb>, link: &EvidenceLink) -> PredictionResult<()> {
     let sql = r#"
         INSERT INTO prediction_evidence (
             id, prediction_id, pattern_id, relevance_score,
