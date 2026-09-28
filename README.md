@@ -104,9 +104,10 @@ asciinema rec demo.cast -c 'bash scripts/demo.sh'
 ### Fastest path — no ONNX Runtime, no model files
 
 Needs only Rust and a C toolchain. Uses the built-in hash embedder (deterministic SHAKE-256,
-128-dim) instead of the ONNX sentence model, and includes the dashboard. This is the build the
+128-dim) instead of the ONNX sentence model, and includes the dashboard. Good for trying the
+learning loop, CI and minimal containers. (The
 [HUSTEF 2026 masterclass](https://github.com/proffesor-for-testing/hustef-2026-memory-masterclass)
-devcontainer uses.
+devcontainer uses the ONNX build below, so `knowledge search --semantic` works.)
 
 ```bash
 git clone https://github.com/proffesor-for-testing/nagual-qe
@@ -118,7 +119,7 @@ nagual status --db-path ./nagual.db
 nagual knowledge import --seed seeds/qe-seed-v1.jsonl --db-path ./nagual.db   # optional QE seed
 ```
 
-Semantic search quality is lower than with ONNX embeddings (hash vectors are not semantic);
+Hash vectors are not semantic, so `knowledge search --semantic` is of little use in this build;
 full-text search, the learning loop, scoring and the dashboard behave the same. Don't mix
 hash and ONNX embeddings in one database.
 
@@ -146,10 +147,17 @@ nagual knowledge search "flaky async"
 ```bash
 # Prereqs
 sudo apt-get install -y build-essential pkg-config libssl-dev sqlite3
-# ONNX Runtime (arm64 example — see docs/setup.md for x86_64)
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.17.0/onnxruntime-linux-aarch64-1.17.0.tgz
-tar xf onnxruntime-linux-aarch64-1.17.0.tgz
-sudo cp onnxruntime-linux-aarch64-1.17.0/lib/libonnxruntime.so* /usr/lib/ && sudo ldconfig
+# ONNX Runtime (arm64 example; x86_64: replace aarch64 with x64). Tested with 1.24.1.
+wget https://github.com/microsoft/onnxruntime/releases/download/v1.24.1/onnxruntime-linux-aarch64-1.24.1.tgz
+tar xf onnxruntime-linux-aarch64-1.24.1.tgz
+sudo cp onnxruntime-linux-aarch64-1.24.1/lib/libonnxruntime.so* /usr/lib/ && sudo ldconfig
+
+# Model (~90 MB): anywhere in $NAGUAL_MODEL_DIR, ./models or ~/.nagual/models
+mkdir -p ~/.nagual/models
+curl -L -o ~/.nagual/models/all-MiniLM-L6-v2.onnx \
+  https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx
+curl -L -o ~/.nagual/models/tokenizer.json \
+  https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json
 
 # Build
 cargo build --release
