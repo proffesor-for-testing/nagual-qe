@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   happen before pagination. Regression tests added.
 - **Log output** — JSON tracing lines go to stderr instead of stdout, so `nagual … | grep` sees only
   command output; `RUST_LOG` now fully controls the filter.
+- **`nagual serve` panicked on startup** after the axum 0.8 bump: path parameters used the 0.7 `:id`
+  syntax, which axum 0.8 rejects when the router is built. Routes now use `{id}`; the router is built in
+  `build_router()` and covered by tests (the handler tests never built it, so the suite stayed green).
+- **Local-only mode never engaged**: `serve` always opens an API-key store, so a fresh install with no
+  token, no keys and no dashboard users answered 401 to its own dashboard. Local-only now means: no master
+  token, no dashboard users, zero active keys (checked per request; fails closed on DB errors).
+- `learn record` printed `Reward: 0.20` (the outcome's target), which read as the pattern's new reward. It
+  now prints `Pattern reward: 0.500 -> 0.470 (moved toward 0.20 …)`; JSON adds `pattern_reward_before/after`.
+- Builds without `onnx-embed` no longer warn that `ORT_DYLIB_PATH` is missing on every command.
 - Router latency no longer truncates sub-microsecond decisions to 0 µs.
 - Flaky `test_high_dimensional_embeddings` (failed ~38% of runs on random fixtures) and the
   non-compiling `ml::lora` doctest.

@@ -30,6 +30,9 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 /// Check ONNX runtime environment before any ort code is touched.
 /// This prevents hangs when ORT_DYLIB_PATH is missing.
+/// Only compiled with `onnx-embed`: hash-embedder builds never load ONNX Runtime, so warning
+/// that "embeddings will not work" there is wrong (and noisy on every command).
+#[cfg(feature = "onnx-embed")]
 fn check_onnx_environment() {
     if std::env::var("ORT_DYLIB_PATH").is_err() {
         // Check common locations
@@ -61,6 +64,7 @@ fn check_onnx_environment() {
 /// initializing tokio or tracing infrastructure.
 fn main() {
     // Check ONNX environment early to prevent hangs
+    #[cfg(feature = "onnx-embed")]
     check_onnx_environment();
 
     // Parse CLI first - this handles --version and --help early,

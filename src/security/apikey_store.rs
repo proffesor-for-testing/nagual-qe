@@ -171,6 +171,23 @@ impl ApiKeyStore {
     }
 
     /// List all keys, optionally including revoked ones.
+    /// Whether at least one non-revoked key exists. Send-safe (usable from axum extractors),
+    /// unlike `list_keys`, whose `query` params are `&dyn ToSql`.
+    pub async fn has_active_keys(&self) -> Result<bool> {
+        self.db
+            .with_connection(|conn| {
+                let n: i64 = conn
+                    .query_row(
+                        "SELECT COUNT(*) FROM api_keys WHERE revoked_at IS NULL",
+                        [],
+                        |row| row.get(0),
+                    )
+                    .map_err(crate::error::DatabaseError::from)?;
+                Ok(n > 0)
+            })
+            .await
+    }
+
     pub async fn list_keys(&self, include_revoked: bool) -> Result<Vec<ApiKeyRecord>> {
         let sql = if include_revoked {
             "SELECT id, name, key_prefix, scopes, created_at, last_used_at, revoked_at, created_by

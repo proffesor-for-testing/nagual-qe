@@ -1,6 +1,7 @@
 //! Record command for pattern outcome tracking.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use clap::Args;
 
@@ -56,7 +57,11 @@ pub struct RecordArgs {
 struct RecordOutput {
     pattern_id: String,
     outcome: String,
+    /// Target reward of this outcome (0.9 success, 0.2 failure, ...), NOT the pattern's new reward.
     reward: f32,
+    /// The pattern's reward before and after this outcome was applied.
+    pattern_reward_before: Option<f32>,
+    pattern_reward_after: Option<f32>,
     feedback: Option<String>,
     latency_ms: Option<u64>,
     session_id: Option<String>,
@@ -128,8 +133,10 @@ pub async fn run(args: &RecordArgs) -> Result<()> {
         }
     }
 
-    let learner = SonaLearner::new(storage);
     let pattern_id = PatternId::from_string(&args.pattern_id);
+    let reward_of = |p: Option<crate::reasoning_bank::pattern::Pattern>| p.map(|p| p.reward());
+    let pattern_reward_before = reward_of(storage.get_pattern(&pattern_id).await.ok().flatten());
+    let learner = SonaLearner::new(Arc::clone(&storage));
 
     // Record the outcome using SonaLearner which persists to database
     let reward = match learner
@@ -168,11 +175,15 @@ pub async fn run(args: &RecordArgs) -> Result<()> {
         args.feedback.clone(),
     ));
 
+    let pattern_reward_after = reward_of(storage.get_pattern(&pattern_id).await.ok().flatten());
+
     let now = chrono::Utc::now();
     let record_output = RecordOutput {
         pattern_id: args.pattern_id.clone(),
         outcome: outcome.to_string(),
         reward,
+        pattern_reward_before,
+        pattern_reward_after,
         feedback: args.feedback.clone(),
         latency_ms: args.latency_ms,
         session_id: args.session_id.clone(),
@@ -188,7 +199,14 @@ pub async fn run(args: &RecordArgs) -> Result<()> {
         println!("{:-<50}", "");
         println!("Pattern ID: {}", record_output.pattern_id);
         println!("Outcome: {}", record_output.outcome);
-        println!("Reward: {:.2}", record_output.reward);
+        // "Reward: 0.20" alone was routinely misread as the pattern's new reward.
+        match (record_output.pattern_reward_before, record_output.pattern_reward_after) {
+            (Some(before), Some(after)) => println!(
+                "Pattern reward: {:.3} -> {:.3}  (moved toward {:.2}, this outcome's target)",
+                before, after, record_output.reward
+            ),
+            _ => println!("Outcome target reward: {:.2}", record_output.reward),
+        }
         if let Some(ref feedback) = record_output.feedback {
             println!("Feedback: {}", feedback);
         }
