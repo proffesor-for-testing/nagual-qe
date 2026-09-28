@@ -14,8 +14,9 @@
 //! # Usage
 //!
 //! ```rust,no_run
-//! use nagual::ml::lora::{LoraAdapter, LoraConfig, LoraTrainer, TrainingConfig};
+//! use nagual::ml::lora::{LoraAdapter, LoraConfig, LoraTrainer, TrainingConfig, TrainingPair};
 //!
+//! # let pairs: Vec<TrainingPair> = Vec::new();
 //! let config = LoraConfig::default();
 //! let mut adapter = LoraAdapter::new("rust", config);
 //!

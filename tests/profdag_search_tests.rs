@@ -753,17 +753,22 @@ mod edge_cases {
     fn test_high_dimensional_embeddings() {
         let mut index = TestSearchIndex::new();
         let dim = 1536; // High dimension like GPT embeddings
+        let base_embedding = normalized_embedding(dim);
 
         for i in 0..10 {
+            // Similar embeddings so every node passes the default min_similarity (0.0).
+            // Independent random vectors land on either side of 0 with ~50% odds each,
+            // which made this test fail ~38% of runs.
+            let emb = similar_embeddings(&base_embedding, 1, 0.3)[0].clone();
             index.add_node(SearchableNode::new(
                 format!("node-{}", i),
                 NodeType::Pattern,
                 format!("Content {}", i),
-                normalized_embedding(dim),
+                emb,
             ));
         }
 
-        let query = SearchQuery::new(normalized_embedding(dim), 5);
+        let query = SearchQuery::new(base_embedding, 5);
         let results = index.search(&query);
 
         assert_eq!(results.len(), 5);

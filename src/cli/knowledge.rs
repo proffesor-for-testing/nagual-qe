@@ -956,40 +956,54 @@ async fn run_delete(args: &DeleteArgs) -> Result<()> {
 async fn run_list(args: &ListArgs) -> Result<()> {
     tracing::info!("Listing knowledge items");
 
-    let patterns = if args.demo {
-        create_demo_patterns()
+    let results = if args.demo {
+        filter_sort_paginate(create_demo_patterns(), args)
     } else {
         // List from database
         let storage = init_storage(&args.db_path, args.postgres_url.as_deref()).await?;
+        let results = list_from_storage(&storage, args).await?;
 
-        // How many rows to pull before filtering/sorting in memory.
-        // Bug fix: `--limit` used to cap the DB fetch *before* the domain filter and the
-        // reward/usage/created sorts ran, so `--domain qe.flaky --limit 5` returned nothing
-        // unless a qe.flaky pattern happened to be among the 5 most recently updated.
-        // When a filter or a non-recency sort is requested, fetch everything and paginate
-        // after filtering; the cheap path is kept for the plain "most recent N" case.
-        let needs_full_scan = args.domain.is_some()
-            || !matches!(args.sort.as_str(), "updated" | "effectiveness");
-        let fetch_n = if needs_full_scan {
-            storage.count().await?.max(1)
-        } else {
-            args.limit + args.offset
-        };
-
-        // Get patterns based on sort criteria
-        let all_patterns = match args.sort.as_str() {
-            "effectiveness" if !needs_full_scan => storage.get_top_effective(fetch_n).await?,
-            _ => storage.get_recent(fetch_n).await?,
-        };
-
-        if all_patterns.is_empty() && !args.json {
-            println!("\nNo patterns found in database at: {}", args.db_path.display());
+        if results.is_empty() && !args.json {
+            match args.domain {
+                Some(ref domain) => println!("\nNo patterns in domain '{}' at: {}", domain, args.db_path.display()),
+                None => println!("\nNo patterns found in database at: {}", args.db_path.display()),
+            }
             println!("Use 'nagual knowledge store' to add patterns, or --demo for sample data.\n");
         }
 
-        all_patterns
+        results
     };
 
+    print_list(&results, args)
+}
+
+/// Fetch, filter, sort and paginate patterns for `knowledge list`.
+async fn list_from_storage(storage: &PatternStorage, args: &ListArgs) -> Result<Vec<Pattern>> {
+    // How many rows to pull before filtering/sorting in memory.
+    // Bug fix: `--limit` used to cap the DB fetch *before* the domain filter and the
+    // reward/usage/created sorts ran, so `--domain qe.flaky --limit 5` returned nothing
+    // unless a qe.flaky pattern happened to be among the 5 most recently updated.
+    // When a filter or a non-recency sort is requested, fetch everything and paginate
+    // after filtering; the cheap path is kept for the plain "most recent N" case.
+    let needs_full_scan = args.domain.is_some()
+        || !matches!(args.sort.as_str(), "updated" | "effectiveness");
+    let fetch_n = if needs_full_scan {
+        storage.count().await?.max(1)
+    } else {
+        args.limit + args.offset
+    };
+
+    // Get patterns based on sort criteria
+    let all_patterns = match args.sort.as_str() {
+        "effectiveness" if !needs_full_scan => storage.get_top_effective(fetch_n).await?,
+        _ => storage.get_recent(fetch_n).await?,
+    };
+
+    Ok(filter_sort_paginate(all_patterns, args))
+}
+
+/// Apply the domain filter, the requested sort and `--offset`/`--limit`, in that order.
+fn filter_sort_paginate(patterns: Vec<Pattern>, args: &ListArgs) -> Vec<Pattern> {
     // Filter by domain
     let mut results: Vec<_> = patterns
         .into_iter()
@@ -1042,8 +1056,10 @@ async fn run_list(args: &ListArgs) -> Result<()> {
     }
 
     // Paginate
-    let results: Vec<_> = results.into_iter().skip(args.offset).take(args.limit).collect();
+    results.into_iter().skip(args.offset).take(args.limit).collect()
+}
 
+fn print_list(results: &[Pattern], args: &ListArgs) -> Result<()> {
     if args.json {
         let output: Vec<KnowledgeListItem> = results
             .iter()
@@ -1065,7 +1081,7 @@ async fn run_list(args: &ListArgs) -> Result<()> {
         );
         println!("{:-<90}", "");
 
-        for pattern in &results {
+        for pattern in results {
             println!(
                 "{:<36}  {:<30}  {:>8.3}  {:>10}",
                 truncate(&pattern.id().to_string(), 36),
@@ -1631,6 +1647,102 @@ mod tests {
         ];
         let cli = TestCli::try_parse_from(args);
         assert!(cli.is_ok());
+    }
+
+    // ── `knowledge list` regression: --limit must apply AFTER --domain and the sort ──────────
+    // Before the fix, `--domain qe.flaky --limit 2 --sort reward` fetched only the 2 most recent
+    // rows from the DB and then filtered them, so it returned nothing whenever the domain's
+    // patterns were not among the newest.
+
+    fn list_args(domain: Option<&str>, sort: &str, limit: usize) -> ListArgs {
+        ListArgs {
+            domain: domain.map(str::to_string),
+            tags: vec![],
+            sort: sort.to_string(),
+            order: "desc".to_string(),
+            limit,
+            offset: 0,
+            db_path: PathBuf::from("unused-in-list_from_storage"),
+            postgres_url: None,
+            json: false,
+            demo: false,
+        }
+    }
+
+    /// 20 patterns across 3 domains. The 4 `qe.flaky` ones are the OLDEST rows, so any code
+    /// that applies the limit before filtering never sees them.
+    async fn seeded_storage(dir: &tempfile::TempDir) -> (PatternStorage, Vec<(String, f32)>) {
+        let storage = crate::cli::common::init_storage_sqlite_only(&dir.path().join("list.db"))
+            .await
+            .unwrap();
+        let base = chrono::Utc::now() - chrono::Duration::days(30);
+        let flaky_rewards = [0.35_f32, 0.92, 0.61, 0.78];
+        let mut flaky = Vec::new();
+        for i in 0..20 {
+            let (domain, reward) = match i {
+                0..=3 => ("qe.flaky", flaky_rewards[i]),
+                4..=11 => ("qe.regression", 0.5 + (i as f32) * 0.01),
+                _ => ("rust.async", 0.99),
+            };
+            let at = base + chrono::Duration::hours(i as i64);
+            let p = Pattern::builder()
+                .problem(format!("{domain} problem {i}"))
+                .solution(format!("{domain} solution {i}"))
+                .category(PatternCategory::from(domain))
+                .reward(reward)
+                .timestamp(at)
+                .updated_at(at)
+                .build();
+            if domain == "qe.flaky" {
+                flaky.push((p.id().to_string(), reward));
+            }
+            storage.store_pattern(&p).await.unwrap();
+        }
+        (storage, flaky)
+    }
+
+    #[tokio::test]
+    async fn test_list_domain_filter_applies_before_limit() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let (storage, mut flaky) = seeded_storage(&dir).await;
+
+        let got = list_from_storage(&storage, &list_args(Some("qe.flaky"), "reward", 2))
+            .await
+            .unwrap();
+
+        // The two highest-reward qe.flaky patterns, highest first.
+        flaky.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        let got_ids: Vec<String> = got.iter().map(|p| p.id().to_string()).collect();
+        assert_eq!(got_ids, vec![flaky[0].0.clone(), flaky[1].0.clone()]);
+        assert!(got.iter().all(|p| p.category().to_string() == "qe.flaky"));
+        assert!((got[0].reward() - 0.92).abs() < 1e-6, "got reward {}", got[0].reward());
+        assert!((got[1].reward() - 0.78).abs() < 1e-6, "got reward {}", got[1].reward());
+    }
+
+    #[tokio::test]
+    async fn test_list_reward_sort_sees_all_rows_without_domain() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let (storage, _) = seeded_storage(&dir).await;
+
+        // Without a domain filter the top rewards (0.99, rust.async) are among the newest rows,
+        // so check the other direction: ascending reward must surface the OLDEST row (0.35).
+        let mut args = list_args(None, "reward", 1);
+        args.order = "asc".to_string();
+        let got = list_from_storage(&storage, &args).await.unwrap();
+
+        assert_eq!(got.len(), 1);
+        assert!((got[0].reward() - 0.35).abs() < 1e-6, "got reward {}", got[0].reward());
+    }
+
+    #[tokio::test]
+    async fn test_list_plain_recent_keeps_fast_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let (storage, _) = seeded_storage(&dir).await;
+
+        let got = list_from_storage(&storage, &list_args(None, "updated", 3)).await.unwrap();
+
+        assert_eq!(got.len(), 3);
+        assert!(got.iter().all(|p| p.category().to_string() == "rust.async"));
     }
 
     #[test]
