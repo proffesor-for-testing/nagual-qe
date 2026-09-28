@@ -161,6 +161,10 @@ pub struct RecordOutcomeInput {
     /// Optional feedback
     #[serde(default)]
     pub feedback: Option<String>,
+    /// Failure classification (failures only): specification, misalignment, verification,
+    /// resource, security, unknown. A security failure costs -0.30 instead of -0.15.
+    #[serde(default)]
+    pub failure_mode: Option<String>,
     /// Confidence in the assessment (0.0-1.0)
     #[serde(default)]
     pub confidence: Option<f32>,
@@ -644,6 +648,11 @@ pub fn nagual_record_outcome() -> ToolDefinition {
                 "feedback": {
                     "type": "string",
                     "description": "Optional feedback or notes about the outcome"
+                },
+                "failure_mode": {
+                    "type": "string",
+                    "enum": ["specification", "misalignment", "verification", "resource", "security", "unknown"],
+                    "description": "For failures: why it failed. 'security' (leaked data, weakened a control) costs twice an ordinary failure"
                 },
                 "confidence": {
                     "type": "number",

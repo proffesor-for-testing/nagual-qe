@@ -34,8 +34,8 @@ pub struct RecordArgs {
     #[arg(long)]
     pub session_id: Option<String>,
 
-    /// Failure mode classification (MAST taxonomy).
-    /// Options: specification, misalignment, verification, resource, unknown.
+    /// Failure classification: the MAST classes (specification, misalignment, verification,
+    /// resource, unknown) plus `security`. A security failure costs -0.30 instead of -0.15.
     #[arg(long)]
     pub failure_mode: Option<String>,
 
@@ -120,17 +120,11 @@ pub async fn run(args: &RecordArgs) -> Result<()> {
         }
     };
 
-    // Set failure mode on the pattern if outcome is failure and --failure-mode is provided
-    if let Some(ref mode_str) = args.failure_mode {
-        let mode = FailureMode::from(mode_str.as_str());
-        let pattern_id_for_mode = PatternId::from_string(&args.pattern_id);
-        if let Ok(Some(mut pattern)) = storage.get_pattern(&pattern_id_for_mode).await {
-            pattern.set_failure_mode(mode);
-            let _ = storage.update_pattern(&pattern).await;
-            if args.verbose {
-                println!("Failure mode set: {}", mode_str);
-            }
-        }
+    // The failure mode is passed to the learner: it is stored on the pattern and decides the size
+    // of the penalty (security failures cost twice an ordinary failure).
+    let failure_mode = args.failure_mode.as_deref().map(FailureMode::from);
+    if failure_mode.is_some() && outcome != Outcome::Failure {
+        eprintln!("Note: --failure-mode only applies to failures; ignored for '{}'.", outcome);
     }
 
     let pattern_id = PatternId::from_string(&args.pattern_id);
@@ -140,7 +134,7 @@ pub async fn run(args: &RecordArgs) -> Result<()> {
 
     // Record the outcome using SonaLearner which persists to database
     let reward = match learner
-        .record_outcome(&pattern_id, outcome, args.feedback.clone())
+        .record_outcome_classified(&pattern_id, outcome, args.feedback.clone(), failure_mode.clone())
         .await
     {
         Ok(r) => r,
@@ -201,10 +195,15 @@ pub async fn run(args: &RecordArgs) -> Result<()> {
         println!("Outcome: {}", record_output.outcome);
         // "Reward: 0.20" alone was routinely misread as the pattern's new reward.
         match (record_output.pattern_reward_before, record_output.pattern_reward_after) {
-            (Some(before), Some(after)) => println!(
-                "Pattern reward: {:.3} -> {:.3}  (moved toward {:.2}, this outcome's target)",
-                before, after, record_output.reward
-            ),
+            (Some(before), Some(after)) => {
+                let step = crate::learning::reward_step(outcome, failure_mode.clone());
+                let why = match (outcome, &failure_mode) {
+                    (Outcome::Failure, Some(FailureMode::SecurityIssue)) => "security failure".to_string(),
+                    (Outcome::Failure, _) => "failure".to_string(),
+                    (o, _) => o.to_string(),
+                };
+                println!("Pattern reward: {:.2} -> {:.2}  ({} {:+.2})", before, after, why, step);
+            }
             _ => println!("Outcome target reward: {:.2}", record_output.reward),
         }
         if let Some(ref feedback) = record_output.feedback {

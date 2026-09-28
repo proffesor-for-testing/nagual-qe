@@ -395,6 +395,13 @@ impl ComplexityEstimator {
                 "Empty embedding".to_string(),
             ));
         }
+        // A NaN/inf component made the complexity NaN; every threshold comparison is then false,
+        // so the selector fell through to its most expensive tier (Claude). Reject at the boundary.
+        if embedding.iter().any(|x| !x.is_finite()) {
+            return Err(super::RouterError::FeatureExtraction(
+                "Embedding contains NaN or infinite values".to_string(),
+            ));
+        }
 
         let arr = Array1::from_vec(embedding.to_vec());
         let norm = arr.dot(&arr).sqrt();

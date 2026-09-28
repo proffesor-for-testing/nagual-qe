@@ -805,11 +805,29 @@ impl ToolExecutor for RecordOutcomeExecutor {
 
         let pattern_id = PatternId::from_string(&input.pattern_id);
 
+        let failure_mode = match (outcome, input.failure_mode.as_deref()) {
+            (Outcome::Failure, Some(fm)) => {
+                Some(crate::reasoning_bank::pattern::FailureMode::from(fm))
+            }
+            _ => None,
+        };
+
         // Record the outcome
         let reward = learner
-            .record_outcome(&pattern_id, outcome, input.feedback.clone())
+            .record_outcome_classified(&pattern_id, outcome, input.feedback.clone(), failure_mode)
             .await
             .map_err(|e| McpError::ExecutionFailed(format!("Failed to record outcome: {}", e)))?;
+
+        // Report the pattern's actual state after the update (this used to echo the outcome's
+        // target reward as both new_reward and new_effectiveness).
+        let updated = learner
+            .storage()
+            .get_pattern(&pattern_id)
+            .await
+            .map_err(|e| McpError::ExecutionFailed(format!("Failed to read pattern: {}", e)))?;
+        let (new_reward, new_effectiveness) = updated
+            .map(|p| (p.reward(), p.effectiveness()))
+            .unwrap_or((reward, reward));
 
         // Publish event
         context.publish_event(NagualEvent::outcome_recorded(
@@ -822,8 +840,8 @@ impl ToolExecutor for RecordOutcomeExecutor {
         let output = RecordOutcomeOutput {
             success: true,
             reward,
-            new_effectiveness: reward, // Simplified - would get from updated pattern
-            new_reward: reward,
+            new_effectiveness,
+            new_reward,
             message: format!("Outcome recorded for pattern {}", input.pattern_id),
         };
 

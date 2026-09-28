@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.2.0] - 2026-09-28
 
+### Changed — learning
+- **One reward rule for every write path, asymmetric by design**: success `+0.10`, partial `+0.05`,
+  neutral `0`, failure `-0.15`, **security failure `-0.30`** (clamped to [0, 1]); see
+  `learning::reward_step`. The CLI used to move reward by an EMA toward 0.9/0.2 (one failure cost
+  about as much as one success earned: 0.50 → 0.47 vs 0.47 → 0.51) while the HTTP API used its own
+  `+0.10/-0.15`. Effectiveness still uses the EMA.
+- New failure class `security` (`--failure-mode security`, HTTP and MCP `failure_mode`), alongside
+  the five MAST classes.
+- HTTP `POST /api/patterns/{id}/outcome` now accepts `partial`/`neutral`, rejects unknown outcomes with
+  400 (a typo used to count as a failure), and updates the Bayesian score like the CLI.
+- MCP `nagual_record_outcome` accepts `failure_mode` and returns the pattern's actual new reward and
+  effectiveness (it echoed the outcome's target reward for both).
+
 ### Fixed
 - **Build on `master`** — restored after dependabot major bumps: SHAKE-256 now comes from the
   `shake` crate (sha3 0.12 dropped the XOFs); the four self-owned dynamic SQL sites are wrapped in
@@ -29,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   returned 500 on every fresh local install. The column is now detected.
 - `learn record` printed `Reward: 0.20` (the outcome's target), which read as the pattern's new reward. It
   now prints `Pattern reward: 0.500 -> 0.470 (moved toward 0.20 …)`; JSON adds `pattern_reward_before/after`.
+- **Router tests tested a mock.** `tests/router_tests.rs` defined its own ~530-line `Router` and tested
+  that; two of its tests contradicted the mock. Rewritten against the production `VendorRouter`,
+  `VendorSelector`, `ComplexityEstimator` and `FastGRNN` (49 tests incl. property tests).
+- Router: an embedding containing NaN/inf produced complexity NaN and routed to the most expensive tier;
+  it is now rejected at feature extraction.
 - Builds without `onnx-embed` no longer warn that `ORT_DYLIB_PATH` is missing on every command.
 - Router latency no longer truncates sub-microsecond decisions to 0 µs.
 - Flaky `test_high_dimensional_embeddings` (failed ~38% of runs on random fixtures) and the
@@ -47,9 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - README: documented the no-ONNX build path (`--no-default-features --features "kos serve"`).
 
 ### Known issues
-- `tests/router_tests.rs`: `test_text_complexity_estimation` and
-  `test_vendor_selection_high_complexity` fail. Both exercise a reference router defined inside the
-  test file, not `src/router`; the in-file model and its assertions disagree. Needs a decision on which side is right.
+- The pretrained router FastGRNN scores almost every query 0.47–0.53, not the documented ~0.2 (short
+  queries) / ~0.8+ (complex reasoning), so `VendorRouter::route` barely discriminates. Library API only;
+  not used by the CLI, `serve` or MCP. `VendorConfig::cloud_threshold` is not used by `select`.
 
 ## [0.1.0] - 2026-04-21
 

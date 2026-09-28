@@ -16,6 +16,7 @@ use crate::error::NagualError;
 #[allow(unused_imports)]
 use rusqlite;
 use crate::events::NagualEvent;
+use crate::learning::{apply_reward_step, Outcome};
 use crate::reasoning_bank::pattern::{FailureMode, Pattern, PatternCategory, PatternId};
 
 /// API error wrapper mapping NagualError to HTTP status codes.
@@ -93,7 +94,7 @@ fn default_search_limit() -> usize {
 /// Request body for recording an outcome.
 #[derive(Debug, Deserialize)]
 pub struct RecordOutcomeRequest {
-    /// "success" or "failure"
+    /// "success", "partial", "neutral" or "failure"
     pub outcome: String,
     #[serde(default)]
     pub feedback: Option<String>,
@@ -352,34 +353,43 @@ pub async fn api_record_outcome(
         .await?
         .ok_or_else(|| NagualError::internal(format!("Pattern not found: {}", id)))?;
 
-    let is_success = req.outcome.eq_ignore_ascii_case("success");
-
-    // Update reward: boost on success, decay on failure
-    let current_reward = pattern.reward();
-    let new_reward = if is_success {
-        (current_reward + 0.1).min(1.0)
-    } else {
-        (current_reward - 0.15).max(0.0)
+    let outcome = match req.outcome.to_lowercase().as_str() {
+        "success" | "partial" | "partial_success" | "neutral" | "failure" | "failed" => {
+            Outcome::from(req.outcome.as_str())
+        }
+        _ => {
+            let body = serde_json::json!({
+                "error": "outcome must be one of: success, partial, neutral, failure",
+                "outcome": req.outcome,
+            });
+            return Ok((StatusCode::BAD_REQUEST, Json(body)).into_response());
+        }
+    };
+    let is_success = outcome.is_successful();
+    let failure_mode = match (outcome, req.failure_mode.as_deref()) {
+        (Outcome::Failure, Some(fm)) => Some(FailureMode::from(fm)),
+        _ => None,
     };
 
+    // Same rule as the CLI (`learning::reward_step`): +0.10 success, +0.05 partial,
+    // -0.15 failure, -0.30 security failure. This handler used to carry its own copy.
+    let new_reward = apply_reward_step(pattern.reward(), outcome, failure_mode.clone());
     pattern.set_reward(new_reward);
     pattern.set_success(is_success);
+
+    // Bayesian quality score, as in the CLI path (previously skipped here).
+    match outcome {
+        Outcome::Success | Outcome::PartialSuccess => pattern.bayesian_score_mut().upvote(),
+        Outcome::Failure => pattern.bayesian_score_mut().downvote(),
+        Outcome::Neutral => {}
+    }
 
     if let Some(ref feedback) = req.feedback {
         pattern.set_critique(feedback);
     }
 
-    if !is_success {
-        if let Some(ref fm) = req.failure_mode {
-            let mode = match fm.to_lowercase().as_str() {
-                "specification" => FailureMode::SpecificationIssue,
-                "misalignment" => FailureMode::InterAgentMisalignment,
-                "verification" => FailureMode::TaskVerification,
-                "resource" => FailureMode::ResourceIssue,
-                _ => FailureMode::Unknown,
-            };
-            pattern.set_failure_mode(mode);
-        }
+    if let Some(mode) = failure_mode {
+        pattern.set_failure_mode(mode);
     }
 
     storage.update_pattern(&pattern).await?;
@@ -403,7 +413,8 @@ pub async fn api_record_outcome(
         "outcome": req.outcome,
         "reward": new_reward,
         "status": "recorded",
-    })))
+    }))
+    .into_response())
 }
 
 /// PUT /api/patterns/:id — Update pattern fields (auth required).
@@ -495,6 +506,81 @@ pub async fn api_update_pattern(
         "status": "updated",
         "pattern": resp,
     })))
+}
+
+#[cfg(test)]
+mod outcome_tests {
+    use super::*;
+    use crate::serve::auth::AuthIdentity;
+    use std::sync::Arc;
+    use tokio::sync::Mutex as TokioMutex;
+
+    async fn state_with_pattern() -> (tempfile::TempDir, AppState, String) {
+        let dir = tempfile::TempDir::new().unwrap();
+        let db_path = dir.path().join("api.db");
+        let storage = crate::cli::common::init_storage_sqlite_only(&db_path).await.unwrap();
+        let pattern = Pattern::builder().problem("p").solution("s").build(); // reward 0.5
+        let id = pattern.id().to_string();
+        storage.store_pattern(&pattern).await.unwrap();
+        let state = AppState {
+            db_path,
+            event_bus: Arc::new(crate::events::EventBus::new()),
+            storage: Some(Arc::new(TokioMutex::new(storage))),
+            auth_token: None,
+            key_store: None,
+            user_store: None,
+            session_secret: vec![0u8; 32],
+            login_required: false,
+        };
+        (dir, state, id)
+    }
+
+    async fn post(state: &AppState, id: &str, outcome: &str, mode: Option<&str>) -> (StatusCode, serde_json::Value) {
+        let req = RecordOutcomeRequest {
+            outcome: outcome.to_string(),
+            feedback: None,
+            failure_mode: mode.map(str::to_string),
+        };
+        let resp = api_record_outcome(
+            State(state.clone()),
+            RequireWrite(AuthIdentity::LocalOnly),
+            Path(id.to_string()),
+            Json(req),
+        )
+        .await
+        .map_err(|_| "handler error")
+        .unwrap()
+        .into_response();
+        let status = resp.status();
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        (status, serde_json::from_slice(&body).unwrap())
+    }
+
+    fn reward(v: &serde_json::Value) -> f64 {
+        v["reward"].as_f64().unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_api_outcome_uses_shared_reward_rule() {
+        let (_dir, state, id) = state_with_pattern().await;
+
+        let (s, v) = post(&state, &id, "failure", Some("security")).await;
+        assert_eq!(s, StatusCode::OK);
+        assert!((reward(&v) - 0.20).abs() < 1e-5, "security failure: 0.50 -> 0.20, got {v}");
+
+        let (_, v) = post(&state, &id, "partial", None).await;
+        assert!((reward(&v) - 0.25).abs() < 1e-5, "partial is a success step (+0.05), got {v}");
+
+        let (_, v) = post(&state, &id, "failure", Some("verification")).await;
+        assert!((reward(&v) - 0.10).abs() < 1e-5, "ordinary failure: -0.15, got {v}");
+    }
+
+    #[tokio::test]
+    async fn test_api_outcome_rejects_unknown_outcome() {
+        let (_dir, state, id) = state_with_pattern().await;
+        let (s, _) = post(&state, &id, "succes", None).await; // typo used to count as a failure
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
 }
 
 #[cfg(test)]

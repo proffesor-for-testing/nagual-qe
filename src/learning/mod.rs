@@ -121,6 +121,10 @@ pub use sona::{
     get_meta_cognitive_status, Outcome, OutcomeLog, OutcomeRecord, RewardModifiers, SonaConfig,
     SonaLearner, SonaStats,
 };
+pub use sona::{
+    apply_reward_step, reward_step, REWARD_STEP_FAILURE, REWARD_STEP_PARTIAL,
+    REWARD_STEP_SECURITY_FAILURE, REWARD_STEP_SUCCESS,
+};
 
 // Re-export A/B testing types
 pub use ab_testing::{

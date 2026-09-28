@@ -138,6 +138,10 @@ pub enum FailureMode {
     TaskVerification,
     /// Resource/environment issues: timeouts, OOM, external dependency failures
     ResourceIssue,
+    /// Security failure: the pattern leaked data, weakened a control, or introduced a
+    /// vulnerability. Not a MAST class — added because it must cost more than an ordinary
+    /// failure (see `learning::sona::reward_step`).
+    SecurityIssue,
     /// Unknown or unclassified failure
     Unknown,
 }
@@ -149,6 +153,7 @@ impl std::fmt::Display for FailureMode {
             FailureMode::InterAgentMisalignment => write!(f, "inter_agent_misalignment"),
             FailureMode::TaskVerification => write!(f, "task_verification"),
             FailureMode::ResourceIssue => write!(f, "resource_issue"),
+            FailureMode::SecurityIssue => write!(f, "security_issue"),
             FailureMode::Unknown => write!(f, "unknown"),
         }
     }
@@ -161,6 +166,7 @@ impl From<&str> for FailureMode {
             "inter_agent_misalignment" | "misalignment" | "coordination" => FailureMode::InterAgentMisalignment,
             "task_verification" | "verification" | "output" => FailureMode::TaskVerification,
             "resource_issue" | "resource" | "timeout" | "oom" => FailureMode::ResourceIssue,
+            "security_issue" | "security" | "vulnerability" | "leak" => FailureMode::SecurityIssue,
             _ => FailureMode::Unknown,
         }
     }
